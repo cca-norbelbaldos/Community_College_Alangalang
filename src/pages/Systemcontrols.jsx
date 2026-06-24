@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { showToast } from "../components/Toast";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#2E7D32";
@@ -66,12 +67,12 @@ export default function SystemControls({ onConfigUpdated }) {
       });
 
       if (res.ok) {
-        alert("System environment variables updated successfully!");
+        showToast("System configuration saved!", "success");
         if (typeof onConfigUpdated === "function") {
-          onConfigUpdated(); // Notify Dashboard layer to redraw routers
+          onConfigUpdated();
         }
       } else {
-        alert("Failed to commit operational profile values.");
+        showToast("Failed to save system configuration.", "error");
       }
     } catch (err) {
       console.error("Transmission layout runtime crash:", err);

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
+import { showToast, showConfirm } from "../components/Toast";
 
 const GREEN      = "#2E7D32";
 const DARK_GREEN = "#1B5E20";
@@ -125,17 +126,24 @@ function StudentInfoCard({ student, enrollments, subjects, assignedSubjectIds = 
   // Admin-only: delete a saved grade record, which unlocks that subject for editing again.
   const deleteGrade = async (uid, g) => {
     if (!g.id) return;
-    if (!window.confirm("Delete this saved grade? The subject will become editable again.")) return;
-    try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/erd/grades/${g.id}`, { method: "DELETE" });
-    } catch (_) {}
-    setGradeMap(prev => {
-      const list = prev[uid] || [];
-      const idx  = list.findIndex(gr => gr.subject_id === g.subject_id);
-      if (idx === -1) return prev;
-      const next = [...list];
-      next[idx] = { ...next[idx], id: undefined, grade: "", remarks: "", _justSaved: false };
-      return { ...prev, [uid]: next };
+    showConfirm({
+      message: "Delete this saved grade? The subject will become editable again.",
+      confirmLabel: "Delete",
+      icon: "🗑️",
+      onConfirm: async () => {
+        try {
+          await fetch(`${import.meta.env.VITE_API_URL}/api/erd/grades/${g.id}`, { method: "DELETE" });
+          showToast("Grade deleted.", "info");
+        } catch (_) {}
+        setGradeMap(prev => {
+          const list = prev[uid] || [];
+          const idx  = list.findIndex(gr => gr.subject_id === g.subject_id);
+          if (idx === -1) return prev;
+          const next = [...list];
+          next[idx] = { ...next[idx], id: undefined, grade: "", remarks: "", _justSaved: false };
+          return { ...prev, [uid]: next };
+        });
+      },
     });
   };
 
@@ -502,23 +510,28 @@ export default function AddStudents({ user = {} }) {
   // Real (server-persisted) records are deleted via the API; locally queued
   // records (id starting with "local-", used as an offline fallback) are just
   // dropped from client state.
-  const deleteEnrollment = async (enr) => {
-    if (!window.confirm(`Delete this enrollment record — ${enr.year_level} — ${enr.semester}, S.Y. ${enr.year_enrolled}–${parseInt(enr.year_enrolled) + 1}? This cannot be undone.`)) return;
-
-    if (enr.id && !String(enr.id).startsWith("local-")) {
-      try {
-        await fetch(`${import.meta.env.VITE_API_URL}/api/erd/enrollments/${enr.id}`, { method: "DELETE" });
-      } catch (_) {}
-    }
-
-    setViewEnrollments(prev => prev.filter(e => e.id !== enr.id));
-    const studentId = viewStudent?.id ?? enr.student_id;
-    if (studentId != null) {
-      setLocalEnrollments(prev => ({
-        ...prev,
-        [studentId]: (prev[studentId] || []).filter(e => e.id !== enr.id)
-      }));
-    }
+  const deleteEnrollment = (enr) => {
+    showConfirm({
+      message: `Delete enrollment record — ${enr.year_level} — ${enr.semester}, S.Y. ${enr.year_enrolled}–${parseInt(enr.year_enrolled) + 1}? This cannot be undone.`,
+      confirmLabel: "Delete",
+      icon: "🗑️",
+      onConfirm: async () => {
+        if (enr.id && !String(enr.id).startsWith("local-")) {
+          try {
+            await fetch(`${import.meta.env.VITE_API_URL}/api/erd/enrollments/${enr.id}`, { method: "DELETE" });
+            showToast("Enrollment record deleted.", "info");
+          } catch (_) {}
+        }
+        setViewEnrollments(prev => prev.filter(e => e.id !== enr.id));
+        const studentId = viewStudent?.id ?? enr.student_id;
+        if (studentId != null) {
+          setLocalEnrollments(prev => ({
+            ...prev,
+            [studentId]: (prev[studentId] || []).filter(e => e.id !== enr.id)
+          }));
+        }
+      },
+    });
   };
 
   const openEnrollModal = (student) => {

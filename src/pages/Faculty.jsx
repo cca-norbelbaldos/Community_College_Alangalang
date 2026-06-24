@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { showToast, showConfirm } from "../components/Toast";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#2E7D32";
@@ -123,14 +124,19 @@ export default function Faculty() {
     }
   };
 
-  const handleDeleteFaculty = async (id) => {
-    if (!window.confirm("Purge instructor identity node permanently from register?")) return;
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/faculty/${id}`, { method: "DELETE" });
-      if (res.ok) fetchInstructors();
-    } catch (err) {
-      console.error(err);
-    }
+  const handleDeleteFaculty = (id) => {
+    showConfirm({
+      message: "Remove this instructor from the register? This cannot be undone.",
+      confirmLabel: "Remove",
+      icon: "🗑️",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/faculty/${id}`, { method: "DELETE" });
+          if (res.ok) { showToast("Instructor removed.", "info"); fetchInstructors(); }
+          else showToast("Failed to remove instructor.", "error");
+        } catch { showToast("Network error.", "error"); }
+      },
+    });
   };
 
   const handleAssignedSubject = async (faculty) => {

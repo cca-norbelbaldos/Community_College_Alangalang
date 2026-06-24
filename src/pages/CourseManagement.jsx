@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { showToast, showConfirm } from "../components/Toast";
 
 const GREEN      = "#2E7D32";
 const DARK_GREEN = "#1B5E20";
@@ -41,6 +42,7 @@ export default function CourseManagement() {
         body: JSON.stringify({ course: newCourse.trim() }),
       });
       if (res.ok) {
+        showToast("Course added successfully!", "success");
         setNewCourse("");
         fetchCourses();
       } else {
@@ -54,14 +56,19 @@ export default function CourseManagement() {
     }
   };
 
-  const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/courses/${id}`, { method: "DELETE" });
-      if (res.ok) fetchCourses();
-    } catch (err) {
-      console.error(err);
-    }
+  const handleDelete = (id, name) => {
+    showConfirm({
+      message: `Delete course "${name}"? This cannot be undone.`,
+      confirmLabel: "Delete",
+      icon: "🗑️",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/courses/${id}`, { method: "DELETE" });
+          if (res.ok) { showToast(`Course "${name}" deleted.`, "info"); fetchCourses(); }
+          else showToast("Failed to delete course.", "error");
+        } catch { showToast("Network error.", "error"); }
+      },
+    });
   };
 
   return (

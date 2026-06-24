@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { showToast, showConfirm } from "../components/Toast";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#2E7D32";
@@ -122,7 +123,7 @@ export default function Registrar() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_id: selectedStudent.id, grades: validPayload })
       });
-      if (res.ok) { alert("Grades saved."); selectStudentWorksheet(selectedStudent); }
+      if (res.ok) { showToast("Grades saved successfully!", "success"); selectStudentWorksheet(selectedStudent); }
     } catch (err) { console.error(err); } finally { setSavingGrades(false); }
   };
 
@@ -144,12 +145,19 @@ export default function Registrar() {
     return true;
   });
 
-  const triggerSubjectDeletion = async (id) => {
-    if (!window.confirm("Delete this subject?")) return;
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/subjects/${id}`, { method: "DELETE" });
-      if (res.ok) fetchBaselineDirectory();
-    } catch (err) { console.error(err); }
+  const triggerSubjectDeletion = (id) => {
+    showConfirm({
+      message: "Delete this subject? This cannot be undone.",
+      confirmLabel: "Delete",
+      icon: "🗑️",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/subjects/${id}`, { method: "DELETE" });
+          if (res.ok) { showToast("Subject deleted.", "info"); fetchBaselineDirectory(); }
+          else showToast("Failed to delete subject.", "error");
+        } catch { showToast("Network error.", "error"); }
+      },
+    });
   };
 
   const handleStudentSubmit = async (e) => {
@@ -202,19 +210,26 @@ export default function Registrar() {
           setStudentQr({ payload, name: fullName, studentNumber: studentForm.student_number });
         }
       }
-      else alert("Failed to save student.");
+      else showToast("Failed to save student. Please try again.", "error");
     } catch (err) { console.error(err); } finally { setSavingStudent(false); }
   };
 
-  const triggerStudentDeletion = async (student) => {
-    if (!window.confirm(`Remove ${student.first_name} ${student.last_name}?`)) return;
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/students/${student.id}`, { method: "DELETE" });
-      if (res.ok) {
-        if (selectedStudent?.id === student.id) { setSelectedStudent(null); setStudentGrades([]); }
-        fetchBaselineDirectory();
-      }
-    } catch (err) { console.error(err); }
+  const triggerStudentDeletion = (student) => {
+    showConfirm({
+      message: `Remove ${student.first_name} ${student.last_name} from the register? This cannot be undone.`,
+      confirmLabel: "Remove",
+      icon: "🗑️",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/students/${student.id}`, { method: "DELETE" });
+          if (res.ok) {
+            showToast(`${student.first_name} ${student.last_name} removed.`, "info");
+            if (selectedStudent?.id === student.id) { setSelectedStudent(null); setStudentGrades([]); }
+            fetchBaselineDirectory();
+          } else showToast("Failed to remove student.", "error");
+        } catch { showToast("Network error.", "error"); }
+      },
+    });
   };
 
   const filteredStudents = students.filter(s =>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { showToast, showConfirm } from "../components/Toast";
 
 const GREEN      = "#2E7D32";
 const DARK_GREEN = "#1B5E20";
@@ -68,19 +69,27 @@ export default function Designation() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: form.name, description: form.description })
       });
-      if (res.ok) { setShowModal(false); setForm(EMPTY_FORM); fetchDesignations(); }
-      else { const d = await res.json(); setError(d.message || "Failed to save designation."); }
+      if (res.ok) {
+        showToast(editingId ? "Designation updated!" : "Designation added!", "success");
+        setShowModal(false); setForm(EMPTY_FORM); fetchDesignations();
+      } else { const d = await res.json(); setError(d.message || "Failed to save designation."); }
     } catch (err) { console.error(err); setError("Could not reach the server."); }
     finally { setSubmitting(false); }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this designation? This cannot be undone.")) return;
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/designations/${id}`, { method: "DELETE" });
-      if (res.ok) fetchDesignations();
-      else { const d = await res.json(); alert(d.message || "Failed to delete designation."); }
-    } catch (err) { console.error(err); }
+  const handleDelete = (id) => {
+    showConfirm({
+      message: "Delete this designation? This cannot be undone.",
+      confirmLabel: "Delete",
+      icon: "🗑️",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/designations/${id}`, { method: "DELETE" });
+          if (res.ok) { showToast("Designation deleted.", "info"); fetchDesignations(); }
+          else { const d = await res.json(); showToast(d.message || "Failed to delete designation.", "error"); }
+        } catch { showToast("Could not reach the server.", "error"); }
+      },
+    });
   };
 
   const filteredDesignations = designations.filter(d =>

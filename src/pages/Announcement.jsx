@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { showToast } from "../components/Toast";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#2E7D32";
@@ -53,7 +54,7 @@ export default function Announcements({ user, onPosted }) {
   // FIXED: ADD ANNOUNCEMENT POST METHOD TO DB TARGET
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.body.trim()) return alert("Please fill out all required text fields.");
+    if (!form.title.trim() || !form.body.trim()) { showToast("Please fill in Title and Body.", "warning"); return; }
 
     setSubmitting(true);
     try {
@@ -64,13 +65,13 @@ export default function Announcements({ user, onPosted }) {
       });
 
       if (res.ok) {
-        alert("Announcement successfully committed to database storage cluster!");
+        showToast("Announcement posted successfully!", "success");
         clearForm();
         if (typeof onPosted === "function") {
-          onPosted(); // Automatically redirects back to Workspace Overview tab view
+          onPosted();
         }
       } else {
-        alert("Failed to save announcement record.");
+        showToast("Failed to save announcement. Please try again.", "error");
       }
     } catch (err) {
       console.error("Network communication error:", err);

@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef } from "react";
-import Overview from "./Overview";
-import UserManagementModule from "./UserManagementModule";
-import RolesManagementModule from "./RolesManagementModule";
-import CourseManagement from "./CourseManagement";
-import AddStudents from "./AddStudents";
-import Faculty from "./Faculty";
-import Registrar from "./Registrar";
-import Announcements from "./Announcement";
-import AssignedSubject from "./AssignedSubject";
-import Designation from "./designation";
-import AccountSettings from "./AccountSettings";
+import Overview from "./pages/Overview";
+import UserManagementModule from "./pages/UserManagementModule";
+import RolesManagementModule from "./pages/RolesManagementModule";
+import CourseManagement from "./pages/CourseManagement";
+import AddStudents from "./pages/AddStudents";
+import Faculty from "./pages/Faculty";
+import Registrar from "./pages/Registrar";
+import Announcements from "./pages/Announcement";
+import AssignedSubject from "./pages/AssignedSubject";
+import Designation from "./pages/Designation";
+import AccountSettings from "./pages/AccountSettings";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#2E7D32";

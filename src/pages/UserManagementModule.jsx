@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
+import { showToast, showConfirm } from "../components/Toast";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#2E7D32";
@@ -176,20 +177,33 @@ export default function UserManagementModule() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      if (res.ok) { setShowModal(false); setForm(EMPTY_FORM); fetchUserDirectory(); }
+      if (res.ok) {
+        showToast(editingId ? "User updated successfully!" : "User added successfully!", "success");
+        setShowModal(false); setForm(EMPTY_FORM); fetchUserDirectory();
+      }
       else { const d = await res.json(); setError(d.message || "Failed to save user."); }
     } catch (err) { console.error(err); setError("Could not reach the server."); }
     finally { setSubmitting(false); }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this user? This cannot be undone.")) return;
     setOpenMenuId(null);
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/users/${id}`, { method: "DELETE" });
-      if (res.ok) fetchUserDirectory();
-      else { const d = await res.json(); alert(d.message || "Failed to delete user."); }
-    } catch (err) { console.error(err); }
+      if (res.ok) { showToast("User deleted.", "info"); fetchUserDirectory(); }
+      else { const d = await res.json(); showToast(d.message || "Failed to delete user.", "error"); }
+    } catch { showToast("Could not reach the server.", "error"); }
+  };
+
+  const requestDelete = (u) => {
+    const name = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.username || "this user";
+    setOpenMenuId(null);
+    showConfirm({
+      message: `Delete ${name}? This cannot be undone.`,
+      confirmLabel: "Delete",
+      icon: "🗑️",
+      onConfirm: () => handleDelete(u.id),
+    });
   };
 
   const filteredUsers = users.filter(u => {
@@ -334,7 +348,7 @@ export default function UserManagementModule() {
                           <DropdownMenu
                             onClose={() => setOpenMenuId(null)}
                             onEdit={() => openEditModal(u)}
-                            onDelete={() => handleDelete(u.id)}
+                            onDelete={() => requestDelete(u)}
                             uid={u.id}
                           />,
                           document.body
@@ -505,7 +519,7 @@ export default function UserManagementModule() {
                     onChange={(e) => {
                       const file = e.target.files[0];
                       if (!file) return;
-                      if (file.size > 2 * 1024 * 1024) { alert("Image must be under 2 MB."); return; }
+                      if (file.size > 2 * 1024 * 1024) { showToast("Image must be under 2 MB.", "warning"); return; }
                       const reader = new FileReader();
                       reader.onload = (ev) => setForm(prev => ({ ...prev, profilePicture: ev.target.result }));
                       reader.readAsDataURL(file);
@@ -554,7 +568,7 @@ export default function UserManagementModule() {
                     onChange={(e) => {
                       const file = e.target.files[0];
                       if (!file) return;
-                      if (file.size > 2 * 1024 * 1024) { alert("Image must be under 2 MB."); return; }
+                      if (file.size > 2 * 1024 * 1024) { showToast("Image must be under 2 MB.", "warning"); return; }
                       const reader = new FileReader();
                       reader.onload = (ev) => setForm(prev => ({ ...prev, signature: ev.target.result }));
                       reader.readAsDataURL(file);

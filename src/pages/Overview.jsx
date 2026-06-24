@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import * as XLSX from "xlsx";
+import { showToast, showConfirm } from "../components/Toast";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#2E7D32";
@@ -743,15 +744,24 @@ export default function Overview({ user }) {
       .catch(() => setLoading(false));
   }, []);
 
-  const handleDeleteNotice = async (id) => {
-    if (!window.confirm("Delete this announcement permanently?")) return;
-    setDeletingId(id);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/announcements/${id}`, { method: "DELETE" });
-      if (res.ok) { setAnnouncements(prev => prev.filter(item => item.id !== id)); window.dispatchEvent(new CustomEvent('announcement-deleted')); }
-      else alert("Failed to delete announcement.");
-    } catch (err) { console.error(err); }
-    finally { setDeletingId(null); }
+  const handleDeleteNotice = (id) => {
+    showConfirm({
+      message: "Delete this announcement permanently?",
+      confirmLabel: "Delete",
+      icon: "🗑️",
+      onConfirm: async () => {
+        setDeletingId(id);
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/announcements/${id}`, { method: "DELETE" });
+          if (res.ok) {
+            showToast("Announcement deleted.", "info");
+            setAnnouncements(prev => prev.filter(item => item.id !== id));
+            window.dispatchEvent(new CustomEvent('announcement-deleted'));
+          } else showToast("Failed to delete announcement.", "error");
+        } catch { showToast("Network error.", "error"); }
+        finally { setDeletingId(null); }
+      },
+    });
   };
 
   const isFaculty = user?.role === "faculty";

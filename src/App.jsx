@@ -2,7 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import LoginPortal from "./CCALoginPortal";
 import Dashboard from "./Dashboard";
-import AppLoader from "./Apploader";
+import AppLoader from "./components/Apploader";
+import ToastManager from "./components/Toast";
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -43,6 +44,7 @@ export default function App() {
       <BrowserRouter>
         <div style={{ position: "relative", minHeight: "100vh" }}>
           {isLoading && <AppLoader />}
+          <ToastManager />
           <Routes>
             <Route path="*" element={<LoginPortal onLogin={handleLogin} />} />
           </Routes>
@@ -56,6 +58,7 @@ export default function App() {
     <BrowserRouter>
       <div style={{ position: "relative", minHeight: "100vh" }}>
         {isLoading && <AppLoader />}
+        <ToastManager />
         <Routes>
           <Route
             path="*"
