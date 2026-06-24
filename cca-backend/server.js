@@ -1449,3 +1449,67 @@ app.delete("/api/erd/enrollments/:id", async (req, res) => {
     res.status(500).json({ message: "Failed to delete enrollment record." });
   }
 });
+// --- STARTUP DATA INTEGRITY MIGRATIONS ---
+// 1. Backfill erd_user_roles for erd_users rows with no role entry yet
+//    (accounts created before multi-role support). Without this those users
+//    get roleArr=[] and are filtered OUT of the Users management list.
+// 2. Sync erd_users rows whose primary role is 'student' into erd_student
+//    so they appear in the Students list (AddStudents / Registrar).
+(async () => {
+  try {
+    // ensure erd_user_roles exists before querying it
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_user_roles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        users_id INT NOT NULL,
+        user_type_id INT NOT NULL,
+        FOREIGN KEY (users_id) REFERENCES erd_users(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_type_id) REFERENCES erd_user_type(id) ON DELETE CASCADE,
+        UNIQUE KEY uniq_user_role (users_id, user_type_id)
+      )
+    `);
+
+    // 1 - backfill missing erd_user_roles from each user's primary user_type_id
+    const [orphanUsers] = await pool.query(`
+      SELECT u.id AS users_id, u.user_type_id
+      FROM erd_users u
+      WHERE NOT EXISTS (
+        SELECT 1 FROM erd_user_roles ur WHERE ur.users_id = u.id
+      )
+    `);
+    for (const u of orphanUsers) {
+      try {
+        await pool.query(
+          'INSERT IGNORE INTO erd_user_roles (users_id, user_type_id) VALUES (?, ?)',
+          [u.users_id, u.user_type_id]
+        );
+        console.log(`[INIT] Backfilled erd_user_roles for users_id=${u.users_id}`);
+      } catch (e) { console.error('[INIT] role backfill:', e.message); }
+    }
+
+    // 2 - sync student-role erd_users into erd_student
+    const [studentAccounts] = await pool.query(`
+      SELECT u.id AS users_id, u.first_name, u.middle_name, u.last_name,
+             u.gender, u.profile_picture
+      FROM erd_users u
+      JOIN erd_user_type ut ON u.user_type_id = ut.id
+      WHERE LOWER(ut.user_type) = 'student'
+        AND NOT EXISTS (SELECT 1 FROM erd_student s WHERE s.users_id = u.id)
+    `);
+    for (const u of studentAccounts) {
+      try {
+        await pool.query(
+          `INSERT INTO erd_student
+             (users_id, first_name, middle_name, last_name, gender, profile_picture,
+              student_number)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [u.users_id, u.first_name, u.middle_name, u.last_name, u.gender,
+           u.profile_picture, `STU-${u.users_id}`]
+        );
+        console.log(`[INIT] Synced student erd_users id=${u.users_id} into erd_student`);
+      } catch (e) { console.error('[INIT] student sync:', e.message); }
+    }
+  } catch (err) {
+    console.error('[INIT] Data integrity migration error:', err.message);
+  }
+})();
