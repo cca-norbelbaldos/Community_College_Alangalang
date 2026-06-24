@@ -1513,3 +1513,27 @@ app.delete("/api/erd/enrollments/:id", async (req, res) => {
     console.error('[INIT] Data integrity migration error:', err.message);
   }
 })();
+
+// erd_student name-copy migration: for any erd_student row where first_name
+// is still NULL (legacy rows linked via users_id), copy the name/gender/photo
+// directly into erd_student then sever the users_id link so the student list
+// no longer depends on erd_users for its data.
+(async () => {
+  try {
+    await pool.query(`
+      UPDATE erd_student s
+      JOIN erd_users u ON u.id = s.users_id
+      SET s.first_name      = COALESCE(s.first_name,      u.first_name),
+          s.middle_name     = COALESCE(s.middle_name,     u.middle_name),
+          s.last_name       = COALESCE(s.last_name,       u.last_name),
+          s.gender          = COALESCE(s.gender,          u.gender),
+          s.profile_picture = COALESCE(s.profile_picture, u.profile_picture),
+          s.users_id        = NULL
+      WHERE s.users_id IS NOT NULL
+        AND (s.first_name IS NULL OR s.last_name IS NULL)
+    `);
+    console.log('[INIT] Legacy erd_student rows migrated: names copied from erd_users, users_id unlinked.');
+  } catch (err) {
+    console.error('[INIT] erd_student name-copy migration error:', err.message);
+  }
+})();
