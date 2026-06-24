@@ -755,7 +755,7 @@ app.get("/api/erd/students", async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT s.id, s.student_number, s.year_level, s.section, s.year_enrolled, s.created_at,
-              s.users_id,
+              s.users_id, s.graduation_status,
               COALESCE(s.first_name,  u.first_name)       AS first_name,
               COALESCE(s.middle_name, u.middle_name)      AS middle_name,
               COALESCE(s.last_name,   u.last_name)        AS last_name,
@@ -779,6 +779,7 @@ app.get("/api/erd/students", async (req, res) => {
       section: r.section || null,
       profile_picture: r.profile_picture,
       year_enrolled: r.year_enrolled || (r.created_at ? new Date(r.created_at).getFullYear() : null),
+      graduation_status: r.graduation_status || null,
       birthday: null, age: null, sex: r.gender || null, address: null, adviser: null
     })));
   } catch (err) {
@@ -905,6 +906,25 @@ app.delete("/api/erd/students/:id", async (req, res) => {
 });
 
 // ─── FACULTY DIRECTORY MANAGEMENT ────────────────────────────────────────────
+// Graduate a student (admin only from frontend)
+app.put("/api/erd/students/:id/graduate", async (req, res) => {
+  const { id } = req.params;
+  const { graduation_status } = req.body;
+  try {
+    await pool.query(
+      "UPDATE erd_student SET graduation_status = ? WHERE id = ?",
+      [graduation_status || null, id]
+    );
+    const msg = graduation_status === 'graduated'
+      ? 'Student marked as graduated.'
+      : 'Graduation status cleared.';
+    res.json({ message: msg });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to update graduation status.' });
+  }
+});
+
 app.get("/api/erd/faculty", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -1512,6 +1532,19 @@ app.delete("/api/erd/enrollments/:id", async (req, res) => {
   } catch (err) {
     console.error('[INIT] Data integrity migration error:', err.message);
   }
+})();
+
+// erd_student.graduation_status column
+(async () => {
+  try {
+    const [[r]] = await pool.query(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='erd_student' AND COLUMN_NAME='graduation_status'"
+    );
+    if (!r) {
+      await pool.query("ALTER TABLE erd_student ADD COLUMN graduation_status VARCHAR(20) NULL");
+      console.log('[INIT] Added graduation_status to erd_student.');
+    }
+  } catch(e) { console.error('[INIT] graduation_status migration:', e.message); }
 })();
 
 // erd_student name-copy migration: for any erd_student row where first_name

@@ -32,7 +32,8 @@ const ENROLLMENT_PERIODS = [
   { year: "4th Year", sem: "2nd Semester" },
 ];
 
-export default function Registrar() {
+export default function Registrar({ user = {} }) {
+  const isAdmin = user?.role === "administrator";
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -108,6 +109,10 @@ export default function Registrar() {
 
   const saveWorksheetTranscript = async () => {
     if (!selectedStudent || savingGrades) return;
+    if (selectedStudent.graduation_status === "graduated" && !isAdmin) {
+      showToast("🎓 This student has graduated. Only an Administrator can edit their grades.", "error");
+      return;
+    }
     setSavingGrades(true);
     try {
       const validPayload = studentGrades.map(g => ({

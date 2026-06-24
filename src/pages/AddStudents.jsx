@@ -52,6 +52,9 @@ function StudentInfoCard({ student, enrollments, subjects, assignedSubjectIds = 
   const [loadingMap, setLoadingMap] = useState({});
 
   const isAdmin = user?.role === "administrator";
+  const isGraduated = student.graduation_status === 'graduated';
+  // Grades are locked for graduated students; admins can always edit
+  const graduationLocked = isGraduated && !isAdmin;
 
   const fullName = `${student.first_name || ""} ${student.middle_name ? student.middle_name.charAt(0) + "." : ""} ${student.last_name || ""}`.replace(/\s+/g, " ").trim();
 
@@ -214,7 +217,10 @@ function StudentInfoCard({ student, enrollments, subjects, assignedSubjectIds = 
           <div style={{ fontSize: "16px", fontWeight: 800, color: "#111827" }}>
             {(student.last_name || "").toUpperCase()}, {(student.first_name || "").toUpperCase()} {student.middle_name ? student.middle_name.toUpperCase() : ""}
           </div>
-          <div style={{ fontSize: "12px", color: GREEN, fontWeight: 700, marginBottom: "6px" }}>STUDENT</div>
+          <div style={{ fontSize: "12px", color: GREEN, fontWeight: 700, marginBottom: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+            STUDENT
+            {isGraduated && <span style={{ background: "#7C3AED", color: "#fff", fontSize: "10px", fontWeight: 800, borderRadius: "4px", padding: "1px 7px", letterSpacing: "0.5px" }}>🎓 GRADUATED</span>}
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: "2px 8px", fontSize: "12px" }}>
             <span style={{ color: GRAY, fontWeight: 700 }}>Student No.</span><span>{student.student_number || "—"}</span>
             <span style={{ color: GRAY, fontWeight: 700 }}>Course</span><span>{student.course || "—"}</span>
@@ -276,6 +282,11 @@ function StudentInfoCard({ student, enrollments, subjects, assignedSubjectIds = 
                 </div>
 
                 {/* Expanded: enrollment info + grade sheet */}
+                {isOpen && graduationLocked && (
+                  <div style={{ margin: "8px 16px", padding: "8px 14px", background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: "6px", fontSize: "11px", color: "#6D28D9", fontWeight: 700 }}>
+                    🎓 This student has graduated — grades are locked. Contact an Administrator to make changes.
+                  </div>
+                )}
                 {isOpen && (
                   <div style={{ background: LIGHT_GRAY, borderTop: `1px solid ${BORDER}` }}>
                     {/* Enrollment detail strip */}
@@ -325,8 +336,8 @@ function StudentInfoCard({ student, enrollments, subjects, assignedSubjectIds = 
                                 const g = grades.find(gr => gr.subject_id === sub.id) || {};
                                 const isAssigned = assignedSubjectIds.has(sub.id);
                                 const isLocked   = !!g.id || !!g._justSaved;
-                                const canEdit    = isAdmin ? !isLocked : (isAssigned && !isLocked);
-                                const remarksPlaceholder = isLocked ? "🔒 Saved" : (!isAdmin && !isAssigned) ? "🔒 Not assigned" : "PASSED / FAILED";
+                                const canEdit    = isAdmin ? !isLocked : (isAssigned && !isLocked && !graduationLocked);
+                                const remarksPlaceholder = graduationLocked ? "🎓 Graduated — locked" : isLocked ? "🔒 Saved" : (!isAdmin && !isAssigned) ? "🔒 Not assigned" : "PASSED / FAILED";
                                 const lockReason = isLocked
                                   ? "Grade already saved — delete it to edit again"
                                   : (!isAdmin && !isAssigned)
@@ -484,6 +495,34 @@ export default function AddStudents({ user = {} }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGraduate = async (student) => {
+    const isCurrentlyGraduated = student.graduation_status === "graduated";
+    const action = isCurrentlyGraduated ? null : "graduated";
+    const msg = isCurrentlyGraduated
+      ? `Revert ${student.first_name} ${student.last_name}'s graduation status?`
+      : `Mark ${student.first_name} ${student.last_name} as GRADUATED? Grades will be locked for non-admins.`;
+    showConfirm({
+      message: msg,
+      confirmLabel: isCurrentlyGraduated ? "Revert" : "Graduate",
+      icon: "🎓",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/students/${student.id}/graduate`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ graduation_status: action }),
+          });
+          if (res.ok) {
+            showToast(action === "graduated" ? `${student.first_name} ${student.last_name} marked as graduated.` : "Graduation status cleared.", "success");
+            fetchStudentDirectory();
+          } else {
+            showToast("Failed to update graduation status.", "error");
+          }
+        } catch { showToast("Network error.", "error"); }
+      },
+    });
   };
 
   const fetchEnrollmentsForStudent = async (studentId) => {
@@ -721,7 +760,9 @@ export default function AddStudents({ user = {} }) {
 
                     {/* Year & Section */}
                     <td style={{ padding: "9px 14px", fontSize: "11px", fontWeight: 600, color: "#4B5563" }}>
-                      {s.year_level || "—"}{s.section ? ` — Sec ${s.section}` : ""}
+                      {s.graduation_status === "graduated"
+                        ? <span style={{ background: "#7C3AED", color: "#fff", fontSize: "10px", fontWeight: 800, borderRadius: "4px", padding: "2px 8px" }}>🎓 GRADUATED</span>
+                        : <>{s.year_level || "—"}{s.section ? ` — Sec ${s.section}` : ""}</>}
                     </td>
 
                     {/* Address */}
@@ -780,6 +821,17 @@ export default function AddStudents({ user = {} }) {
                   onMouseEnter={e => e.currentTarget.style.background = LIGHT_GRAY}
                   onMouseLeave={e => e.currentTarget.style.background = "none"}>
                   📋 Enroll
+                </button>
+              )}
+
+              {/* Graduate — only for 4th Year students, admin/registrar only */}
+              {canEnroll && (
+                <button type="button"
+                  onClick={() => { handleGraduate(s); setOpenDropdownId(null); }}
+                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "12px", background: "none", border: "none", cursor: "pointer", color: s.graduation_status === "graduated" ? "#6D28D9" : "#7C3AED", fontWeight: 700, borderBottom: `1px solid ${BORDER}` }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#F5F3FF"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                  {s.graduation_status === "graduated" ? "🔄 Revert Graduation" : "🎓 Mark as Graduated"}
                 </button>
               )}
 
