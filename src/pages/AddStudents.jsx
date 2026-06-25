@@ -398,6 +398,9 @@ export default function AddStudents({ user = {} }) {
   const [userRolesMap, setUserRolesMap] = useState({}); // users_id -> roles[]
   const [loading,  setLoading]  = useState(true);
   const [search,   setSearch]   = useState("");
+  const [filterCourse,  setFilterCourse]  = useState("");
+  const [filterYear,    setFilterYear]    = useState("");
+  const [filterSection, setFilterSection] = useState("");
 
   // Subjects the CURRENTLY LOGGED-IN user is assigned to teach (erd_subject_load).
   // Grade inputs in the Student List view are locked unless the subject is in here.
@@ -655,25 +658,58 @@ export default function AddStudents({ user = {} }) {
     : (user?.role ? [user.role.toLowerCase()] : []);
   const canEnroll = myRoles.includes("administrator") || myRoles.includes("registrar");
 
-  const filteredStudents = studentsWithRole.filter(s =>
-    `${s.first_name} ${s.last_name} ${s.student_number} ${s.course}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  // Derive unique filter options from loaded students
+  const courseOptions  = [...new Set(students.map(s => s.course).filter(Boolean))].sort();
+  const yearOptions    = ["1st Year","2nd Year","3rd Year","4th Year"];
+  const sectionOptions = [...new Set(students.map(s => s.section).filter(Boolean))].sort();
+
+  const filteredStudents = studentsWithRole.filter(s => {
+    const matchSearch  = `${s.first_name} ${s.last_name} ${s.student_number} ${s.course}`.toLowerCase().includes(search.toLowerCase());
+    const matchCourse  = !filterCourse  || s.course   === filterCourse;
+    const matchYear    = !filterYear    || s.year_level === filterYear;
+    const matchSection = !filterSection || s.section   === filterSection;
+    return matchSearch && matchCourse && matchYear && matchSection;
+  });
 
   return (
     <div style={{ fontFamily: "system-ui, sans-serif" }}>
 
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", gap: "16px" }}>
-        <div style={{ flex: 1, maxWidth: "420px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", gap: "10px", flexWrap: "wrap" }}>
+        {/* Search — smaller fixed width */}
+        <div style={{ width: "220px", flexShrink: 0 }}>
           <input
             type="text"
-            placeholder="🔍 Search students by name, ID, or course..."
+            placeholder="🔍 Search name, ID..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ width: "100%", padding: "7px 12px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "12px", outline: "none", boxSizing: "border-box" }}
+            style={{ width: "100%", padding: "7px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "12px", outline: "none", boxSizing: "border-box" }}
           />
+        </div>
+
+        {/* Filters */}
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <select value={filterCourse} onChange={e => setFilterCourse(e.target.value)}
+            style={{ padding: "7px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "12px", color: filterCourse ? "#111827" : GRAY, outline: "none", background: "#fff", cursor: "pointer" }}>
+            <option value="">All Courses</option>
+            {courseOptions.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
+            style={{ padding: "7px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "12px", color: filterYear ? "#111827" : GRAY, outline: "none", background: "#fff", cursor: "pointer" }}>
+            <option value="">All Years</option>
+            {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <select value={filterSection} onChange={e => setFilterSection(e.target.value)}
+            style={{ padding: "7px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "12px", color: filterSection ? "#111827" : GRAY, outline: "none", background: "#fff", cursor: "pointer" }}>
+            <option value="">All Sections</option>
+            {sectionOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          {(filterCourse || filterYear || filterSection) && (
+            <button type="button" onClick={() => { setFilterCourse(""); setFilterYear(""); setFilterSection(""); }}
+              style={{ padding: "7px 10px", fontSize: "11px", background: "#FEE2E2", color: RED, border: `1px solid #FCA5A5`, borderRadius: "6px", cursor: "pointer", fontWeight: 700 }}>
+              ✕ Clear
+            </button>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
