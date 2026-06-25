@@ -135,7 +135,7 @@ function LandingPage({ onGoLogin }) {
           {/* Col 1 — CCA Logo */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, paddingRight: 20, borderRight: "1px solid " + BORDER }}>
             <img src={ccaLogo} alt="CCA Logo"
-              style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover", border: "none" }} />
+              style={{ width: 160, height: 160, borderRadius: "50%", objectFit: "cover", border: "none" }} />
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 10, color: GRAY, marginTop: 2 }}>Data Privacy Statement</div>
               <div style={{ fontSize: 10, color: GRAY, marginTop: 2 }}>Terms of Service</div>
@@ -146,7 +146,7 @@ function LandingPage({ onGoLogin }) {
           <div style={{ padding: "0 20px", borderRight: "1px solid " + BORDER }}>
             <div style={{ fontWeight: 800, fontSize: 11, color: "#111827", marginBottom: 5 }}>MISSION:</div>
             <div style={{ fontSize: 10, color: "#374151", lineHeight: 1.6 }}>
-              To provide quality and accessible higher education that empowers students with knowledge, skills, and values for community service and national development.
+              Community College of Alangalang commits to develop lifelong learners and values-driven professionals through student-centered and gender-responsive education, promoting excellence in the fields of education, health, environmental sustainability, security, management, accounting, information communication and technology. It upholds quality through competent, qualified, and values-oriented faculty and administrators, while delivering technology-driven, innovative, outcomes-based, and research-based programs that provide accessible and responsive education to effectively address local, national, and global challenges.
             </div>
           </div>
 
@@ -154,7 +154,7 @@ function LandingPage({ onGoLogin }) {
           <div style={{ padding: "0 20px", borderRight: "1px solid " + BORDER }}>
             <div style={{ fontWeight: 800, fontSize: 11, color: "#111827", marginBottom: 5 }}>VISION:</div>
             <div style={{ fontSize: 10, color: "#374151", lineHeight: 1.6 }}>
-              A premier community college producing competent, morally upright, and socially responsible graduates who contribute to the sustainable development of Alangalang and beyond.
+              An inclusive, values-driven community college promoting quality education fostering sustainable development and transformative social change.
             </div>
           </div>
 
@@ -162,7 +162,7 @@ function LandingPage({ onGoLogin }) {
           <div style={{ padding: "0 20px", borderRight: "1px solid " + BORDER }}>
             <div style={{ fontWeight: 800, fontSize: 11, color: "#111827", marginBottom: 5 }}>CLASS HOURS:</div>
             <div style={{ fontSize: 10, color: "#374151", marginBottom: 2 }}>Monday – Friday</div>
-            <div style={{ fontSize: 10, color: "#374151", fontWeight: 700, marginBottom: 10 }}>07:30AM – 05:00PM</div>
+            <div style={{ fontSize: 10, color: "#374151", fontWeight: 700, marginBottom: 10 }}>07:00AM – 05:00PM</div>
             <div style={{ fontWeight: 800, fontSize: 11, color: "#111827", marginBottom: 5 }}>ADDRESS:</div>
             <div style={{ fontSize: 10, color: "#374151", lineHeight: 1.6 }}>
               Community College of Alangalang,<br />Leyte, Philippines
@@ -176,7 +176,9 @@ function LandingPage({ onGoLogin }) {
             <div style={{ fontSize: 10, color: "#374151", marginBottom: 2 }}>+63-(0)919-065-1703</div>
             <div style={{ fontSize: 10, color: "#374151", marginBottom: 8 }}>+63-(0)920-975-0584</div>
             <div style={{ fontSize: 10, color: GRAY, fontWeight: 700 }}>Email:</div>
-            <div style={{ fontSize: 10, color: GREEN }}>cca.alangalang@deped.gov.ph</div>
+            <div style={{ fontSize: 10, color: GREEN }}>communitycollegeofalangalang@gmail.com</div>
+            <div style={{ fontSize: 10, color: GRAY, fontWeight: 700 }}>Facebook Page:</div>
+            <div style={{ fontSize: 10, color: GREEN }}>Community College of Alangalang</div>
           </div>
         </div>
 

@@ -687,8 +687,8 @@ export default function AddStudents({ user = {} }) {
           />
         </div>
 
-        {/* Filters */}
-        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          {/* Filters */}
           <select value={filterCourse} onChange={e => setFilterCourse(e.target.value)}
             style={{ padding: "7px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "12px", color: filterCourse ? "#111827" : GRAY, outline: "none", background: "#fff", cursor: "pointer" }}>
             <option value="">All Courses</option>
@@ -706,23 +706,15 @@ export default function AddStudents({ user = {} }) {
           </select>
           {(filterCourse || filterYear || filterSection) && (
             <button type="button" onClick={() => { setFilterCourse(""); setFilterYear(""); setFilterSection(""); }}
-              style={{ padding: "7px 10px", fontSize: "11px", background: "#FEE2E2", color: RED, border: `1px solid #FCA5A5`, borderRadius: "6px", cursor: "pointer", fontWeight: 700 }}>
-              ✕ Clear
+              style={{ padding: "7px 8px", fontSize: "11px", background: "#FEE2E2", color: RED, border: `1px solid #FCA5A5`, borderRadius: "6px", cursor: "pointer", fontWeight: 700 }}>
+              ✕
             </button>
           )}
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           {/* Refresh button */}
-          <button
-            type="button"
-            onClick={fetchStudentDirectory}
-            title="Refresh list"
-            style={{ padding: "7px 11px", background: WHITE, color: GRAY, border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "12px", cursor: "pointer" }}
-          >
+          <button type="button" onClick={fetchStudentDirectory} title="Refresh list"
+            style={{ padding: "7px 11px", background: WHITE, color: GRAY, border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "12px", cursor: "pointer" }}>
             🔄
           </button>
-
           {/* Info badge */}
           <div style={{ padding: "6px 11px", background: LIGHT_GRAY, border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "11px", color: GRAY, fontWeight: 600 }}>
             {studentsWithRole.length} student{studentsWithRole.length !== 1 ? "s" : ""} enrolled
