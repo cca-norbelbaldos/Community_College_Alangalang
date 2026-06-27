@@ -952,28 +952,4 @@ export default function Registrar({ user = {} }) {
                 Close
               </button>
               <button type="button"
-                onClick={() => {
-                  const win = window.open("", "_blank", "width=360,height=480");
-                  if (!win) return;
-                  win.document.write(`
-                    <html><head><title>Student QR — ${studentQr.name}</title></head>
-                    <body style="font-family:system-ui,sans-serif;text-align:center;padding:24px;">
-                      <h3>${studentQr.name}</h3>
-                      <div style="color:#6B7280;font-size:12px;margin-bottom:12px;">${studentQr.studentNumber || ""}</div>
-                      <img src="${qrImageUrl(studentQr.payload, 240)}" width="240" height="240" />
-                      <div style="margin-top:16px;"><button onclick="window.print()" style="padding:8px 18px;background:${DARK_GREEN};color:white;border:none;border-radius:6px;font-weight:700;cursor:pointer;">🖨️ Print</button></div>
-                    </body></html>
-                  `);
-                  win.document.close();
-                }}
-                style={{ flex: 1, padding: "8px 14px", background: DARK_GREEN, color: WHITE, border: "none", borderRadius: "6px", fontWeight: 700, cursor: "pointer" }}>
-                🖨️ Print
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-}
+    

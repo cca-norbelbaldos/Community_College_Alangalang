@@ -19,13 +19,17 @@ const SERVER_PROTECTED = ["administrator", "faculty", "student", "registrar"];
 // dashboard sections an admin can grant/revoke per role. Keep labels/icons in
 // sync with Dashboard.jsx so what the admin sees here matches what shows up
 // in the sidebar once granted.
+const SVG = (d, vb="0 0 24 24") => (
+  <svg width="15" height="15" viewBox={vb} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+);
+
 const DASHBOARD_FEATURES = [
-  { key: "feat_overview",       label: "Overview Workspace",  icon: "📊" },
-  { key: "feat_student_list",   label: "Student List",        icon: "🎓" },
-  { key: "feat_faculty_mgmt",   label: "Faculty Hub",         icon: "👩‍🏫" },
-  { key: "feat_registrar_mgmt", label: "Registrar Console",   icon: "🗃️" },
-  { key: "feat_announcements",  label: "Create Announcement", icon: "📢" },
-  { key: "feat_class_sched",    label: "Class Schedule",      icon: "🕐" },
+  { key: "feat_overview",       label: "Overview Workspace",  icon: SVG(<><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></>) },
+  { key: "feat_student_list",   label: "Student List",        icon: SVG(<><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>) },
+  { key: "feat_faculty_mgmt",   label: "Faculty Hub",         icon: SVG(<><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>) },
+  { key: "feat_registrar_mgmt", label: "Registrar Console",   icon: SVG(<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></>) },
+  { key: "feat_announcements",  label: "Create Announcement", icon: SVG(<><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3z"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>) },
+  { key: "feat_class_sched",    label: "Class Schedule",      icon: SVG(<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>) },
 ];
 
 export default function RolesManagementModule() {
@@ -188,13 +192,14 @@ export default function RolesManagementModule() {
           onClick={() => { setNewRole(""); setError(""); setShowModal(true); }}
           style={{ padding: "10px 20px", background: DARK_GREEN, color: WHITE, border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", whiteSpace: "nowrap" }}
         >
-          ➕ Add Role
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Role
         </button>
       </div>
 
       {/* ── Info banner ── */}
       <div style={{ padding: "12px 16px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: "8px", fontSize: "13px", color: "#166534", marginBottom: "24px", display: "flex", gap: "10px", alignItems: "flex-start" }}>
-        <span style={{ flexShrink: 0 }}>ℹ️</span>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <span>
           Roles created here are automatically available in the <strong>Edit User</strong> modal under <strong>Admin Settings → Users</strong>.
           Deleting a role removes it from all user assignment options instantly.
@@ -223,8 +228,8 @@ export default function RolesManagementModule() {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "14px", minWidth: 0 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: "50%", background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", flexShrink: 0 }}>
-                    🏷️
+                  <div style={{ width: 40, height: 40, borderRadius: "50%", background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{
@@ -236,7 +241,12 @@ export default function RolesManagementModule() {
                       {role.user_type}
                     </div>
                     <div style={{ fontSize: "11px", color: GRAY, marginTop: "4px" }}>
-                      {isProtected ? "🔒 System role" : "✏️ Custom role"}
+                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        {isProtected
+                          ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> System role</>
+                          : <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg> Custom role</>
+                        }
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -254,7 +264,7 @@ export default function RolesManagementModule() {
                       transition: "all 0.15s"
                     }}
                   >
-                    ✅
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                   </button>
 
                   <button
@@ -269,7 +279,7 @@ export default function RolesManagementModule() {
                       transition: "all 0.15s"
                     }}
                   >
-                    🗑️
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                   </button>
                 </div>
               </div>
@@ -290,7 +300,7 @@ export default function RolesManagementModule() {
             <div style={{ padding: "20px 28px 28px", display: "flex", flexDirection: "column", gap: "18px" }}>
               {error && (
                 <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FEE2E2", borderRadius: "6px", color: RED, fontSize: "12px", fontWeight: 600 }}>
-                  ⚠️ {error}
+                  {error}
                 </div>
               )}
 
@@ -327,7 +337,9 @@ export default function RolesManagementModule() {
       {deleteConfirm && createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2147483647, padding: "16px" }}>
           <div style={{ background: WHITE, borderRadius: "12px", width: "100%", maxWidth: "400px", padding: "28px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.15)" }}>
-            <div style={{ fontSize: "32px", textAlign: "center", marginBottom: "12px" }}>🗑️</div>
+            <div style={{ textAlign: "center", marginBottom: "12px", color: RED }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            </div>
             <h3 style={{ margin: "0 0 8px", textAlign: "center", fontSize: "18px", fontWeight: 800, color: "#111827" }}>Delete Role?</h3>
             <p style={{ margin: "0 0 16px", textAlign: "center", fontSize: "13px", color: GRAY }}>
               You're about to delete the <strong style={{ color: RED, textTransform: "uppercase" }}>{deleteConfirm.user_type}</strong> role.
@@ -336,7 +348,7 @@ export default function RolesManagementModule() {
             </p>
             {deleteError && (
               <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FEE2E2", borderRadius: "6px", color: RED, fontSize: "12px", fontWeight: 600, marginBottom: "16px", textAlign: "center" }}>
-                🔒 {deleteError}
+                {deleteError}
               </div>
             )}
             <div style={{ display: "flex", gap: "12px" }}>
@@ -380,7 +392,7 @@ export default function RolesManagementModule() {
 
               {permError && (
                 <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FEE2E2", borderRadius: "6px", color: RED, fontSize: "12px", fontWeight: 600 }}>
-                  ⚠️ {permError}
+                  {permError}
                 </div>
               )}
 
@@ -417,7 +429,7 @@ export default function RolesManagementModule() {
 
               {permSaved && (
                 <div style={{ padding: "10px 14px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: "6px", color: "#166534", fontSize: "12px", fontWeight: 600, textAlign: "center" }}>
-                  ✓ Permissions saved
+                  Permissions saved
                 </div>
               )}
 
