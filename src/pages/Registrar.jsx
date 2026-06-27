@@ -54,6 +54,8 @@ export default function Registrar({ user = {} }) {
   const [editingSubjectId, setEditingSubjectId] = useState(null);
   const [subjectForm, setSubjectForm] = useState({ subject_code: "", subject_title: "", units: "3", course: "", year_level: "1st Year", semester: "1" });
   const [subjectFilter, setSubjectFilter] = useState({ course: "", year_level: "", semester: "" });
+  const [expandedSections, setExpandedSections] = useState({});
+  const toggleSection = (key) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
 
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [editingStudentId, setEditingStudentId] = useState(null);
@@ -298,13 +300,31 @@ export default function Registrar({ user = {} }) {
       {/* Tab bar */}
       <div style={{ display: "flex", gap: "10px", borderBottom: `2px solid ${BORDER}`, paddingBottom: "10px" }}>
         {[
-          { key: "tor",             label: "📄 Generate Transcript of Record" },
-          { key: "subjects",        label: "📚 Subject" },
-          { key: "manage_students", label: "🎓 Enroll Student" },
+          { key: "tor", label: "Generate Transcript of Record", icon: (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 3 14 8 19 8" />
+              <line x1="8" y1="13" x2="16" y2="13" />
+              <line x1="8" y1="17" x2="16" y2="17" />
+            </svg>
+          )},
+          { key: "subjects", label: "Subject", icon: (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+              <polygon points="12 2 2 7 12 12 22 7 12 2" />
+              <polyline points="2 17 12 22 22 17" />
+              <polyline points="2 12 12 17 22 12" />
+            </svg>
+          )},
+          { key: "manage_students", label: "Enroll Student", icon: (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+              <circle cx="12" cy="7" r="4" />
+              <path d="M5 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2" />
+            </svg>
+          )},
         ].map(t => (
           <button key={t.key} type="button" onClick={() => setActiveTab(t.key)}
-            style={{ padding: "8px 16px", background: activeTab === t.key ? DARK_GREEN : WHITE, color: activeTab === t.key ? WHITE : GRAY, border: `1px solid ${BORDER}`, borderRadius: "6px", fontWeight: 700, cursor: "pointer" }}>
-            {t.label}
+            style={{ padding: "8px 16px", background: activeTab === t.key ? DARK_GREEN : WHITE, color: activeTab === t.key ? WHITE : GRAY, border: `1px solid ${BORDER}`, borderRadius: "6px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "7px" }}>
+            {t.icon}{t.label}
           </button>
         ))}
       </div>
@@ -554,15 +574,21 @@ export default function Registrar({ user = {} }) {
           </div>
 
           {/* Filter summary badge */}
-          {(subjectFilter.course || subjectFilter.year_level || subjectFilter.semester) && (
+          {subjectFilter.course && (
             <div style={{ padding: "8px 20px", background: "#E8F5E9", borderBottom: `1px solid ${BORDER}`, fontSize: "12px", color: DARK_GREEN, fontWeight: 600 }}>
-              Showing: {subjectFilter.course || "All Courses"} — {subjectFilter.year_level || "All Years"} — {subjectFilter.semester === "1" ? "1st Semester" : subjectFilter.semester === "2" ? "2nd Semester" : "All Semesters"}
+              Showing: {subjectFilter.course} — {subjectFilter.year_level || "All Years"} — {subjectFilter.semester === "1" ? "1st Semester" : subjectFilter.semester === "2" ? "2nd Semester" : "All Semesters"}
               <span style={{ color: GRAY, fontWeight: 400, marginLeft: "8px" }}>({filteredSubjects.length} subject{filteredSubjects.length !== 1 ? "s" : ""})</span>
             </div>
           )}
 
           {/* Grouped catalog blocks */}
-          {(() => {
+          {!subjectFilter.course ? (
+            <div style={{ padding: "52px 40px", textAlign: "center", color: GRAY, fontSize: "13px" }}>
+              <div style={{ fontSize: "32px", marginBottom: "12px" }}>📚</div>
+              <div style={{ fontWeight: 700, color: DARK_GREEN, fontSize: "14px", marginBottom: "6px" }}>Select a Course to View Subjects</div>
+              <div style={{ color: GRAY, fontSize: "12px" }}>Use the <strong>course dropdown</strong> above to choose a program, then click the arrow on each year level to expand its subjects.</div>
+            </div>
+          ) : (() => {
             const yearLabel = (y) => ({
               "1st Year": "FIRST YEAR",
               "2nd Year": "SECOND YEAR",
@@ -613,15 +639,32 @@ export default function Registrar({ user = {} }) {
                   const subs = grouped[key];
                   const isLast = idx === allKeys.length - 1;
 
+                  const isOpen = !!expandedSections[key];
+
                   return (
                     <div key={key} style={{ borderBottom: isLast ? "none" : `1px solid ${BORDER}` }}>
-                      {/* Catalog section header */}
-                      <div style={{
-                        padding: "10px 20px",
-                        background: `${DARK_GREEN}10`,
-                        borderBottom: `2px solid ${DARK_GREEN}22`,
-                        display: "flex", alignItems: "center", gap: "10px"
-                      }}>
+                      {/* Catalog section header — clickable to expand/collapse */}
+                      <div
+                        onClick={() => toggleSection(key)}
+                        style={{
+                          padding: "10px 20px",
+                          background: isOpen ? `${DARK_GREEN}18` : `${DARK_GREEN}10`,
+                          borderBottom: isOpen ? `2px solid ${DARK_GREEN}22` : "none",
+                          display: "flex", alignItems: "center", gap: "10px",
+                          cursor: "pointer", userSelect: "none",
+                        }}
+                      >
+                        {/* Expand/collapse arrow */}
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          width: "20px", height: "20px", borderRadius: "4px",
+                          background: isOpen ? DARK_GREEN : `${DARK_GREEN}22`,
+                          color: isOpen ? WHITE : DARK_GREEN,
+                          fontSize: "10px", fontWeight: 900, flexShrink: 0,
+                          transition: "all 0.15s",
+                        }}>
+                          {isOpen ? "▾" : "▸"}
+                        </span>
                         <div style={{ flex: 1 }}>
                           <span style={{ fontSize: "12px", fontWeight: 800, color: DARK_GREEN, letterSpacing: "0.08em" }}>
                             {yearLabel(yearRaw)}
@@ -636,46 +679,48 @@ export default function Registrar({ user = {} }) {
                         </span>
                       </div>
 
-                      {/* Subjects table */}
-                      <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-                        <thead>
-                          <tr style={{ background: LIGHT_GRAY, fontSize: "10px", color: GRAY, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                            <th style={{ padding: "8px 16px", borderBottom: `1px solid ${BORDER}` }}>Code</th>
-                            <th style={{ padding: "8px 16px", borderBottom: `1px solid ${BORDER}` }}>Title</th>
-                            <th style={{ padding: "8px 16px", borderBottom: `1px solid ${BORDER}` }}>Units</th>
-                            <th style={{ padding: "8px 16px", borderBottom: `1px solid ${BORDER}` }}>Course</th>
-                            <th style={{ padding: "8px 16px", textAlign: "right", borderBottom: `1px solid ${BORDER}` }}>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {subs.map(sub => (
-                            <tr key={sub.id} style={{ borderBottom: `1px solid ${BORDER}` }}
-                              onMouseEnter={e => e.currentTarget.style.background = LIGHT_GRAY}
-                              onMouseLeave={e => e.currentTarget.style.background = WHITE}>
-                              <td style={{ padding: "11px 16px", fontSize: "12px", fontWeight: 700, color: BLUE }}>{sub.subject_code || "—"}</td>
-                              <td style={{ padding: "11px 16px", fontSize: "13px", fontWeight: 600, color: "#111827" }}>{sub.subject_title}</td>
-                              <td style={{ padding: "11px 16px", fontSize: "12px", color: "#374151" }}>{sub.units} Units</td>
-                              <td style={{ padding: "11px 16px", fontSize: "12px" }}>
-                                <span style={{ padding: "2px 8px", background: "#E8F5E9", color: GREEN, borderRadius: "4px", fontWeight: 700, fontSize: "11px" }}>{sub.course}</span>
-                              </td>
-                              <td style={{ padding: "11px 16px", textAlign: "right" }}>
-                                <div style={{ display: "flex", justifyContent: "flex-end", gap: "6px" }}>
-                                  <button type="button"
-                                    onClick={() => { setSubjectForm({ subject_code: sub.subject_code || "", subject_title: sub.subject_title || "", units: String(sub.units ?? "3"), course: sub.course || courses[0] || "", year_level: sub.year_level || "1st Year", semester: sub.semester != null ? String(sub.semester) : "1" }); setEditingSubjectId(sub.id); setShowSubjectModal(true); }}
-                                    style={{ padding: "4px 10px", background: LIGHT_GRAY, border: `1px solid ${BORDER}`, borderRadius: "4px", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>
-                                    Modify
-                                  </button>
-                                  <button type="button"
-                                    onClick={() => triggerSubjectDeletion(sub.id)}
-                                    style={{ padding: "4px 10px", background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "4px", fontSize: "11px", color: RED, cursor: "pointer", fontWeight: 600 }}>
-                                    Delete
-                                  </button>
-                                </div>
-                              </td>
+                      {/* Subjects table — only shown when expanded */}
+                      {isOpen && (
+                        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                          <thead>
+                            <tr style={{ background: LIGHT_GRAY, fontSize: "10px", color: GRAY, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                              <th style={{ padding: "8px 16px", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap", width: "1%" }}>Code</th>
+                              <th style={{ padding: "8px 16px", borderBottom: `1px solid ${BORDER}` }}>Title</th>
+                              <th style={{ padding: "8px 16px", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap", width: "1%" }}>Units</th>
+                              <th style={{ padding: "8px 16px", borderBottom: `1px solid ${BORDER}`, width: "22%" }}>Course</th>
+                              <th style={{ padding: "8px 16px", textAlign: "right", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap", width: "1%" }}>Actions</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {subs.map(sub => (
+                              <tr key={sub.id} style={{ borderBottom: `1px solid ${BORDER}` }}
+                                onMouseEnter={e => e.currentTarget.style.background = LIGHT_GRAY}
+                                onMouseLeave={e => e.currentTarget.style.background = WHITE}>
+                                <td style={{ padding: "10px 12px", fontSize: "12px", fontWeight: 700, color: BLUE, whiteSpace: "nowrap" }}>{sub.subject_code || "—"}</td>
+                                <td style={{ padding: "10px 12px", fontSize: "13px", fontWeight: 600, color: "#111827" }}>{sub.subject_title}</td>
+                                <td style={{ padding: "10px 12px", fontSize: "12px", color: "#374151", whiteSpace: "nowrap" }}>{sub.units} Units</td>
+                                <td style={{ padding: "10px 12px", fontSize: "12px" }}>
+                                  <span style={{ padding: "2px 8px", background: "#E8F5E9", color: GREEN, borderRadius: "4px", fontWeight: 700, fontSize: "11px" }}>{sub.course}</span>
+                                </td>
+                                <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
+                                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "6px" }}>
+                                    <button type="button"
+                                      onClick={(e) => { e.stopPropagation(); setSubjectForm({ subject_code: sub.subject_code || "", subject_title: sub.subject_title || "", units: String(sub.units ?? "3"), course: sub.course || courses[0] || "", year_level: sub.year_level || "1st Year", semester: sub.semester != null ? String(sub.semester) : "1" }); setEditingSubjectId(sub.id); setShowSubjectModal(true); }}
+                                      style={{ padding: "4px 10px", background: LIGHT_GRAY, border: `1px solid ${BORDER}`, borderRadius: "4px", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}>
+                                      Modify
+                                    </button>
+                                    <button type="button"
+                                      onClick={(e) => { e.stopPropagation(); triggerSubjectDeletion(sub.id); }}
+                                      style={{ padding: "4px 10px", background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "4px", fontSize: "11px", color: RED, cursor: "pointer", fontWeight: 600 }}>
+                                      Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
                     </div>
                   );
                 })}

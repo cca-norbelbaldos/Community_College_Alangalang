@@ -424,8 +424,13 @@ function AllFacultySchedule() {
 // a donut chart showing the overall Male/Female split with a legend.
 function LineChart({ data, max, maleColor, femaleColor, unspecColor }) {
   const [tooltip, setTooltip] = useState(null);
+  const [animKey, setAnimKey] = useState(0);
   const svgRef = useRef(null);
   const W = 560, H = 68, PAD = { top: 8, right: 12, bottom: 18, left: 6 };
+
+  // Re-trigger animation whenever data values change
+  const dataSignature = data.map(d => `${d.male}-${d.female}-${d.unspecified}`).join("|");
+  useEffect(() => { setAnimKey(k => k + 1); }, [dataSignature]);
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const n = data.length;
@@ -452,7 +457,18 @@ function LineChart({ data, max, maleColor, femaleColor, unspecColor }) {
 
   return (
     <div style={{ position: "relative" }}>
-      <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`}
+      <style>{`
+        @keyframes chartRiseIn {
+          from { transform: scaleY(0); }
+          to   { transform: scaleY(1); }
+        }
+        .chart-animate {
+          transform-origin: bottom center;
+          animation: chartRiseIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+      `}</style>
+      <svg ref={svgRef} key={animKey} width="100%" viewBox={`0 0 ${W} ${H}`}
+        className="chart-animate"
         style={{ overflow: "visible", display: "block", maxHeight: "72px" }}
         onMouseLeave={() => setTooltip(null)}>
 
@@ -568,8 +584,9 @@ function EnrollmentStats({ user }) {
   // Distinct school years, newest first
   const availableYears = Array.from(new Set(enrollments.map(e => String(e.year_enrolled)).filter(Boolean))).sort((a,b) => b-a);
 
-  // Apply filters
-  const scoped = enrollments.filter(e => {
+  // Apply filters — show empty (0) when no filter is selected
+  const hasFilter = !!(schoolYearFilter || yearLevelFilter || semesterFilter);
+  const scoped = !hasFilter ? [] : enrollments.filter(e => {
     if (schoolYearFilter && String(e.year_enrolled) !== schoolYearFilter) return false;
     if (yearLevelFilter  && e.year_level !== yearLevelFilter)             return false;
     if (semesterFilter   && e.semester   !== semesterFilter)              return false;
@@ -674,8 +691,6 @@ function EnrollmentStats({ user }) {
       <div style={{ padding: "10px 14px", boxSizing: "border-box", flex: 1, overflow: "hidden" }}>
         {loading ? (
           <div style={{ padding: "20px", textAlign: "center", color: GRAY, fontSize: "12px" }}>Loading enrollment data...</div>
-        ) : total === 0 ? (
-          <div style={{ padding: "20px", textAlign: "center", color: GRAY, fontSize: "12px" }}>No enrollment records match the selected filters.</div>
         ) : (
           <>
             {/* Summary row */}

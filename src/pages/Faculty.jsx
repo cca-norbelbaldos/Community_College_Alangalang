@@ -483,13 +483,21 @@ export default function Faculty() {
       {/* MODAL: ASSIGNED SUBJECT */}
       {showAssignModal && assignTarget && createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1300, padding: "16px" }}>
-          <div style={{ background: WHITE, borderRadius: "12px", width: "100%", maxWidth: "760px", maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.15)", overflow: "hidden" }}>
+          <div style={{ background: WHITE, borderRadius: "12px", width: "95vw", maxWidth: "1100px", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.15)", overflow: "hidden" }}>
             {/* Header */}
             <div style={{ background: `linear-gradient(135deg, ${DARK_GREEN}, ${GREEN})`, padding: "16px 24px", color: WHITE, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 800, textTransform: "uppercase" }}>📚 Assigned Subject</h3>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 800, textTransform: "uppercase", color: WHITE, display: "flex", alignItems: "center", gap: "8px" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={WHITE} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 3 14 8 19 8" />
+                    <line x1="8" y1="13" x2="16" y2="13" />
+                    <line x1="8" y1="17" x2="16" y2="17" />
+                  </svg>
+                  Assigned Subject
+                </h3>
                 <p style={{ margin: "4px 0 0", fontSize: "12px", opacity: 0.9 }}>
-                  {assignTarget.firstName} {assignTarget.lastName} — choose a subject below to assign
+                  Assign subject for {assignTarget.firstName} {assignTarget.lastName}
                 </p>
               </div>
               <button
@@ -518,7 +526,7 @@ export default function Faculty() {
                 </button>
               )}
               <span style={{ fontSize: "12px", color: GRAY, marginLeft: "auto" }}>
-                {filteredAssignSubjects.length} subject{filteredAssignSubjects.length !== 1 ? "s" : ""}
+                {assignFilter.year_level ? `${filteredAssignSubjects.length} subject${filteredAssignSubjects.length !== 1 ? "s" : ""}` : "Select a year level to view subjects"}
               </span>
             </div>
 
@@ -529,23 +537,35 @@ export default function Faculty() {
             )}
 
             {/* Subject list */}
-            <div style={{ overflowY: "auto", flex: 1 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+            <div style={{ overflowY: "auto", overflowX: "hidden", flex: 1 }}>
+              {!assignFilter.year_level ? (
+                <div style={{ padding: "60px 40px", textAlign: "center" }}>
+                  <div style={{ fontSize: "30px", marginBottom: "12px" }}>📋</div>
+                  <div style={{ fontWeight: 700, color: DARK_GREEN, fontSize: "14px", marginBottom: "6px" }}>Select a Year Level</div>
+                  <div style={{ color: GRAY, fontSize: "12px" }}>Choose a year level from the filter above to see available subjects.</div>
+                </div>
+              ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "150px" }} />
+                  <col />
+                  <col style={{ width: "90px" }} />
+                  <col style={{ width: "80px" }} />
+                  <col style={{ width: "150px" }} />
+                  <col style={{ width: "110px" }} />
+                </colgroup>
                 <thead>
                   <tr style={{ background: LIGHT_GRAY, position: "sticky", top: 0 }}>
-                    <th style={thStyle}>Code</th>
-                    <th style={thStyle}>Title</th>
-                    <th style={thStyle}>Year</th>
-                    <th style={thStyle}>Sem</th>
-                    <th style={thStyle}>Status</th>
-                    <th style={{ ...thStyle, textAlign: "right" }}>Action</th>
+                    {[["Code","left"],["Title","left"],["Year","left"],["Sem","left"],["Status","left"],["Action","right"]].map(([h, align]) => (
+                      <th key={h} style={{ padding: "9px 12px", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.4px", color: GRAY, textAlign: align, borderBottom: `2px solid ${BORDER}`, whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {assignLoading ? (
-                    <tr><td colSpan={6} style={{ ...tdStyle, textAlign: "center", color: GRAY, padding: "32px" }}>Loading subject catalog...</td></tr>
+                    <tr><td colSpan={6} style={{ padding: "32px", textAlign: "center", color: GRAY }}>Loading subject catalog...</td></tr>
                   ) : filteredAssignSubjects.length === 0 ? (
-                    <tr><td colSpan={6} style={{ ...tdStyle, textAlign: "center", color: GRAY, padding: "32px" }}>No subjects match the selected filters.</td></tr>
+                    <tr><td colSpan={6} style={{ padding: "32px", textAlign: "center", color: GRAY }}>No subjects match the selected filters.</td></tr>
                   ) : (
                     filteredAssignSubjects.map(sub => {
                       const assignment = getAssignmentForSubject(sub.id);
@@ -554,22 +574,22 @@ export default function Faculty() {
                       const isBusy = assignBusyId === sub.id || assignBusyId === assignment?.id;
                       return (
                         <tr key={sub.id}>
-                          <td style={tdStyle}><span style={{ fontWeight: 700, color: BLUE }}>{sub.subject_code || "—"}</span></td>
-                          <td style={tdStyle}>{sub.subject_title}</td>
-                          <td style={tdStyle}>{sub.year_level || "—"}</td>
-                          <td style={tdStyle}>{sub.semester == 1 ? "1st Sem" : sub.semester == 2 ? "2nd Sem" : "—"}</td>
-                          <td style={tdStyle}>
+                          <td style={{ padding: "10px 12px", fontSize: "12px", borderBottom: `1px solid ${BORDER}` }}><span style={{ fontWeight: 700, color: BLUE }}>{sub.subject_code || "—"}</span></td>
+                          <td style={{ padding: "10px 12px", fontSize: "12px", color: "#111827", borderBottom: `1px solid ${BORDER}`, wordBreak: "break-word" }}>{sub.subject_title}</td>
+                          <td style={{ padding: "10px 12px", fontSize: "12px", color: "#374151", borderBottom: `1px solid ${BORDER}` }}>{sub.year_level || "—"}</td>
+                          <td style={{ padding: "10px 12px", fontSize: "12px", color: "#374151", borderBottom: `1px solid ${BORDER}` }}>{sub.semester == 1 ? "1st Sem" : sub.semester == 2 ? "2nd Sem" : "—"}</td>
+                          <td style={{ padding: "10px 12px", fontSize: "12px", borderBottom: `1px solid ${BORDER}` }}>
                             {isMine ? (
                               <span style={{ padding: "2px 8px", background: "#E8F5E9", color: DARK_GREEN, borderRadius: "999px", fontSize: "11px", fontWeight: 700 }}>Assigned to you</span>
                             ) : isTakenByOther ? (
-                              <span style={{ padding: "2px 8px", background: "#FEF3C7", color: "#92400E", borderRadius: "999px", fontSize: "11px", fontWeight: 700 }}>
+                              <span style={{ padding: "2px 8px", background: "#FEF3C7", color: "#92400E", borderRadius: "999px", fontSize: "11px", fontWeight: 700, wordBreak: "break-word" }}>
                                 {assignment.first_name} {assignment.last_name}
                               </span>
                             ) : (
                               <span style={{ padding: "2px 8px", background: LIGHT_GRAY, color: GRAY, borderRadius: "999px", fontSize: "11px", fontWeight: 700 }}>Open</span>
                             )}
                           </td>
-                          <td style={{ ...tdStyle, textAlign: "right" }}>
+                          <td style={{ padding: "10px 12px", fontSize: "12px", borderBottom: `1px solid ${BORDER}`, textAlign: "right" }}>
                             {isMine ? (
                               <button
                                 onClick={() => handleUnassignSubject(assignment.id)}
@@ -590,6 +610,7 @@ export default function Faculty() {
                   )}
                 </tbody>
               </table>
+              )}
             </div>
 
             {/* Footer */}

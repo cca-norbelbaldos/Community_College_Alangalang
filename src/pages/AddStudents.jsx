@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { showToast, showConfirm } from "../components/Toast";
+import ccaLogo from "../assets/cca_logo.jpg";
 
 const GREEN      = "#2E7D32";
 const DARK_GREEN = "#1B5E20";
@@ -845,10 +846,11 @@ export default function AddStudents({ user = {} }) {
               {canEnroll && (
                 <button type="button"
                   onClick={() => { openEnrollModal(s); setOpenDropdownId(null); }}
-                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "12px", background: "none", border: "none", cursor: "pointer", color: DARK_GREEN, fontWeight: 700, borderBottom: `1px solid ${BORDER}` }}
+                  style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "12px", background: "none", border: "none", cursor: "pointer", color: "#111827", fontWeight: 600, borderBottom: `1px solid ${BORDER}` }}
                   onMouseEnter={e => e.currentTarget.style.background = LIGHT_GRAY}
                   onMouseLeave={e => e.currentTarget.style.background = "none"}>
-                  📋 Enroll
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+                  Enroll
                 </button>
               )}
 
@@ -856,29 +858,35 @@ export default function AddStudents({ user = {} }) {
               {canEnroll && (
                 <button type="button"
                   onClick={() => { handleGraduate(s); setOpenDropdownId(null); }}
-                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "12px", background: "none", border: "none", cursor: "pointer", color: s.graduation_status === "graduated" ? "#6D28D9" : "#7C3AED", fontWeight: 700, borderBottom: `1px solid ${BORDER}` }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#F5F3FF"}
+                  style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "12px", background: "none", border: "none", cursor: "pointer", color: "#111827", fontWeight: 600, borderBottom: `1px solid ${BORDER}` }}
+                  onMouseEnter={e => e.currentTarget.style.background = LIGHT_GRAY}
                   onMouseLeave={e => e.currentTarget.style.background = "none"}>
-                  {s.graduation_status === "graduated" ? "🔄 Revert Graduation" : "🎓 Mark as Graduated"}
+                  {s.graduation_status === "graduated"
+                    ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+                    : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12.5V17c0 1.5 2.5 3 6 3s6-1.5 6-3v-4.5"/></svg>
+                  }
+                  {s.graduation_status === "graduated" ? "Revert Graduation" : "Mark as Graduated"}
                 </button>
               )}
 
               {/* View */}
               <button type="button"
                 onClick={() => { openViewModal(s); setOpenDropdownId(null); }}
-                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "12px", background: "none", border: "none", cursor: "pointer", color: BLUE, fontWeight: 700, borderBottom: `1px solid ${BORDER}` }}
+                style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "12px", background: "none", border: "none", cursor: "pointer", color: "#111827", fontWeight: 600, borderBottom: `1px solid ${BORDER}` }}
                 onMouseEnter={e => e.currentTarget.style.background = LIGHT_GRAY}
                 onMouseLeave={e => e.currentTarget.style.background = "none"}>
-                👁 View Student Info
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                View Student Info
               </button>
 
               {/* View QR — admin & registrar only */}
               {canEnroll && <button type="button"
                 onClick={() => { setQrStudent(s); setOpenDropdownId(null); }}
-                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "12px", background: "none", border: "none", cursor: "pointer", color: "#7C3AED", fontWeight: 700 }}
+                style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "12px", background: "none", border: "none", cursor: "pointer", color: "#111827", fontWeight: 600 }}
                 onMouseEnter={e => e.currentTarget.style.background = LIGHT_GRAY}
                 onMouseLeave={e => e.currentTarget.style.background = "none"}>
-                📱 View Student QR
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/></svg>
+                View Student QR
               </button>}
             </div>
           </div>
@@ -1014,34 +1022,125 @@ export default function AddStudents({ user = {} }) {
         <div onClick={() => setQrStudent(null)}
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 2147483646, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ background: WHITE, borderRadius: "14px", padding: "28px 32px", maxWidth: "320px", width: "90%", textAlign: "center", boxShadow: "0 8px 32px rgba(0,0,0,0.22)" }}>
-            <div style={{ fontSize: "13px", fontWeight: 800, color: "#111827", marginBottom: "4px" }}>
-              {[qrStudent.first_name, qrStudent.middle_name, qrStudent.last_name].filter(Boolean).join(" ")}
+            style={{ background: WHITE, borderRadius: "14px", padding: "28px 32px", maxWidth: "340px", width: "90%", textAlign: "center", boxShadow: "0 8px 32px rgba(0,0,0,0.22)" }}>
+
+            {/* CCA Logo */}
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
+              <img src={ccaLogo} alt="CCA Logo" style={{ width: "64px", height: "64px", objectFit: "contain" }} />
             </div>
-            <div style={{ fontSize: "11px", fontFamily: "monospace", color: BLUE, marginBottom: "14px" }}>
-              {qrStudent.student_number || "—"}
+
+            {/* Student Name & ID */}
+            <div style={{ fontSize: "14px", fontWeight: 800, color: "#111827", marginBottom: "2px" }}>
+              {[qrStudent.last_name, qrStudent.first_name, qrStudent.middle_name].filter(Boolean).join(", ").replace(/, ([^,]+)$/, " $1")}
             </div>
+            <div style={{ fontSize: "11px", fontFamily: "monospace", color: BLUE, marginBottom: "16px" }}>
+              {qrStudent.student_number || formatSchoolId(qrStudent.id)}
+            </div>
+
+            {/* QR Code — payload is JSON for easy attendance scanner parsing */}
             <QRCanvas
-              data={`CCA-STUDENT|${qrStudent.student_number || ""}|${[qrStudent.first_name,qrStudent.middle_name,qrStudent.last_name].filter(Boolean).join(" ")}|${qrStudent.course || ""}`}
-              size={200}
+              data={JSON.stringify({
+                school: "CCA",
+                id: qrStudent.id,
+                student_number: qrStudent.student_number || formatSchoolId(qrStudent.id),
+                last_name: qrStudent.last_name || "",
+                first_name: qrStudent.first_name || "",
+                middle_name: qrStudent.middle_name || "",
+                course: qrStudent.course || "",
+                year_level: qrStudent.year_level || "",
+                section: qrStudent.section || "",
+                gender: qrStudent.gender || "",
+              })}
+              size={220}
             />
-            <div style={{ marginTop: "16px", display: "flex", gap: "10px", justifyContent: "center" }}>
+
+            {/* Section info below QR */}
+            <div style={{ marginTop: "10px", fontSize: "11px", color: GRAY }}>
+              {[qrStudent.course, qrStudent.year_level, qrStudent.section ? `Section ${qrStudent.section}` : null].filter(Boolean).join(" · ")}
+            </div>
+            <div style={{ marginTop: "4px", fontSize: "10px", color: GRAY, fontWeight: 600 }}>
+              Community College of Alangalang
+            </div>
+
+            <div style={{ marginTop: "16px", display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap" }}>
               <button type="button" onClick={() => setQrStudent(null)}
                 style={{ padding: "8px 18px", border: `1px solid ${BORDER}`, borderRadius: "7px", background: WHITE, cursor: "pointer", fontSize: "12px", fontWeight: 600 }}>
                 Close
               </button>
+
+              {/* Regenerate QR — admin only, for when QR is not scanning */}
+              {myRoles.includes("administrator") && (
+                <button type="button"
+                  onClick={() => {
+                    // Re-set qrStudent to trigger a fresh re-render of QRCanvas with same data
+                    setQrStudent(null);
+                    setTimeout(() => setQrStudent({ ...qrStudent, _regenKey: Date.now() }), 80);
+                    showToast("QR code regenerated.", "success");
+                  }}
+                  style={{ padding: "8px 14px", border: `1px solid #F59E0B`, borderRadius: "7px", background: "#FFFBEB", color: "#92400E", cursor: "pointer", fontSize: "12px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+                  Regenerate QR
+                </button>
+              )}
               <button type="button"
                 onClick={() => {
-                  const name = [qrStudent.first_name, qrStudent.middle_name, qrStudent.last_name].filter(Boolean).join(" ");
-                  const payload = `CCA-STUDENT|${qrStudent.student_number || ""}|${name}|${qrStudent.course || ""}`;
+                  const fullName = `${qrStudent.last_name || ""}, ${qrStudent.first_name || ""} ${qrStudent.middle_name || ""}`.trim();
+                  const sn = qrStudent.student_number || formatSchoolId(qrStudent.id);
+                  const info = [qrStudent.course, qrStudent.year_level, qrStudent.section ? `Section ${qrStudent.section}` : null].filter(Boolean).join(" · ");
+                  const payload = JSON.stringify({
+                    school: "CCA",
+                    id: qrStudent.id,
+                    student_number: sn,
+                    last_name: qrStudent.last_name || "",
+                    first_name: qrStudent.first_name || "",
+                    middle_name: qrStudent.middle_name || "",
+                    course: qrStudent.course || "",
+                    year_level: qrStudent.year_level || "",
+                    section: qrStudent.section || "",
+                    gender: qrStudent.gender || "",
+                  });
                   const w = window.open("", "_blank");
                   if (!w) return;
-                  qrDataUrl(payload, 240).then(dataUrl => {
-                    w.document.write(`<html><head><title>QR — ${name}</title></head><body style="text-align:center;font-family:sans-serif;padding:32px"><h3>${name}</h3><div style="color:#6B7280;font-size:12px;margin-bottom:12px">${qrStudent.student_number || ""}</div><img src="${dataUrl}" width="240" height="240"/><br/><br/><button onclick="window.print()">🖨️ Print</button></body></html>`);
+                  // Convert logo to base64 so it embeds in the print window
+                  fetch(ccaLogo).then(r => r.blob()).then(blob => new Promise(res => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => res(reader.result);
+                    reader.readAsDataURL(blob);
+                  })).then(logoDataUrl => qrDataUrl(payload, 280).then(qrUrl => {
+                    w.document.write(`<!DOCTYPE html><html><head><title>Student QR — ${fullName}</title><style>
+                      *{box-sizing:border-box;margin:0;padding:0}
+                      body{font-family:'Segoe UI',sans-serif;background:#f3f4f6;display:flex;align-items:center;justify-content:center;min-height:100vh}
+                      .card{text-align:center;width:54mm;height:85.6mm;padding:4mm 3mm;border:1.5px solid #aaa;border-radius:3mm;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(0,0,0,0.12)}
+                      .logo{width:13mm;height:13mm;object-fit:contain;margin-bottom:1mm}
+                      .name{font-size:6.5pt;font-weight:800;color:#111827;line-height:1.2;margin-bottom:0.5mm}
+                      .sn{font-family:monospace;font-size:5.5pt;color:#1E88E5;margin-bottom:1mm}
+                      .qr{display:block;width:36mm;height:36mm}
+                      .info{font-size:5pt;color:#6B7280;margin-top:1mm;line-height:1.4}
+                      .school{font-size:5pt;font-weight:700;color:#374151;margin-top:0.5mm}
+                      .btn{margin-top:6mm;padding:8px 22px;background:#1B5E20;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer}
+                      @media print{
+                        .btn{display:none}
+                        body{background:#fff;margin:0;padding:0;min-height:unset}
+                        @page{size:54mm 85.6mm;margin:0}
+                        .card{box-shadow:none;border:1.5px solid #aaa;width:54mm;height:85.6mm}
+                      }
+                    </style></head><body>
+                    <div>
+                      <div class="card">
+                        <img class="logo" src="${logoDataUrl}" alt="CCA"/>
+                        <div class="name">${fullName}</div>
+                        <div class="sn">${sn}</div>
+                        <img class="qr" src="${qrUrl}"/>
+                        <div class="info">${info}</div>
+                        <div class="school">Community College of Alangalang</div>
+                      </div>
+                      <div style="text-align:center"><button class="btn" onclick="window.print()">🖨️ Print</button></div>
+                    </div>
+                    </body></html>`);
                     w.document.close();
-                  });
+                  }));
                 }}
-                style={{ padding: "8px 18px", border: "none", borderRadius: "7px", background: "#7C3AED", color: WHITE, cursor: "pointer", fontSize: "12px", fontWeight: 700 }}>
+                style={{ padding: "8px 18px", border: "none", borderRadius: "7px", background: DARK_GREEN, color: WHITE, cursor: "pointer", fontSize: "12px", fontWeight: 700 }}>
                 🖨️ Print
               </button>
             </div>

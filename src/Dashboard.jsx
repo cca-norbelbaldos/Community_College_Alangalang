@@ -637,7 +637,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
 
       {/* ── MAIN CONTENT ── */}
       <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
-        <div style={{ padding: "16px" }} className="animated-content-wrapper">
+        <div style={{ padding: "12px" }} className="animated-content-wrapper">
 
           {/* ── OVERVIEW WORKSPACE (no card wrapper, fits full width) ── */}
           {activeView === "Overview Workspace" && !loading && (
@@ -663,7 +663,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
 
           {/* ── ALL OTHER VIEWS (white card wrapper) ── */}
           {activeView !== "Overview Workspace" && (
-            <div style={{ background: WHITE, borderRadius: "12px", border: `1px solid ${BORDER}`, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", padding: "24px", minHeight: "400px" }}>
+            <div style={{ background: WHITE, borderRadius: "12px", border: `1px solid ${BORDER}`, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", padding: "16px", minHeight: "400px" }}>
               {loading ? (
                 <div style={{ padding: "40px", textAlign: "center", color: GRAY }}>Loading...</div>
               ) : (
