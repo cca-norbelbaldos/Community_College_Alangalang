@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-const GREEN      = "#2E7D32";
-const DARK_GREEN = "#1B5E20";
+const GREEN      = "#3d6e01";
+const DARK_GREEN = "#3d6e01";
 const WHITE      = "#FFFFFF";
 const GRAY       = "#6B7280";
 const LIGHT_GRAY = "#F9FAFB";
@@ -170,7 +170,7 @@ export default function RolesManagementModule() {
   const roleColor = (name) => {
     switch (name) {
       case "administrator": return { bg: "#FFF8E1", color: GOLD };
-      case "faculty":       return { bg: "#E8F5E9", color: GREEN };
+      case "faculty":       return { bg: "#eaf2d9", color: GREEN };
       case "student":       return { bg: "#E3F2FD", color: "#1E88E5" };
       case "registrar":     return { bg: "#F3E5F5", color: "#8E24AA" };
       default:              return { bg: "#F3F4F6", color: "#374151" };
@@ -183,9 +183,9 @@ export default function RolesManagementModule() {
       {/* ── Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", gap: "16px" }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#111827" }}>Role Management</h2>
+          <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#111827" }}>Role Management</h2>
           <p style={{ margin: "4px 0 0", fontSize: "13px", color: GRAY }}>
-            Add or remove roles. Roles marked <strong>System</strong> are protected and cannot be deleted.
+            System roles can't be deleted.
           </p>
         </div>
         <button
@@ -197,89 +197,47 @@ export default function RolesManagementModule() {
         </button>
       </div>
 
-      {/* ── Info banner ── */}
-      <div style={{ padding: "12px 16px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: "8px", fontSize: "13px", color: "#166534", marginBottom: "24px", display: "flex", gap: "10px", alignItems: "flex-start" }}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <span>
-          Roles created here are automatically available in the <strong>Edit User</strong> modal under <strong>Admin Settings → Users</strong>.
-          Deleting a role removes it from all user assignment options instantly.
-        </span>
-      </div>
-
-      {/* ── Roles grid ── */}
+      {/* ── Roles list ── */}
       {loading ? (
-        <BellLoader />
+        <div style={{ padding: "40px", textAlign: "center", color: GRAY, fontSize: "13px" }}>Loading roles...</div>
       ) : roles.length === 0 ? (
-        <div style={{ padding: "48px", textAlign: "center", color: GRAY, fontSize: "14px", background: WHITE, borderRadius: "12px", border: `1px solid ${BORDER}` }}>
+        <div style={{ padding: "48px", textAlign: "center", color: GRAY, fontSize: "13px", border: `1px dashed ${BORDER}`, borderRadius: "10px" }}>
           No roles found. Add one to get started.
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "16px" }}>
-          {roles.map((role) => {
-            const { bg, color } = roleColor(role.user_type);
+        <div style={{ border: `1px solid ${BORDER}`, borderRadius: "10px", overflow: "hidden", background: WHITE }}>
+          {roles.map((role, i) => {
+            const { color } = roleColor(role.user_type);
             const isProtected = SERVER_PROTECTED.includes(role.user_type);
             return (
-              <div
-                key={role.id}
-                style={{
-                  background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "12px",
-                  padding: "20px", display: "flex", alignItems: "center", justifyContent: "space-between",
-                  gap: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)"
-                }}
+              <div key={role.id} style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "14px 16px", borderTop: i > 0 ? `1px solid ${BORDER}` : "none",
+                background: WHITE,
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = LIGHT_GRAY}
+                onMouseLeave={e => e.currentTarget.style.background = WHITE}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "14px", minWidth: 0 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: "50%", background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{
-                      fontSize: "13px", fontWeight: 800, color, background: bg,
-                      padding: "3px 10px", borderRadius: "12px", textTransform: "uppercase",
-                      letterSpacing: "0.4px", display: "inline-block", maxWidth: "100%",
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
-                    }}>
-                      {role.user_type}
-                    </div>
-                    <div style={{ fontSize: "11px", color: GRAY, marginTop: "4px" }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        {isProtected
-                          ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> System role</>
-                          : <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg> Custom role</>
-                        }
-                      </span>
-                    </div>
-                  </div>
+                {/* Role name */}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                  <span style={{ fontSize: "14px", fontWeight: 600, color: "#111827", textTransform: "capitalize" }}>
+                    {role.user_type}
+                  </span>
+                  {isProtected && (
+                    <span style={{ fontSize: "11px", color: GRAY }}>System</span>
+                  )}
                 </div>
 
-                {/* Manage which dashboard sections this role can view */}
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-                  <button
-                    onClick={() => openPermissions(role)}
-                    title="Manage dashboard view permissions"
-                    style={{
-                      width: 32, height: 32, borderRadius: "6px",
-                      border: `1px solid ${BORDER}`, background: "#EEF2FF",
-                      color: "#4338CA", cursor: "pointer", fontSize: "14px",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      transition: "all 0.15s"
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                {/* Actions */}
+                <div style={{ display: "flex", gap: "16px" }}>
+                  <button onClick={() => openPermissions(role)}
+                    style={{ border: "none", background: "transparent", fontSize: "13px", fontWeight: 600, color: "#374151", cursor: "pointer", padding: 0 }}>
+                    Permissions
                   </button>
-
-                  <button
-                    onClick={() => { setDeleteError(""); setDeleteConfirm(role); }}
-                    title="Delete role"
-                    style={{
-                      width: 32, height: 32, borderRadius: "6px",
-                      border: `1px solid ${BORDER}`,
-                      background: "#FFEBEE", color: RED,
-                      cursor: "pointer", fontSize: "14px",
-                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                      transition: "all 0.15s"
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                  <button onClick={() => { setDeleteError(""); setDeleteConfirm(role); }}
+                    style={{ border: "none", background: "transparent", fontSize: "13px", fontWeight: 600, color: RED, cursor: "pointer", padding: 0 }}>
+                    Delete
                   </button>
                 </div>
               </div>
@@ -409,7 +367,7 @@ export default function RolesManagementModule() {
                           display: "flex", alignItems: "center", gap: "12px",
                           padding: "10px 12px", borderRadius: "8px",
                           border: `1px solid ${checked ? GREEN : BORDER}`,
-                          background: checked ? "#F0FDF4" : LIGHT_GRAY,
+                          background: checked ? "#f2f9e8" : LIGHT_GRAY,
                           cursor: "pointer", transition: "all 0.15s"
                         }}
                       >
@@ -428,7 +386,7 @@ export default function RolesManagementModule() {
               )}
 
               {permSaved && (
-                <div style={{ padding: "10px 14px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: "6px", color: "#166534", fontSize: "12px", fontWeight: 600, textAlign: "center" }}>
+                <div style={{ padding: "10px 14px", background: "#f2f9e8", border: "1px solid #bfe08a", borderRadius: "6px", color: "#2d5201", fontSize: "12px", fontWeight: 600, textAlign: "center" }}>
                   Permissions saved
                 </div>
               )}

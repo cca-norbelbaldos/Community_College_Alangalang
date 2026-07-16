@@ -3,8 +3,8 @@ import * as XLSX from "xlsx";
 import { showToast, showConfirm } from "../components/Toast";
 
 const GOLD       = "#F5A800";
-const GREEN      = "#2E7D32";
-const DARK_GREEN = "#1B5E20";
+const GREEN      = "#3d6e01";
+const DARK_GREEN = "#3d6e01";
 const WHITE      = "#FFFFFF";
 const GRAY       = "#6B7280";
 const BORDER     = "#E5E7EB";
@@ -19,13 +19,10 @@ const MONTHS = ["January","February","March","April","May","June",
 
 const YEAR_LEVELS_ORDER = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
 
-// ── Check if an assignment's sched string covers today ──────────────────────
-// Handles: MWF, TTh, TT, Mon, Tue, Monday, Tuesday, full names, etc.
 function isScheduledToday(sched) {
   if (!sched) return false;
   const s   = sched.toLowerCase();
-  const day = new Date().getDay(); // 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
-
+  const day = new Date().getDay();
   const patterns = {
     0: ["sun", "sunday"],
     1: ["mwf", "mw ", "mw,", "mon", "monday"],
@@ -35,28 +32,62 @@ function isScheduledToday(sched) {
     5: ["mwf", "fri", "friday"],
     6: ["sat", "saturday"],
   };
-
   return (patterns[day] || []).some(k => s.includes(k));
 }
 
-// Extract time portion from sched string (everything after the day abbreviation)
 function extractTime(sched) {
   if (!sched) return null;
   const match = sched.match(/(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)\s*[-–]\s*(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)/i);
   if (match) return `${match[1].trim()} – ${match[2].trim()}`;
-  // fallback: grab anything after the day part
   const fallback = sched.replace(/^[A-Za-z/,\-\s]+/, "").trim();
   return fallback || null;
 }
 
-// ── Mini Calendar ────────────────────────────────────────────────────────────
+// ── Mini Calendar ─────────────────────────────────────────────────────────────
+const calendarCSS = `
+  @keyframes calFadeIn   { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes calSlideIn  { from{opacity:0;transform:translateX(18px)} to{opacity:1;transform:translateX(0)} }
+  @keyframes calSlideInL { from{opacity:0;transform:translateX(-18px)} to{opacity:1;transform:translateX(0)} }
+  @keyframes calPickerIn { from{opacity:0;transform:translateY(-6px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+  @keyframes todayPulse  { 0%,100%{box-shadow:0 0 0 0 rgba(27,94,32,0.45)} 60%{box-shadow:0 0 0 6px rgba(27,94,32,0)} }
+  .cal-card  { animation: calFadeIn 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+  .cal-grid  { animation: calSlideIn 0.32s cubic-bezier(0.22,1,0.36,1) both; }
+  .cal-gridL { animation: calSlideInL 0.32s cubic-bezier(0.22,1,0.36,1) both; }
+  .cal-picker { animation: calPickerIn 0.2s cubic-bezier(0.22,1,0.36,1) both; }
+  .cal-day:hover { background: #eaf2d9 !important; transform: scale(1.15); transition: all 0.15s ease; }
+  .cal-today { animation: todayPulse 2s ease-in-out infinite; }
+  .cal-nav:hover { background: #f2f9e8 !important; color: #3d6e01 !important; transform: scale(1.2); transition: all 0.15s ease; }
+  .cal-pick-item:hover { background: #f2f9e8 !important; color: #3d6e01 !important; }
+  .cal-pick-active { background: #3d6e01 !important; color: #fff !important; font-weight: 800; }
+  .cal-month-btn:hover { color: #3d6e01 !important; text-decoration: underline; }
+  .cal-year-btn:hover  { color: #3d6e01 !important; text-decoration: underline; }
+`;
+
 function MiniCalendar() {
   const today = new Date();
   const [current, setCurrent] = useState({ year: today.getFullYear(), month: today.getMonth() });
-  const [eventDates, setEventDates] = useState(new Set()); // "YYYY-MM-DD" strings
+  const [eventDates, setEventDates] = useState(new Set());
+  const [slideDir, setSlideDir] = useState("right");
+  const [gridKey, setGridKey] = useState(0);
+  const [picker, setPicker] = useState(null);
+  const pickerRef = useRef(null);
+  const activeYearRef = useRef(null);
 
-  // Fetch announcements and collect event_date values — polls every 30s so
-  // newly posted events appear on the calendar without a page refresh.
+  useEffect(() => {
+    if (!picker) return;
+    const handler = (e) => { if (pickerRef.current && !pickerRef.current.contains(e.target)) setPicker(null); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [picker]);
+
+  useEffect(() => {
+    if (picker === "year" && activeYearRef.current) {
+      activeYearRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [picker]);
+
+  const yearRange = Array.from({ length: today.getFullYear() - 1990 + 15 }, (_, i) => 1990 + i);
+
   useEffect(() => {
     const fetchEvents = () => {
       fetch(`${import.meta.env.VITE_API_URL}/api/erd/announcements`)
@@ -66,8 +97,6 @@ function MiniCalendar() {
           if (Array.isArray(data)) {
             data.forEach(a => {
               if (!a.event_date) return;
-              // Server sends DATE_FORMAT(event_date,'%Y-%m-%d') so it's always
-              // a plain "YYYY-MM-DD" string — no Date parsing, no timezone shift.
               const raw = String(a.event_date).substring(0, 10);
               if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) dates.add(raw);
             });
@@ -77,31 +106,27 @@ function MiniCalendar() {
         .catch(() => {});
     };
     fetchEvents();
-    const iv = setInterval(fetchEvents, 30000); // re-check every 30 s
+    const iv = setInterval(fetchEvents, 30000);
     return () => clearInterval(iv);
   }, []);
 
   const firstDay    = new Date(current.year, current.month, 1).getDay();
   const daysInMonth = new Date(current.year, current.month + 1, 0).getDate();
 
-  const prevMonth = () => setCurrent(c => ({
-    year:  c.month === 0 ? c.year - 1 : c.year,
-    month: c.month === 0 ? 11 : c.month - 1,
-  }));
-  const nextMonth = () => setCurrent(c => ({
-    year:  c.month === 11 ? c.year + 1 : c.year,
-    month: c.month === 11 ? 0 : c.month + 1,
-  }));
+  const prevMonth = () => {
+    setSlideDir("left"); setGridKey(k => k + 1);
+    setCurrent(c => ({ year: c.month === 0 ? c.year - 1 : c.year, month: c.month === 0 ? 11 : c.month - 1 }));
+  };
+  const nextMonth = () => {
+    setSlideDir("right"); setGridKey(k => k + 1);
+    setCurrent(c => ({ year: c.month === 11 ? c.year + 1 : c.year, month: c.month === 11 ? 0 : c.month + 1 }));
+  };
 
   const cells = [];
   for (let i = 0; i < firstDay; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
-  const isToday = (d) =>
-    d === today.getDate() &&
-    current.month === today.getMonth() &&
-    current.year  === today.getFullYear();
-
+  const isToday = (d) => d === today.getDate() && current.month === today.getMonth() && current.year === today.getFullYear();
   const isEventDay = (d) => {
     if (!d) return false;
     const mm = String(current.month + 1).padStart(2, "0");
@@ -110,55 +135,90 @@ function MiniCalendar() {
   };
 
   return (
-    <div style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-      {/* Card header */}
+    <>
+    <style>{calendarCSS}</style>
+    <div className="cal-card" style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
       <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, background: LIGHT_GRAY, display: "flex", alignItems: "center", justifyContent: "space-between", height: "48px", minHeight: "48px", maxHeight: "48px", boxSizing: "border-box" }}>
         <div style={{ minWidth: 0, overflow: "hidden" }}>
-          <div style={{ fontSize: "13px", fontWeight: 800, color: DARK_GREEN, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>📅 School Calendar</div>
-          <div style={{ fontSize: "10px", color: GRAY, marginTop: "1px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{MONTHS[today.getMonth()]} {today.getFullYear()}</div>
+          <div style={{ fontSize: "13px", fontWeight: 800, color: DARK_GREEN, whiteSpace: "nowrap" }}>School Calendar</div>
+          <div style={{ fontSize: "10px", color: GRAY, marginTop: "1px", whiteSpace: "nowrap" }}>{MONTHS[today.getMonth()]} {today.getFullYear()}</div>
         </div>
       </div>
       <div style={{ padding: "14px", height: "350px", minHeight: "350px", maxHeight: "350px", boxSizing: "border-box", overflowY: "auto" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-        <button onClick={prevMonth} style={{ border: "none", background: "none", cursor: "pointer", fontSize: "15px", color: GRAY, padding: "2px 5px" }}>‹</button>
-        <span style={{ fontWeight: 800, fontSize: "13px", color: DARK_GREEN }}>{MONTHS[current.month]} {current.year}</span>
-        <button onClick={nextMonth} style={{ border: "none", background: "none", cursor: "pointer", fontSize: "15px", color: GRAY, padding: "2px 5px" }}>›</button>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: "1px", marginBottom: "3px" }}>
-        {DAYS.map(d => (
-          <div key={d} style={{ textAlign: "center", fontSize: "9px", fontWeight: 700, color: GRAY, padding: "2px 0" }}>{d}</div>
-        ))}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: "1px" }}>
-        {cells.map((d, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: "center", padding: "2px 0" }}>
-            <span
-              title={isEventDay(d) ? "Event scheduled" : undefined}
-              style={{
-                width: "26px", height: "26px", flexShrink: 0, boxSizing: "border-box",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "11px", borderRadius: "50%",
-                background: isToday(d) ? DARK_GREEN : isEventDay(d) ? "#1E88E5" : "transparent",
-                color: isToday(d) ? WHITE : isEventDay(d) ? WHITE : d ? "#111827" : "transparent",
-                fontWeight: (isToday(d) || isEventDay(d)) ? 800 : 400,
-                cursor: isEventDay(d) ? "pointer" : "default",
-              }}>{d || ""}</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+          <button className="cal-nav" onClick={prevMonth} style={{ border: "none", background: "none", cursor: "pointer", fontSize: "15px", color: GRAY, padding: "2px 5px", borderRadius: "50%", lineHeight: 1, transition: "all 0.15s" }}>‹</button>
+          <div ref={pickerRef} style={{ position: "relative", display: "flex", alignItems: "center", gap: "4px" }}>
+            <button className="cal-month-btn" onClick={() => setPicker(p => p === "month" ? null : "month")}
+              style={{ border: "none", background: "none", cursor: "pointer", fontWeight: 800, fontSize: "13px", color: DARK_GREEN, padding: "2px 4px", borderRadius: "4px", transition: "color 0.15s" }}>
+              {MONTHS[current.month]}
+            </button>
+            <button className="cal-year-btn" onClick={() => setPicker(p => p === "year" ? null : "year")}
+              style={{ border: "none", background: "none", cursor: "pointer", fontWeight: 800, fontSize: "13px", color: DARK_GREEN, padding: "2px 4px", borderRadius: "4px", transition: "color 0.15s" }}>
+              {current.year}
+            </button>
+            {picker === "month" && (
+              <div className="cal-picker" style={{ position: "absolute", top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 100, padding: "8px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px", minWidth: "180px" }}>
+                {MONTHS.map((m, i) => (
+                  <button key={m} className={`cal-pick-item${i === current.month ? " cal-pick-active" : ""}`}
+                    onClick={() => { setSlideDir(i > current.month ? "right" : "left"); setGridKey(k=>k+1); setCurrent(c=>({...c, month: i})); setPicker(null); }}
+                    style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "11px", fontWeight: 600, color: "#374151", padding: "5px 4px", borderRadius: "6px", transition: "all 0.12s" }}>
+                    {m.slice(0,3)}
+                  </button>
+                ))}
+              </div>
+            )}
+            {picker === "year" && (
+              <div className="cal-picker" style={{ position: "absolute", top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 100, padding: "8px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px", minWidth: "180px", maxHeight: "240px", overflowY: "auto" }}>
+                {yearRange.map(y => (
+                  <button key={y} ref={y === current.year ? activeYearRef : null}
+                    className={`cal-pick-item${y === current.year ? " cal-pick-active" : ""}`}
+                    onClick={() => { setSlideDir(y > current.year ? "right" : "left"); setGridKey(k=>k+1); setCurrent(c=>({...c, year: y})); setPicker(null); }}
+                    style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "11px", fontWeight: 600, color: "#374151", padding: "5px 4px", borderRadius: "6px", transition: "all 0.12s" }}>
+                    {y}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
+          <button className="cal-nav" onClick={nextMonth} style={{ border: "none", background: "none", cursor: "pointer", fontSize: "15px", color: GRAY, padding: "2px 5px", borderRadius: "50%", lineHeight: 1, transition: "all 0.15s" }}>›</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: "1px", marginBottom: "3px" }}>
+          {DAYS.map(d => (
+            <div key={d} style={{ textAlign: "center", fontSize: "9px", fontWeight: 700, color: GRAY, padding: "2px 0" }}>{d}</div>
+          ))}
+        </div>
+        <div key={gridKey} className={slideDir === "right" ? "cal-grid" : "cal-gridL"} style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: "1px" }}>
+          {cells.map((d, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "center", padding: "2px 0" }}>
+              <span
+                className={d ? (isToday(d) ? "cal-today" : "cal-day") : ""}
+                title={isEventDay(d) ? "Event scheduled" : undefined}
+                style={{
+                  width: "26px", height: "26px", flexShrink: 0, boxSizing: "border-box",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "11px", borderRadius: "50%",
+                  background: isToday(d) ? DARK_GREEN : isEventDay(d) ? "#1E88E5" : "transparent",
+                  color: isToday(d) ? WHITE : isEventDay(d) ? WHITE : d ? "#111827" : "transparent",
+                  fontWeight: (isToday(d) || isEventDay(d)) ? 800 : 400,
+                  cursor: isEventDay(d) ? "pointer" : "default",
+                  transition: "background 0.15s, color 0.15s",
+                }}>{d || ""}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: `1px solid ${BORDER}`, textAlign: "center", whiteSpace: "nowrap", overflow: "hidden" }}>
+          <span style={{ fontSize: "10px", color: GRAY }}>Today — </span>
+          <span style={{ fontSize: "10px", fontWeight: 700, color: DARK_GREEN }}>
+            {DAYS[today.getDay()]}, {MONTHS[today.getMonth()]} {today.getDate()}, {today.getFullYear()}
+          </span>
+        </div>
       </div>
-      <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: `1px solid ${BORDER}`, textAlign: "center", whiteSpace: "nowrap", overflow: "hidden" }}>
-        <span style={{ fontSize: "10px", color: GRAY }}>Today — </span>
-        <span style={{ fontSize: "10px", fontWeight: 700, color: DARK_GREEN }}>
-          {DAYS[today.getDay()]}, {MONTHS[today.getMonth()]} {today.getDate()}, {today.getFullYear()}
-        </span>
-      </div>
-      </div>{/* end padding wrapper */}
     </div>
+    </>
   );
 }
 
-// ── Teaching Lessons panel ───────────────────────────────────────────────────
+// ── Teaching Lessons panel ────────────────────────────────────────────────────
 function TeachingLessons({ user }) {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -176,393 +236,63 @@ function TeachingLessons({ user }) {
   const todayList = assignments.filter(a => isScheduledToday(a.sched));
 
   const subjectColors = [
-    { bg: "#EEF2FF", color: "#4F46E5" },
-    { bg: "#FFF7ED", color: "#C2410C" },
-    { bg: "#F0FDF4", color: "#166534" },
-    { bg: "#FFF1F2", color: "#BE123C" },
+    { bg: "#EEF2FF", color: "#4F46E5" }, { bg: "#FFF7ED", color: "#C2410C" },
+    { bg: "#f2f9e8", color: "#2d5201" }, { bg: "#FFF1F2", color: "#BE123C" },
     { bg: "#F0F9FF", color: "#0369A1" },
   ];
 
   return (
     <div style={{ background: WHITE, borderTop: `1px solid ${BORDER}`, borderRight: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}`, borderLeft: `4px solid ${GREEN}`, borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
-      {/* Card header */}
       <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, background: LIGHT_GRAY, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", height: "48px", minHeight: "48px", maxHeight: "48px", boxSizing: "border-box" }}>
         <div style={{ minWidth: 0, overflow: "hidden" }}>
-          <div style={{ fontSize: "13px", fontWeight: 800, color: DARK_GREEN, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>📖 Teaching Lessons</div>
+          <div style={{ fontSize: "13px", fontWeight: 800, color: DARK_GREEN, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Teaching Lessons</div>
           <div style={{ fontSize: "10px", color: GRAY, marginTop: "1px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{dayName}'s Teaching Load</div>
         </div>
         <span style={{ fontSize: "10px", fontWeight: 700, background: DARK_GREEN, color: WHITE, borderRadius: "20px", padding: "2px 8px", flexShrink: 0, whiteSpace: "nowrap" }}>
           {todayList.length} class{todayList.length !== 1 ? "es" : ""}
         </span>
       </div>
-
-      {/* Body */}
       <div style={{ height: "350px", minHeight: "350px", maxHeight: "350px", overflowY: "auto", boxSizing: "border-box" }}>
         {loading ? (
           <div style={{ padding: "30px", textAlign: "center", color: GRAY, fontSize: "12px" }}>Loading schedule...</div>
+        ) : todayList.length === 0 ? (
+          <div style={{ padding: "30px", textAlign: "center", color: GRAY, fontSize: "12px" }}>
+            <div style={{ fontSize: "28px", marginBottom: "8px" }}>🎉</div>No classes scheduled for today.
+          </div>
         ) : (
-          <>
-            {/* Class rows */}
-            {todayList.length === 0 ? (
-              <div style={{ padding: "30px", textAlign: "center", color: GRAY, fontSize: "12px" }}>
-                <div style={{ fontSize: "28px", marginBottom: "8px" }}>🎉</div>
-                No classes scheduled for today.
-              </div>
-            ) : (
-              todayList.map((a, i) => {
-                const sc   = subjectColors[i % subjectColors.length];
-                const time = extractTime(a.sched);
-                return (
-                  <div key={a.id || i} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 16px 10px 28px", borderBottom: `1px solid ${BORDER}` }}
-                    onMouseEnter={e => e.currentTarget.style.background = LIGHT_GRAY}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                  >
-                    {/* Icon */}
-                    <div style={{ width: 32, height: 32, borderRadius: "8px", flexShrink: 0, background: sc.bg, color: sc.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px" }}>📘</div>
-
-                    {/* Time */}
-                    <div style={{ flexShrink: 0, minWidth: "72px" }}>
-                      <div style={{ fontSize: "9px", color: GRAY, fontWeight: 600 }}>Start from</div>
-                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#111827" }}>{time || "—"}</div>
-                    </div>
-
-                    {/* Subject */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.subject_title || "—"}</div>
-                      <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
-                        {a.section && <span style={{ fontSize: "10px", color: GRAY }}>📋 {a.section}</span>}
-                        {a.room    && <span style={{ fontSize: "10px", color: GRAY }}>🚪 {a.room}</span>}
-                        {a.units   && <span style={{ fontSize: "10px", color: GRAY }}>⏱ {a.units} units</span>}
-                      </div>
-                    </div>
-
-                    {/* Year level */}
-                    {a.year_level && (
-                      <span style={{ flexShrink: 0, fontSize: "10px", fontWeight: 700, background: sc.bg, color: sc.color, padding: "2px 8px", borderRadius: "20px", whiteSpace: "nowrap" }}>
-                        {a.year_level}
-                      </span>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── All Faculty Schedule panel (admin view) ──────────────────────────────────
-function AllFacultySchedule() {
-  const [rows, setRows]       = useState([]); // [{ faculty, todayClasses }]
-  const [loading, setLoading] = useState(true);
-
-  const today   = new Date();
-  const dayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][today.getDay()];
-
-  useEffect(() => {
-    const BASE = import.meta.env.VITE_API_URL;
-    fetch(`${BASE}/api/erd/users`)
-      .then(r => r.ok ? r.json() : [])
-      .then(async (users) => {
-        const faculty = (Array.isArray(users) ? users : []).filter(u => {
-          const roleArr = Array.isArray(u.roles)
-            ? u.roles.map(r => (r || "").toLowerCase())
-            : [(u.role || "").toLowerCase()];
-          return roleArr.some(r => r === "faculty");
-        });
-
-        const results = await Promise.all(
-          faculty.map(f =>
-            fetch(`${BASE}/api/erd/faculty/assignments/${f.id}`)
-              .then(r => r.ok ? r.json() : [])
-              .then(data => ({
-                faculty: f,
-                todayClasses: (Array.isArray(data) ? data : []).filter(a => isScheduledToday(a.sched)),
-              }))
-              .catch(() => ({ faculty: f, todayClasses: [] }))
-          )
-        );
-        setRows(results);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  const subjectColors = [
-    { bg: "#EEF2FF", color: "#4F46E5" },
-    { bg: "#FFF7ED", color: "#C2410C" },
-    { bg: "#F0FDF4", color: "#166534" },
-    { bg: "#FFF1F2", color: "#BE123C" },
-    { bg: "#F0F9FF", color: "#0369A1" },
-  ];
-
-  const getInitial = (f) =>
-    ((f.first_name || f.firstName || f.username || "?").charAt(0)).toUpperCase();
-
-  const getName = (f) => {
-    const fn = f.first_name || f.firstName || "";
-    const ln = f.last_name  || f.lastName  || "";
-    return [fn, ln].filter(Boolean).join(" ").toUpperCase() || f.username || "Unknown";
-  };
-
-  const totalClasses = rows.reduce((s, r) => s + r.todayClasses.length, 0);
-
-  return (
-    <div style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
-      {/* Header */}
-      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, background: LIGHT_GRAY, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", height: "48px", minHeight: "48px", maxHeight: "48px", boxSizing: "border-box" }}>
-        <div style={{ minWidth: 0, overflow: "hidden" }}>
-          <div style={{ fontSize: "13px", fontWeight: 800, color: DARK_GREEN, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>👩‍🏫 Faculty Schedule</div>
-          <div style={{ fontSize: "10px", color: GRAY, marginTop: "1px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{dayName}'s Teaching Load</div>
-        </div>
-        <span style={{ fontSize: "10px", fontWeight: 700, background: DARK_GREEN, color: WHITE, borderRadius: "20px", padding: "2px 8px", flexShrink: 0, whiteSpace: "nowrap" }}>
-          {totalClasses} class{totalClasses !== 1 ? "es" : ""}
-        </span>
-      </div>
-
-      {/* Body */}
-      <div style={{ height: "350px", minHeight: "350px", maxHeight: "350px", overflowY: "auto", boxSizing: "border-box" }}>
-        {loading ? (
-          <div style={{ padding: "30px", textAlign: "center", color: GRAY, fontSize: "12px" }}>Loading faculty schedule...</div>
-        ) : rows.length === 0 ? (
-          <div style={{ padding: "30px", textAlign: "center", color: GRAY, fontSize: "12px" }}>No faculty found.</div>
-        ) : (
-          rows.map(({ faculty: f, todayClasses }, fi) => (
-            <div key={f.id || fi} style={{ borderBottom: `1px solid ${BORDER}` }}>
-              {/* Teacher name row */}
-              <div style={{
-                display: "flex", alignItems: "center", gap: "10px",
-                padding: "10px 16px", background: "#FAFAFA",
-              }}>
-                {/* Avatar */}
-                {(f.profile_picture || f.profilePicture) ? (
-                  <img src={f.profile_picture || f.profilePicture} alt={getName(f)}
-                    style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", border: `2px solid ${BORDER}`, flexShrink: 0 }} />
-                ) : (
-                  <div style={{
-                    width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                    background: "#E8F5E9", color: DARK_GREEN,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: "13px", fontWeight: 800, border: `2px solid #A5D6A7`
-                  }}>{getInitial(f)}</div>
-                )}
+          todayList.map((a, i) => {
+            const sc   = subjectColors[i % subjectColors.length];
+            const time = extractTime(a.sched);
+            return (
+              <div key={a.id || i} className="ov-lesson-row" style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 16px 10px 28px", borderBottom: `1px solid ${BORDER}`, background: "transparent" }}>
+                <div style={{ width: 32, height: 32, borderRadius: "8px", flexShrink: 0, background: sc.bg, color: sc.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px" }}>📘</div>
+                <div style={{ flexShrink: 0, minWidth: "72px" }}>
+                  <div style={{ fontSize: "9px", color: GRAY, fontWeight: 600 }}>Start from</div>
+                  <div style={{ fontSize: "11px", fontWeight: 700, color: "#111827" }}>{time || "—"}</div>
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "12px", fontWeight: 800, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {getName(f)}
-                  </div>
-                  <div style={{ fontSize: "10px", color: GRAY }}>
-                    {todayClasses.length > 0
-                      ? `${todayClasses.length} class${todayClasses.length !== 1 ? "es" : ""} today`
-                      : "No classes today"}
+                  <div style={{ fontSize: "12px", fontWeight: 800, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.subject_title || "—"}</div>
+                  <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+                    {a.section && <span style={{ fontSize: "10px", color: GRAY }}>📋 {a.section}</span>}
+                    {a.room    && <span style={{ fontSize: "10px", color: GRAY }}>🚪 {a.room}</span>}
+                    {a.units   && <span style={{ fontSize: "10px", color: GRAY }}>⏱ {a.units} units</span>}
                   </div>
                 </div>
-                {todayClasses.length > 0 && (
-                  <span style={{ fontSize: "10px", fontWeight: 700, background: "#DCFCE7", color: GREEN, padding: "2px 7px", borderRadius: "20px" }}>
-                    Active
+                {a.year_level && (
+                  <span style={{ flexShrink: 0, fontSize: "10px", fontWeight: 700, background: sc.bg, color: sc.color, padding: "2px 8px", borderRadius: "20px", whiteSpace: "nowrap" }}>
+                    {a.year_level}
                   </span>
                 )}
               </div>
-
-              {/* That teacher's classes today */}
-              {todayClasses.map((a, i) => {
-                const sc   = subjectColors[i % subjectColors.length];
-                const time = extractTime(a.sched);
-                return (
-                  <div key={a.id || i} style={{
-                    display: "flex", alignItems: "center", gap: "10px",
-                    padding: "8px 16px 8px 28px",
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.background = LIGHT_GRAY}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                  >
-                    {/* Icon */}
-                    <div style={{
-                      width: 28, height: 28, borderRadius: "8px", flexShrink: 0,
-                      background: sc.bg, color: sc.color,
-                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px"
-                    }}>📘</div>
-
-                    {/* Time */}
-                    <div style={{ flexShrink: 0, minWidth: "65px" }}>
-                      <div style={{ fontSize: "9px", color: GRAY, fontWeight: 600 }}>Start from</div>
-                      <div style={{ fontSize: "10px", fontWeight: 700, color: "#111827" }}>{time || "—"}</div>
-                    </div>
-
-                    {/* Subject */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {a.subject_title || "—"}
-                      </div>
-                      <div style={{ display: "flex", gap: "5px", marginTop: "2px" }}>
-                        {a.section && <span style={{ fontSize: "9px", color: GRAY }}>📋 {a.section}</span>}
-                        {a.room    && <span style={{ fontSize: "9px", color: GRAY }}>🚪 {a.room}</span>}
-                      </div>
-                    </div>
-
-                    {/* Year level */}
-                    {a.year_level && (
-                      <span style={{ flexShrink: 0, fontSize: "9px", fontWeight: 700, background: sc.bg, color: sc.color, padding: "2px 6px", borderRadius: "20px", whiteSpace: "nowrap" }}>
-                        {a.year_level}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
   );
 }
 
-
-// ── Enrollment Statistics panel — top summary numbers (Total / Male /
-// Female), a grouped bar chart of Male vs Female counts per Year Level, and
-// a donut chart showing the overall Male/Female split with a legend.
-function LineChart({ data, max, maleColor, femaleColor, unspecColor }) {
-  const [tooltip, setTooltip] = useState(null);
-  const [animKey, setAnimKey] = useState(0);
-  const svgRef = useRef(null);
-  const W = 560, H = 68, PAD = { top: 8, right: 12, bottom: 18, left: 6 };
-
-  // Re-trigger animation whenever data values change
-  const dataSignature = data.map(d => `${d.male}-${d.female}-${d.unspecified}`).join("|");
-  useEffect(() => { setAnimKey(k => k + 1); }, [dataSignature]);
-  const innerW = W - PAD.left - PAD.right;
-  const innerH = H - PAD.top - PAD.bottom;
-  const n = data.length;
-  if (n === 0) return null;
-
-  const yMax  = max > 0 ? max : 1;
-  const yTicks = 2;
-  const step  = Math.ceil(yMax / yTicks) || 1;
-  const yTop  = step * yTicks;
-
-  const xPos = i => PAD.left + (n > 1 ? (i / (n - 1)) * innerW : innerW / 2);
-  const yPos = v => PAD.top  + innerH - Math.min(v / yTop, 1) * innerH;
-  const base  = PAD.top + innerH;
-
-  const areaPoly = (key) => {
-    const pts = data.map((d, i) => `${xPos(i)},${yPos(d[key] || 0)}`);
-    return [...pts, `${xPos(n-1)},${base}`, `${xPos(0)},${base}`].join(" ");
-  };
-
-  const mPts = data.map((d, i) => `${xPos(i)},${yPos(d.male)}`).join(" ");
-  const fPts = data.map((d, i) => `${xPos(i)},${yPos(d.female)}`).join(" ");
-  const uPts = data.map((d, i) => `${xPos(i)},${yPos(d.unspecified || 0)}`).join(" ");
-
-
-  return (
-    <div style={{ position: "relative" }}>
-      <style>{`
-        @keyframes chartRiseIn {
-          from { transform: scaleY(0); }
-          to   { transform: scaleY(1); }
-        }
-        .chart-animate {
-          transform-origin: bottom center;
-          animation: chartRiseIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-        }
-      `}</style>
-      <svg ref={svgRef} key={animKey} width="100%" viewBox={`0 0 ${W} ${H}`}
-        className="chart-animate"
-        style={{ overflow: "visible", display: "block", maxHeight: "72px" }}
-        onMouseLeave={() => setTooltip(null)}>
-
-        {/* grid lines */}
-        {Array.from({ length: yTicks + 1 }, (_, i) => (
-          <line key={i} x1={PAD.left} y1={yPos(i * step)} x2={W - PAD.right} y2={yPos(i * step)}
-            stroke="#E5E7EB" strokeWidth="1" strokeDasharray={i === 0 ? "0" : "3 3"} />
-        ))}
-
-        {/* Unspecified area + line */}
-        <polygon points={areaPoly("unspecified")} fill={unspecColor} opacity="0.08" />
-        <polyline points={uPts} fill="none" stroke={unspecColor} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-
-        {/* Female area + line */}
-        <polygon points={areaPoly("female")} fill={femaleColor} opacity="0.10" />
-        <polyline points={fPts} fill="none" stroke={femaleColor} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-
-        {/* Male area + line */}
-        <polygon points={areaPoly("male")} fill={maleColor} opacity="0.12" />
-        <polyline points={mPts} fill="none" stroke={maleColor} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-
-        {/* Wide transparent hit strips + circles per data point */}
-        {data.map((d, i) => {
-          const stripW = n > 1 ? innerW / (n - 1) : innerW;
-          const stripX = i === 0 ? xPos(0) : xPos(i) - stripW / 2;
-          return (
-            <g key={i} onMouseEnter={() => setTooltip({ i, d })} style={{ cursor: "crosshair" }}>
-              <rect x={stripX} y={PAD.top} width={i === 0 || i === n-1 ? stripW / 2 : stripW}
-                height={innerH} fill="transparent" style={{ pointerEvents: "all" }} />
-              <circle cx={xPos(i)} cy={yPos(d.male)} r="4" fill={maleColor} stroke="#fff" strokeWidth="1.5" />
-              <circle cx={xPos(i)} cy={yPos(d.female)} r="4" fill={femaleColor} stroke="#fff" strokeWidth="1.5" />
-              <circle cx={xPos(i)} cy={yPos(d.unspecified||0)} r="4" fill={unspecColor} stroke="#fff" strokeWidth="1.5" />
-            </g>
-          );
-        })}
-
-        {/* X labels */}
-        {data.map((d, i) => (
-          <text key={i} x={xPos(i)} y={H - 3} textAnchor="middle" fontSize="8" fontWeight="700" fill="#9CA3AF">{d.label}</text>
-        ))}
-        <line x1={PAD.left} y1={base} x2={W - PAD.right} y2={base} stroke="#E5E7EB" strokeWidth="1" />
-      </svg>
-
-      {/* Tooltip — clamped so it never overflows left or right edge */}
-      {tooltip && (() => {
-        const pct = n > 1 ? (tooltip.i / (n - 1)) * 100 : 50;
-        // anchor left edge so tooltip stays inside container
-        const anchorStyle = pct < 25
-          ? { left: "4px", transform: "none" }
-          : pct > 75
-          ? { right: "4px", left: "auto", transform: "none" }
-          : { left: `${pct}%`, transform: "translateX(-50%)" };
-        return (
-          <div style={{
-            position: "absolute", bottom: "20px",
-            ...anchorStyle,
-            background: "#1F2937", borderRadius: "6px", padding: "4px 8px",
-            fontSize: "9px", lineHeight: "1.7", whiteSpace: "nowrap", color: "#F9FAFB",
-            pointerEvents: "none", zIndex: 10,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.18)"
-          }}>
-            <div style={{ fontWeight: 700, color: "#E5E7EB", marginBottom: "1px" }}>{tooltip.d.label}</div>
-            <div>
-              <span style={{ color: maleColor }}>●</span> {tooltip.d.male}&nbsp;&nbsp;
-              <span style={{ color: femaleColor }}>●</span> {tooltip.d.female}&nbsp;&nbsp;
-              <span style={{ color: unspecColor }}>●</span> {tooltip.d.unspecified||0}
-            </div>
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
-
-
-function DonutChart({ total, male, female, maleColor, femaleColor }) {
-  const size = 120, stroke = 14, r = (size - stroke) / 2, c = 2 * Math.PI * r;
-  const maleLen   = total > 0 ? (male / total) * c : 0;
-  const femaleLen = total > 0 ? (female / total) * c : 0;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F3F4F6" strokeWidth={stroke} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={maleColor} strokeWidth={stroke}
-        strokeDasharray={`${maleLen} ${c}`} strokeDashoffset={0} strokeLinecap="round"
-        transform={`rotate(-90 ${size / 2} ${size / 2})`} style={{ transition: "stroke-dasharray 0.5s ease" }} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={femaleColor} strokeWidth={stroke}
-        strokeDasharray={`${femaleLen} ${c}`} strokeDashoffset={-maleLen} strokeLinecap="round"
-        transform={`rotate(-90 ${size / 2} ${size / 2})`} style={{ transition: "stroke-dasharray 0.5s ease" }} />
-      <text x="50%" y="46%" textAnchor="middle" fontSize="10" fontWeight="700" fill={GRAY} letterSpacing="0.5">TOTAL</text>
-      <text x="50%" y="64%" textAnchor="middle" fontSize="24" fontWeight="900" fill="#111827">{total}</text>
-    </svg>
-  );
-}
-
+// ── Enrollment Statistics ─────────────────────────────────────────────────────
 const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
 const SEMESTERS   = ["1st Semester", "2nd Semester"];
 
@@ -570,9 +300,8 @@ function EnrollmentStats({ user }) {
   const isAdmin = user?.role === "administrator";
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading]         = useState(true);
-  const [schoolYearFilter, setSchoolYearFilter] = useState("");
-  const [yearLevelFilter,  setYearLevelFilter]  = useState("");
-  const [semesterFilter,   setSemesterFilter]   = useState("");
+  const [activeSem, setActiveSem]     = useState("1st Semester");
+  const [schoolYear, setSchoolYear]   = useState("all"); // will be updated to latest after fetch
 
   useEffect(() => {
     fetch(`${import.meta.env.VITE_API_URL}/api/erd/enrollments`)
@@ -581,176 +310,236 @@ function EnrollmentStats({ user }) {
       .catch(() => setLoading(false));
   }, []);
 
-  // Distinct school years, newest first
-  const availableYears = Array.from(new Set(enrollments.map(e => String(e.year_enrolled)).filter(Boolean))).sort((a,b) => b-a);
-
-  // Apply filters — show empty (0) when no filter is selected
-  const hasFilter = !!(schoolYearFilter || yearLevelFilter || semesterFilter);
-  const scoped = !hasFilter ? [] : enrollments.filter(e => {
-    if (schoolYearFilter && String(e.year_enrolled) !== schoolYearFilter) return false;
-    if (yearLevelFilter  && e.year_level !== yearLevelFilter)             return false;
-    if (semesterFilter   && e.semester   !== semesterFilter)              return false;
-    return true;
-  });
-
-  const total  = scoped.length;
   const isMale   = e => (e.gender || "").toLowerCase() === "male";
   const isFemale = e => (e.gender || "").toLowerCase() === "female";
-  const maleCount        = scoped.filter(isMale).length;
-  const femaleCount      = scoped.filter(isFemale).length;
-  const unspecifiedCount = total - maleCount - femaleCount;
 
-  const MALE_COLOR   = "#3B82F6";
-  const FEMALE_COLOR = "#EC4899";
-  const UNSPEC_COLOR = "#EF4444";
+  // year_enrolled is a number (e.g. 2025); derive "2025-2026" from it
+  const toSY = yr => yr ? `${yr}-${parseInt(yr) + 1}` : null;
 
-  // Chart: group by year level (always), showing counts per level
+  const schoolYears = [...new Set(enrollments.map(e => toSY(e.year_enrolled)).filter(Boolean))].sort().reverse();
+
+  // Auto-select the most recent school year after data loads
+  useEffect(() => {
+    if (schoolYears.length > 0 && schoolYear === "all") setSchoolYear(schoolYears[0]);
+  }, [enrollments.length]);
+
+  const bySchoolYear = schoolYear === "all"
+    ? enrollments
+    : enrollments.filter(e => toSY(e.year_enrolled) === schoolYear);
+
+  const sem1Count = bySchoolYear.filter(e => e.semester === "1st Semester").length;
+  const sem2Count = bySchoolYear.filter(e => e.semester === "2nd Semester").length;
+
+  const filtered = bySchoolYear.filter(e => e.semester === activeSem);
+  const male        = filtered.filter(isMale).length;
+  const female      = filtered.filter(isFemale).length;
+  const unspecified = filtered.length - male - female;
+
   const byYearLevel = YEAR_LEVELS.map(lvl => {
-    const rows = scoped.filter(e => e.year_level === lvl);
-    return {
-      label: lvl.replace(" Year", ""),  // "1st", "2nd", etc. to keep labels short
-      male:        rows.filter(isMale).length,
-      female:      rows.filter(isFemale).length,
-      unspecified: rows.filter(e => !isMale(e) && !isFemale(e)).length,
-    };
-  });
-  const maxGroupCount = Math.max(1, ...byYearLevel.map(r => r.male + r.female + r.unspecified));
-
-  // Per-semester breakdown for the selected school year + year level
-  const semBreakdown = SEMESTERS.map(sem => {
-    const rows = scoped.filter(e => e.semester === sem);
-    return { sem, count: rows.length, male: rows.filter(isMale).length, female: rows.filter(isFemale).length };
+    const rows = filtered.filter(e => e.year_level === lvl);
+    return { label: lvl, total: rows.length, male: rows.filter(isMale).length, female: rows.filter(isFemale).length };
   });
 
-  const downloadXlsxReport = () => {
-    const filterDesc = [
-      schoolYearFilter ? `School Year: ${schoolYearFilter}` : "All School Years",
-      yearLevelFilter  ? `Year Level: ${yearLevelFilter}`   : "All Year Levels",
-      semesterFilter   ? `Semester: ${semesterFilter}`      : "All Semesters",
-    ].join(" | ");
-
+  const downloadXlsx = () => {
     const rows = [
       ["CCA Enrollment Statistics Report"],
       ["Generated At", new Date().toLocaleString()],
-      ["Filter", filterDesc],
+      ["School Year", schoolYear === "all" ? "All School Years" : schoolYear],
+      ["Semester", activeSem],
       [],
-      ["SUMMARY"],
-      ["Total Enrolled", total],
-      ["Male", maleCount],
-      ["Female", femaleCount],
-      ["Unspecified", unspecifiedCount],
+      ["Year Level", "Total", "Male", "Female", "Unspecified"],
+      ...byYearLevel.map(r => [r.label, r.total, r.male, r.female, r.total - r.male - r.female]),
       [],
-      ["BY YEAR LEVEL"],
-      ["Year Level", "Total", "Male", "Female"],
-      ...byYearLevel.map(r => [r.label + " Year", r.male + r.female + r.unspecified, r.male, r.female]),
-      [],
-      ["BY SEMESTER"],
-      ["Semester", "Total", "Male", "Female"],
-      ...semBreakdown.map(r => [r.sem, r.count, r.male, r.female]),
+      ["TOTAL", filtered.length, male, female, unspecified],
     ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [{ wch: 22 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
+    ws["!cols"] = [{ wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 14 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Enrollment Stats");
     XLSX.writeFile(wb, `enrollment-stats.xlsx`);
   };
 
-  const selectStyle = { padding: "5px 8px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "11px", background: WHITE, color: "#111827", cursor: "pointer" };
-
   return (
-    <div style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <div style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden", height: "100%", boxSizing: "border-box" }}>
       {/* Header */}
-      <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER}`, background: LIGHT_GRAY, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", flexShrink: 0 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: "13px", fontWeight: 800, color: DARK_GREEN }}>📊 Enrollment Statistics</div>
-          <div style={{ fontSize: "10px", color: GRAY, marginTop: "1px" }}>Students by year level and semester</div>
-        </div>
-        {isAdmin && (
-          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", flexShrink: 0 }}>
-            <select value={schoolYearFilter} onChange={e => setSchoolYearFilter(e.target.value)} style={selectStyle}>
-              <option value="">All School Years</option>
-              {availableYears.map(y => <option key={y} value={y}>{y}–{parseInt(y)+1}</option>)}
-            </select>
-            <select value={yearLevelFilter} onChange={e => setYearLevelFilter(e.target.value)} style={selectStyle}>
-              <option value="">All Year Levels</option>
-              {YEAR_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-            </select>
-            <select value={semesterFilter} onChange={e => setSemesterFilter(e.target.value)} style={selectStyle}>
-              <option value="">All Semesters</option>
-              {SEMESTERS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <button type="button" onClick={downloadXlsxReport}
-              style={{ padding: "5px 10px", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: 700, background: DARK_GREEN, color: WHITE, cursor: "pointer", whiteSpace: "nowrap" }}>
-              📊 Generate XLSX
-            </button>
+      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, background: "#f5f3ea", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+        <div>
+          <div style={{ fontSize: "13px", fontWeight: 700, color: DARK_GREEN }}>Enrollment Statistics</div>
+          <div style={{ fontSize: "10px", color: GRAY, marginTop: "1px" }}>
+            {schoolYear === "all" ? "All school years" : `S.Y. ${schoolYear}`} · {activeSem}
           </div>
-        )}
+        </div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <select value={schoolYear} onChange={e => setSchoolYear(e.target.value)}
+            style={{ fontSize: "11px", padding: "5px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", background: WHITE, color: "#374151", cursor: "pointer", outline: "none" }}>
+            <option value="all">All School Years</option>
+            {schoolYears.map(sy => <option key={sy} value={sy}>{sy}</option>)}
+          </select>
+          {isAdmin && (
+            <button type="button" onClick={downloadXlsx}
+              style={{ padding: "5px 12px", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: 600, background: DARK_GREEN, color: WHITE, cursor: "pointer", whiteSpace: "nowrap" }}>
+              Export
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Body */}
-      <div style={{ padding: "10px 14px", boxSizing: "border-box", flex: 1, overflow: "hidden" }}>
+      {/* Semester tabs */}
+      <div style={{ display: "flex", gap: "8px", padding: "10px 16px", borderBottom: `1px solid ${BORDER}`, background: WHITE }}>
+        {SEMESTERS.map(sem => {
+          const count = sem === "1st Semester" ? sem1Count : sem2Count;
+          const active = activeSem === sem;
+          return (
+            <button key={sem} onClick={() => setActiveSem(sem)}
+              style={{
+                padding: "5px 14px", border: `1.5px solid ${active ? DARK_GREEN : BORDER}`,
+                borderRadius: "20px", fontSize: "11px", fontWeight: 700,
+                background: active ? DARK_GREEN : WHITE, color: active ? WHITE : "#374151",
+                cursor: "pointer", transition: "all 0.15s",
+              }}>
+              {sem} ({count})
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Table */}
+      <div style={{ padding: "12px 16px" }}>
         {loading ? (
-          <div style={{ padding: "20px", textAlign: "center", color: GRAY, fontSize: "12px" }}>Loading enrollment data...</div>
+          <div style={{ padding: "20px", textAlign: "center", color: GRAY, fontSize: "12px" }}>Loading...</div>
         ) : (
-          <>
-            {/* Summary row */}
-            <div style={{ display: "flex", gap: "16px", marginBottom: "8px", flexWrap: "wrap" }}>
-              {[["Total", total, "#111827"], ["Male", maleCount, MALE_COLOR], ["Female", femaleCount, FEMALE_COLOR], ["Unspecified", unspecifiedCount, UNSPEC_COLOR]].map(([lbl, val, col]) => (
-                <div key={lbl}>
-                  <div style={{ fontSize: "8px", color: GRAY, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>{lbl}</div>
-                  <div style={{ fontSize: "15px", fontWeight: 900, color: col }}>{val}</div>
-                </div>
-              ))}
-              {/* Semester pill breakdown */}
-              <div style={{ marginLeft: "auto", display: "flex", gap: "6px", alignItems: "center" }}>
-                {semBreakdown.map(r => (
-                  <div key={r.sem} style={{ padding: "3px 10px", borderRadius: "10px", background: LIGHT_GRAY, border: `1px solid ${BORDER}`, fontSize: "10px", fontWeight: 700, color: DARK_GREEN, whiteSpace: "nowrap" }}>
-                    {r.sem}: <span style={{ color: "#111827" }}>{r.count}</span>
-                  </div>
-                ))}
-              </div>
+          <div>
+            {/* Legend */}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10, fontSize: 12 }}>
+              <span style={{ color: GRAY, fontSize: 11 }}>Total: <b style={{ color: DARK_GREEN }}>{filtered.length}</b></span>
             </div>
-
-            {/* Chart + Donut */}
-            <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: "16px", alignItems: "center" }}>
-              <div>
-                {/* Line chart by year level */}
-                <LineChart
-                  data={byYearLevel}
-                  max={maxGroupCount}
-                  maleColor={MALE_COLOR}
-                  femaleColor={FEMALE_COLOR}
-                  unspecColor={UNSPEC_COLOR}
-                />
-                <div style={{ display: "flex", gap: "10px", marginTop: "6px", fontSize: "9px", color: "#374151", flexWrap: "wrap" }}>
-                  <span><span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: MALE_COLOR, marginRight: 4 }} />Male</span>
-                  <span><span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: FEMALE_COLOR, marginRight: 4 }} />Female</span>
-                  <span><span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: UNSPEC_COLOR, marginRight: 4 }} />Unspecified</span>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-                <DonutChart total={total} male={maleCount} female={femaleCount} maleColor={MALE_COLOR} femaleColor={FEMALE_COLOR} />
-                <div style={{ display: "flex", gap: "8px", fontSize: "9px", color: "#374151" }}>
-                  <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: MALE_COLOR, marginRight: 4 }} />Male ({maleCount})</span>
-                  <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: FEMALE_COLOR, marginRight: 4 }} />Female ({femaleCount})</span>
-                </div>
-              </div>
-            </div>
-          </>
+            {(() => {
+              const data = byYearLevel;
+              const W = 660, H = 104, padL = 30, padR = 14, padT = 10, padB = 20;
+              const maxV = Math.max(1, ...data.map(d => Math.max(d.male, d.female)));
+              const n = data.length;
+              const X = (i) => padL + (n <= 1 ? (W - padL - padR) / 2 : (i / (n - 1)) * (W - padL - padR));
+              const Y = (v) => padT + (1 - v / maxV) * (H - padT - padB);
+              const path = (key) => data.map((d, i) => `${i === 0 ? "M" : "L"}${X(i).toFixed(1)},${Y(d[key]).toFixed(1)}`).join(" ");
+              const TICKS = 4;
+              return (
+                <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "104px", overflow: "visible" }}>
+                  {Array.from({ length: TICKS + 1 }).map((_, t) => {
+                    const v = (maxV * (TICKS - t)) / TICKS;
+                    const yy = Y(v);
+                    return (
+                      <g key={t}>
+                        <line x1={padL} y1={yy} x2={W - padR} y2={yy} stroke="#eeeeee" />
+                        <text x={padL - 6} y={yy + 3} textAnchor="end" fontSize="9" fill={GRAY}>{Math.round(v)}</text>
+                      </g>
+                    );
+                  })}
+                  {data.map((d, i) => <text key={"x" + i} x={X(i)} y={H - 8} textAnchor="middle" fontSize="9.5" fill={GRAY}>{d.label}</text>)}
+                  <path d={path("male")} fill="none" stroke="#3B82F6" strokeWidth="2.5" strokeLinejoin="round" />
+                  <path d={path("female")} fill="none" stroke="#EC4899" strokeWidth="2.5" strokeLinejoin="round" />
+                  {data.map((d, i) => <circle key={"m" + i} cx={X(i)} cy={Y(d.male)} r="4" fill="#fff" stroke="#3B82F6" strokeWidth="2" />)}
+                  {data.map((d, i) => <circle key={"f" + i} cx={X(i)} cy={Y(d.female)} r="4" fill="#fff" stroke="#EC4899" strokeWidth="2" />)}
+                </svg>
+              );
+            })()}
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-// ── Main Overview ────────────────────────────────────────────────────────────
-export default function Overview({ user }) {
-  const [loading, setLoading]             = useState(true);
-  const [announcements, setAnnouncements] = useState([]);
-  const [deletingId, setDeletingId]       = useState(null);
+// ── Gender donut (enrollment by sex) ──────────────────────────────────────────
+function GenderDonut() {
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/api/erd/students`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { setStudents(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+  const male   = students.filter(s => (s.gender || "").toLowerCase() === "male").length;
+  const female = students.filter(s => (s.gender || "").toLowerCase() === "female").length;
+  const total  = students.length;
+  const other  = total - male - female;
+  const R = 42, C = 2 * Math.PI * R;
+  const seg = (v) => total ? (v / total) * C : 0;
+  const mLen = seg(male), fLen = seg(female), uLen = seg(other);
+  const pct = (v) => total ? Math.round((v / total) * 100) : 0;
+  const dot = (c) => ({ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: c, flexShrink: 0 });
+  return (
+    <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: "12px", marginTop: "4px" }}>
+      <div style={{ fontSize: "10px", fontWeight: 700, color: GRAY, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "8px" }}>Enrollment by Gender</div>
+      {loading ? (
+        <div style={{ fontSize: "11px", color: GRAY }}>Loading…</div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <svg width="104" height="104" viewBox="0 0 104 104" style={{ flexShrink: 0 }}>
+            <g transform="rotate(-90 52 52)">
+              <circle cx="52" cy="52" r={R} fill="none" stroke="#eeeeee" strokeWidth="14" />
+              {male > 0 && <circle cx="52" cy="52" r={R} fill="none" stroke="#3B82F6" strokeWidth="14" strokeDasharray={`${mLen} ${C}`} strokeDashoffset="0" />}
+              {female > 0 && <circle cx="52" cy="52" r={R} fill="none" stroke="#EC4899" strokeWidth="14" strokeDasharray={`${fLen} ${C}`} strokeDashoffset={`-${mLen}`} />}
+              {other > 0 && <circle cx="52" cy="52" r={R} fill="none" stroke="#9CA3AF" strokeWidth="14" strokeDasharray={`${uLen} ${C}`} strokeDashoffset={`-${mLen + fLen}`} />}
+            </g>
+            <text x="52" y="49" textAnchor="middle" fontSize="18" fontWeight="800" fill={DARK_GREEN}>{total}</text>
+            <text x="52" y="63" textAnchor="middle" fontSize="7.5" fill={GRAY}>students</text>
+          </svg>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: "11px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={dot("#3B82F6")} /><b style={{ color: "#3B82F6" }}>Male</b>&nbsp;{male} ({pct(male)}%)</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={dot("#EC4899")} /><b style={{ color: "#EC4899" }}>Female</b>&nbsp;{female} ({pct(female)}%)</div>
+            {other > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={dot("#9CA3AF")} /><b style={{ color: "#6B7280" }}>Other</b>&nbsp;{other} ({pct(other)}%)</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
-  const isAdmin = user?.role === "administrator";
+// ── Quick Actions ─────────────────────────────────────────────────────────────
+function QuickActions({ user }) {
+  const actions = [
+    { icon: "➕", label: "Add New Student",       desc: "Register a new student record",    color: DARK_GREEN,  bg: "#f2f9e8",  border: "#c6e49b", path: "students"    },
+    { icon: "📢", label: "Create Announcement",   desc: "Post a bulletin for the campus",    color: "#1d4ed8",   bg: "#eff6ff",  border: "#bfdbfe", path: "announcements" },
+    { icon: "📋", label: "View Registrar Logs",   desc: "Check transcript & registrar data", color: "#6d28d9",   bg: "#f5f3ff",  border: "#ddd6fe", path: "registrar"   },
+  ];
+
+  const handleAction = (path) => {
+    // Try React Router hash navigation first, then fallback
+    const evt = new CustomEvent("cca-navigate", { detail: { path } });
+    window.dispatchEvent(evt);
+    // Also update hash as fallback
+    window.location.hash = path;
+  };
+
+  return (
+    <div style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden", display: "flex", flexDirection: "column", height: "100%", boxSizing: "border-box" }}>
+      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", flex: 1 }}>
+        {/* Enrollment by gender donut */}
+        <GenderDonut />
+
+        {/* Divider + extra info */}
+        <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: "12px", marginTop: "4px" }}>
+          <div style={{ fontSize: "10px", fontWeight: 700, color: GRAY, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "8px" }}>System Info</div>
+          <div style={{ fontSize: "11px", color: "#374151", lineHeight: 1.8 }}>
+            <div>🏫 Community College of Alangalang</div>
+            <div style={{ color: GRAY }}>Role: <strong style={{ color: DARK_GREEN, textTransform: "capitalize" }}>{user?.role || "Guest"}</strong></div>
+            <div style={{ color: GRAY }}>Today: <strong style={{ color: "#111827" }}>{new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Overview ─────────────────────────────────────────────────────────────
+export default function Overview({ user }) {
+  const [loading, setLoading]         = useState(true);
+  const [announcements, setAnnouncements] = useState([]);
+  const [deletingId, setDeletingId]   = useState(null);
+
+  const isAdmin   = user?.role === "administrator";
+  const isFaculty = user?.role === "faculty";
 
   useEffect(() => {
     fetch(`${import.meta.env.VITE_API_URL}/api/erd/announcements`)
@@ -771,7 +560,7 @@ export default function Overview({ user }) {
           if (res.ok) {
             showToast("Announcement deleted.", "info");
             setAnnouncements(prev => prev.filter(item => item.id !== id));
-            window.dispatchEvent(new CustomEvent('announcement-deleted'));
+            window.dispatchEvent(new CustomEvent("announcement-deleted"));
           } else showToast("Failed to delete announcement.", "error");
         } catch { showToast("Network error.", "error"); }
         finally { setDeletingId(null); }
@@ -779,109 +568,95 @@ export default function Overview({ user }) {
     });
   };
 
-  const isFaculty = user?.role === "faculty";
-
   return (
     <div style={{ fontFamily: "system-ui", minWidth: 0 }}>
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr 1fr",
-        gap: "16px",
-        alignItems: "start",
-      }}>
+      <style>{`
+        .ov-note-card { transition: box-shadow 0.15s ease; }
+        .ov-note-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; }
+        .ov-lesson-row { transition: background 0.12s; }
+        .ov-lesson-row:hover { background: #f2f9e8 !important; }
+      `}</style>
 
-        {/* ── BULLETIN ── */}
-        <div>
-          {/* Card wrapper */}
+      {/* ── Bulletin + Calendar ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", alignItems: "start" }}>
+        <div className="ov-bulletin" style={{ gridColumn: "span 2" }}>
           <div style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
-          {/* Card header — inside the card */}
-          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, background: LIGHT_GRAY, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", height: "48px", minHeight: "48px", maxHeight: "48px", boxSizing: "border-box" }}>
-            <div style={{ minWidth: 0, overflow: "hidden" }}>
-              <div style={{ fontSize: "13px", fontWeight: 800, color: DARK_GREEN, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>📢 Campus Bulletin</div>
-              <div style={{ fontSize: "10px", color: GRAY, marginTop: "1px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Latest Announcements</div>
-            </div>
-            {announcements.length > 0 && (
-              <span style={{ fontSize: "10px", fontWeight: 700, background: DARK_GREEN, color: WHITE, borderRadius: "20px", padding: "2px 8px", flexShrink: 0, whiteSpace: "nowrap" }}>
-                {announcements.length}
-              </span>
-            )}
-          </div>
-          <div style={{ height: "350px", minHeight: "350px", maxHeight: "350px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", padding: "10px", boxSizing: "border-box" }}>
-            {loading ? (
-              <div style={{ color: GRAY, textAlign: "center", padding: "30px 0", fontSize: "12px" }}>Loading bulletins...</div>
-            ) : announcements.length === 0 ? (
-              <div style={{ color: GRAY, padding: "24px", border: `1px dashed ${BORDER}`, borderRadius: "10px", textAlign: "center", fontSize: "12px" }}>
-                No announcements yet.
+            <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, background: LIGHT_GRAY, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", height: "48px", minHeight: "48px", maxHeight: "48px", boxSizing: "border-box" }}>
+              <div style={{ minWidth: 0, overflow: "hidden" }}>
+                <div style={{ fontSize: "13px", fontWeight: 800, color: DARK_GREEN, whiteSpace: "nowrap" }}>Campus Bulletin</div>
+                <div style={{ fontSize: "10px", color: GRAY, marginTop: "1px", whiteSpace: "nowrap" }}>Latest Announcements</div>
               </div>
-            ) : (
-              announcements.map((note) => {
-                const isDeleting = deletingId === note.id;
-                const dateStr    = note.posted_date ? note.posted_date.substring(0, 10) : "";
-                return (
-                  <div key={note.id} style={{
-                    background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "10px",
-                    overflow: "hidden", boxShadow: "0 1px 2px rgba(0,0,0,0.04)", flexShrink: 0
-                  }}>
-                    {/* Department + date */}
-                    <div style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      gap: "8px", padding: "6px 12px", background: "#F0FDF4",
-                      borderBottom: `1px solid ${BORDER}`, flexWrap: "nowrap"
+              {announcements.length > 0 && (
+                <span className="ov-badge" style={{ fontSize: "10px", fontWeight: 700, background: DARK_GREEN, color: WHITE, borderRadius: "20px", padding: "2px 8px", flexShrink: 0 }}>
+                  {announcements.length}
+                </span>
+              )}
+            </div>
+            <div style={{ height: "350px", minHeight: "350px", maxHeight: "350px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", padding: "10px", boxSizing: "border-box" }}>
+              {loading ? (
+                <div style={{ color: GRAY, textAlign: "center", padding: "30px 0", fontSize: "12px" }}>Loading bulletins...</div>
+              ) : announcements.length === 0 ? (
+                <div style={{ color: GRAY, padding: "24px", border: `1px dashed ${BORDER}`, borderRadius: "10px", textAlign: "center", fontSize: "12px" }}>
+                  <div style={{ fontSize: "28px", marginBottom: "8px" }}>📌</div>
+                  Post a warm welcome message here!
+                </div>
+              ) : (
+                announcements.map((note, ni) => {
+                  const isDeleting = deletingId === note.id;
+                  const dateStr    = note.posted_date ? note.posted_date.substring(0, 10) : "";
+                  return (
+                    <div key={note.id} className="ov-note-card" style={{
+                      background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "10px",
+                      overflow: "hidden", boxShadow: "0 1px 2px rgba(0,0,0,0.04)", flexShrink: 0,
+                      display: "flex", flexDirection: "row", height: "150px",
+                      
                     }}>
-                      <span style={{
-                        fontSize: "10px", fontWeight: 800, color: GREEN,
-                        background: "#DCFCE7", padding: "2px 8px", borderRadius: "20px",
-                        textTransform: "uppercase", letterSpacing: "0.3px",
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "65%"
-                      }}>🏫 {note.department || "General"}</span>
-                      <span style={{ fontSize: "10px", color: GRAY, whiteSpace: "nowrap", flexShrink: 0 }}>📅 {dateStr}</span>
-                    </div>
-
-                    {/* Title */}
-                    <div style={{ padding: "8px 12px 0 12px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "6px" }}>
-                      <h4 style={{ margin: 0, fontSize: "12px", fontWeight: 800, color: "#111827", lineHeight: 1.3 }}>{note.title}</h4>
-                      {isAdmin && (
-                        <button disabled={isDeleting} onClick={() => handleDeleteNotice(note.id)}
-                          style={{ flexShrink: 0, padding: "2px 6px", background: "none", border: "none", cursor: isDeleting ? "not-allowed" : "pointer", color: "#DC2626", fontSize: "14px", lineHeight: 1, borderRadius: "4px", opacity: isDeleting ? 0.4 : 1 }}
-                          title="Delete announcement"
-                        >🗑</button>
+                      {note.image && (
+                        <div style={{ width: "45%", flexShrink: 0, background: "#F9FAFB", borderRight: `1px solid ${BORDER}`, overflow: "hidden" }}>
+                          <img src={note.image} alt="Announcement" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+                        </div>
                       )}
+                      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", padding: "6px 12px", background: "#f2f9e8", borderBottom: `1px solid ${BORDER}`, flexWrap: "nowrap" }}>
+                          <span style={{ fontSize: "10px", fontWeight: 800, color: GREEN, background: "#DCFCE7", padding: "2px 8px", borderRadius: "20px", textTransform: "uppercase", letterSpacing: "0.3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "65%" }}>🏫 {note.department || "General"}</span>
+                          <span style={{ fontSize: "10px", color: GRAY, whiteSpace: "nowrap", flexShrink: 0 }}>📅 {dateStr}</span>
+                        </div>
+                        <div style={{ padding: "8px 12px 0 12px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "6px" }}>
+                          <h4 style={{ margin: 0, fontSize: "12px", fontWeight: 800, color: "#111827", lineHeight: 1.3 }}>{note.title}</h4>
+                          {isAdmin && (
+                            <button disabled={isDeleting} onClick={() => handleDeleteNotice(note.id)}
+                              style={{ flexShrink: 0, padding: "2px 6px", background: "none", border: "none", cursor: isDeleting ? "not-allowed" : "pointer", color: "#DC2626", fontSize: "14px", lineHeight: 1, borderRadius: "4px", opacity: isDeleting ? 0.4 : 1 }}
+                              title="Delete announcement">🗑</button>
+                          )}
+                        </div>
+                        {note.body && (
+                          <div style={{ padding: "6px 12px 10px", fontSize: "11px", color: GRAY, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                            {note.body}
+                          </div>
+                        )}
+                      </div>
                     </div>
-
-                    {/* Body preview */}
-                    {note.body && (
-                      <div style={{ padding: "6px 12px", fontSize: "11px", color: GRAY, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                        {note.body}
-                      </div>
-                    )}
-
-                    {/* Image */}
-                    {note.image && (
-                      <div style={{ padding: "6px 12px 10px" }}>
-                        <img src={note.image} alt="Announcement" style={{ width: "100%", maxHeight: "180px", objectFit: "contain", borderRadius: "6px", border: `1px solid ${BORDER}`, background: "#F9FAFB" }} />
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
 
-        </div>{/* end bulletin column */}
-
-        {/* ── FACULTY SCHEDULE ── */}
-        <AllFacultySchedule />
-
-        {/* ── CALENDAR ── */}
-        <div>
+        {/* ── Calendar ── */}
+        <div className="ov-calendar">
           <MiniCalendar />
         </div>
-      </div>{/* end 3-col grid */}
+      </div>
 
-      {/* ── Enrollment Statistics (full width, below) ── */}
-      <div style={{ marginTop: "16px" }}>
-        <EnrollmentStats user={user} />
+      {/* ── Enrollment Stats + Quick Actions ── */}
+      <div className="ov-stats" style={{ marginTop: "16px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", alignItems: "stretch" }}>
+        <div style={{ gridColumn: "span 2" }}>
+          <EnrollmentStats user={user} />
+        </div>
+        <div>
+          <QuickActions user={user} />
+        </div>
       </div>
     </div>
   );

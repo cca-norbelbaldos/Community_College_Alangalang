@@ -10,7 +10,7 @@ app.use(
       const allowedOrigins = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "http://192.168.1.7:5173",
+        "http://192.168.100.238:5173",
       ];
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
@@ -129,7 +129,8 @@ app.post("/api/erd/auth/login", async (req, res) => {
   const { username, password } = req.body;
   try {
     const [rows] = await pool.query(
-      `SELECT u.id, l.username, ut.user_type AS role, u.is_active
+      `SELECT u.id, l.username, ut.user_type AS role, u.is_active,
+              u.first_name, u.middle_name, u.last_name
        FROM erd_login l
        JOIN erd_users u ON u.login_id = l.id
        JOIN erd_user_type ut ON u.user_type_id = ut.id
@@ -142,7 +143,8 @@ app.post("/api/erd/auth/login", async (req, res) => {
     if (!rows[0].is_active) {
       return res.status(403).json({ message: "This security access token is currently suspended." });
     }
-    res.json({ id: rows[0].id, username: rows[0].username, role: rows[0].role, status: rows[0].is_active ? "Active" : "Suspended" });
+    res.json({ id: rows[0].id, username: rows[0].username, role: rows[0].role, status: rows[0].is_active ? "Active" : "Suspended",
+      first_name: rows[0].first_name || "", middle_name: rows[0].middle_name || "", last_name: rows[0].last_name || "" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Authentication gateway communication exception." });
@@ -420,6 +422,18 @@ app.get("/api/erd/role-permissions", async (req, res) => {
     conn.release();
   }
 });
+
+// Ensure image columns are large enough to hold base64 photos/signatures.
+// If they are TEXT (64KB), larger images fail to save (leaving the field empty).
+(async () => {
+  try {
+    await pool.query("ALTER TABLE erd_users MODIFY COLUMN profile_picture LONGTEXT NULL");
+    await pool.query("ALTER TABLE erd_users MODIFY COLUMN signature LONGTEXT NULL");
+    console.log("[INIT] erd_users profile_picture/signature ensured LONGTEXT.");
+  } catch (err) {
+    console.error("[INIT] erd_users image column widen failed:", err.message);
+  }
+})();
 
 // ─── USER CREDENTIALS LAYER ──────────────────────────────────────────────────
 app.get("/api/erd/users", async (req, res) => {
@@ -706,6 +720,20 @@ app.post("/api/erd/courses", async (req, res) => {
   }
 });
 
+app.put("/api/erd/courses/:id", async (req, res) => {
+  const { course } = req.body;
+  if (!course || !course.trim()) return res.status(400).json({ message: "Course name is required." });
+  try {
+    const [existing] = await pool.query("SELECT id FROM erd_course WHERE course=? AND id!=?", [course.trim(), req.params.id]);
+    if (existing.length > 0) return res.status(400).json({ message: "Course name already in use." });
+    await pool.query("UPDATE erd_course SET course=? WHERE id=?", [course.trim(), req.params.id]);
+    res.json({ id: req.params.id, course: course.trim() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to update course." });
+  }
+});
+
 app.delete("/api/erd/courses/:id", async (req, res) => {
   try {
     await pool.query("DELETE FROM erd_course WHERE id = ?", [req.params.id]);
@@ -715,6 +743,218 @@ app.delete("/api/erd/courses/:id", async (req, res) => {
     res.status(500).json({ message: "Failed to delete course." });
   }
 });
+// ─── SECTIONS ────────────────────────────────────────────────────────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_section (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        name       VARCHAR(50) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (err) { console.error("erd_section table init error:", err); }
+})();
+
+// Add max_students column to erd_section if missing
+(async () => {
+  try {
+    const [[r]] = await pool.query(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='erd_section' AND COLUMN_NAME='max_students'"
+    );
+    if (!r) {
+      await pool.query("ALTER TABLE erd_section ADD COLUMN max_students INT NULL DEFAULT NULL");
+      console.log("[INIT] Added max_students to erd_section.");
+    }
+  } catch(e) { console.error("[INIT] Could not add max_students to erd_section:", e.message); }
+})();
+
+app.get("/api/erd/sections", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, name, max_students FROM erd_section ORDER BY name ASC");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch sections." });
+  }
+});
+
+app.post("/api/erd/sections", async (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ message: "Section name is required." });
+  try {
+    const [existing] = await pool.query("SELECT id FROM erd_section WHERE name=?", [name.trim()]);
+    if (existing.length > 0) return res.status(400).json({ message: "Section already exists." });
+    const [result] = await pool.query("INSERT INTO erd_section (name) VALUES (?)", [name.trim()]);
+    res.status(201).json({ id: result.insertId, name: name.trim(), max_students: null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to add section." });
+  }
+});
+
+app.put("/api/erd/sections/:id", async (req, res) => {
+  const { name, max_students } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ message: "Section name is required." });
+  try {
+    const [existing] = await pool.query("SELECT id FROM erd_section WHERE name=? AND id!=?", [name.trim(), req.params.id]);
+    if (existing.length > 0) return res.status(400).json({ message: "Section name already in use." });
+    const maxVal = max_students !== undefined ? (max_students === "" || max_students === null ? null : parseInt(max_students, 10)) : undefined;
+    if (maxVal !== undefined) {
+      await pool.query("UPDATE erd_section SET name=?, max_students=? WHERE id=?", [name.trim(), maxVal, req.params.id]);
+    } else {
+      await pool.query("UPDATE erd_section SET name=? WHERE id=?", [name.trim(), req.params.id]);
+    }
+    res.json({ id: req.params.id, name: name.trim(), max_students: maxVal ?? null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to update section." });
+  }
+});
+
+app.delete("/api/erd/sections/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_section WHERE id=?", [req.params.id]);
+    res.json({ message: "Section deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete section." });
+  }
+});
+
+// ─── ROOMS ───────────────────────────────────────────────────────────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_room (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        name       VARCHAR(50) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (err) { console.error("erd_room table init error:", err); }
+})();
+
+app.get("/api/erd/rooms", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, name FROM erd_room ORDER BY name ASC");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch rooms." });
+  }
+});
+
+app.post("/api/erd/rooms", async (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ message: "Room name is required." });
+  try {
+    const [existing] = await pool.query("SELECT id FROM erd_room WHERE name=?", [name.trim()]);
+    if (existing.length > 0) return res.status(400).json({ message: "Room already exists." });
+    const [result] = await pool.query("INSERT INTO erd_room (name) VALUES (?)", [name.trim()]);
+    res.status(201).json({ id: result.insertId, name: name.trim() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to add room." });
+  }
+});
+
+app.put("/api/erd/rooms/:id", async (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ message: "Room name is required." });
+  try {
+    const [existing] = await pool.query("SELECT id FROM erd_room WHERE name=? AND id!=?", [name.trim(), req.params.id]);
+    if (existing.length > 0) return res.status(400).json({ message: "Room name already in use." });
+    await pool.query("UPDATE erd_room SET name=? WHERE id=?", [name.trim(), req.params.id]);
+    res.json({ id: req.params.id, name: name.trim() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to update room." });
+  }
+});
+
+app.delete("/api/erd/rooms/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_room WHERE id=?", [req.params.id]);
+    res.json({ message: "Room deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete room." });
+  }
+});
+
+// ─── SCHOOL YEAR ─────────────────────────────────────────────────────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_school_year (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        school_year VARCHAR(20) NOT NULL UNIQUE,
+        is_active  TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (err) { console.error("erd_school_year table init error:", err); }
+})();
+
+app.get("/api/erd/school-years", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, school_year, is_active FROM erd_school_year ORDER BY school_year DESC");
+    res.json(rows);
+  } catch (err) { res.status(500).json({ message: "Failed to fetch school years." }); }
+});
+
+app.get("/api/erd/school-years/active", async (req, res) => {
+  try {
+    const [[row]] = await pool.query("SELECT id, school_year FROM erd_school_year WHERE is_active=1 LIMIT 1");
+    res.json(row || null);
+  } catch (err) { res.status(500).json({ message: "Failed to fetch active school year." }); }
+});
+
+app.post("/api/erd/school-years", async (req, res) => {
+  const { school_year } = req.body;
+  if (!school_year || !school_year.trim()) return res.status(400).json({ message: "School year is required." });
+  try {
+    const [existing] = await pool.query("SELECT id FROM erd_school_year WHERE school_year=?", [school_year.trim()]);
+    if (existing.length > 0) return res.status(400).json({ message: "School year already exists." });
+    const [result] = await pool.query("INSERT INTO erd_school_year (school_year) VALUES (?)", [school_year.trim()]);
+    res.status(201).json({ id: result.insertId, school_year: school_year.trim(), is_active: 0 });
+  } catch (err) { res.status(500).json({ message: "Failed to add school year." }); }
+});
+
+app.put("/api/erd/school-years/:id/activate", async (req, res) => {
+  try {
+    await pool.query("UPDATE erd_school_year SET is_active=0");
+    await pool.query("UPDATE erd_school_year SET is_active=1 WHERE id=?", [req.params.id]);
+    res.json({ message: "School year activated." });
+  } catch (err) { res.status(500).json({ message: "Failed to activate school year." }); }
+});
+
+app.put("/api/erd/school-years/:id/deactivate", async (req, res) => {
+  try {
+    await pool.query("UPDATE erd_school_year SET is_active=0 WHERE id=?", [req.params.id]);
+    res.json({ message: "School year deactivated." });
+  } catch (err) { res.status(500).json({ message: "Failed to deactivate school year." }); }
+});
+
+app.delete("/api/erd/school-years/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_school_year WHERE id=?", [req.params.id]);
+    res.json({ message: "School year deleted." });
+  } catch (err) { res.status(500).json({ message: "Failed to delete school year." }); }
+});
+
+// ─── ADDRESS BACKFILL ────────────────────────────────────────────────────────
+(async () => {
+  try {
+    await pool.query(`UPDATE erd_student SET municipality = 'ALANGALANG' WHERE municipality IS NULL OR municipality = ''`);
+    await pool.query(`UPDATE erd_student SET province = 'LEYTE' WHERE province IS NULL OR province = ''`);
+    console.log("erd_student address defaults backfilled OK");
+  } catch (err) {
+    console.error("Address backfill failed:", err.message);
+  }
+})();
+
 // ─── CAMPUS BULLETIN BOARD ANNOUNCEMENTS ─────────────────────────────────────
 app.get("/api/erd/announcements", async (req, res) => {
   try {
@@ -751,6 +991,29 @@ app.delete("/api/erd/announcements/:id", async (req, res) => {
 });
 
 // ─── STUDENT ENROLLMENT LOGISTICS ────────────────────────────────────────────
+
+// Auto-generate the next available student ID for a given year prefix.
+// The sequence number is GLOBAL (never resets between school years).
+// e.g. last was 2029-0001 → next new school year gives 2030-0002
+app.get("/api/erd/students/next-id", async (req, res) => {
+  try {
+    const { year } = req.query;
+    if (!year || !/^\d{4}$/.test(year)) return res.status(400).json({ message: "Invalid year." });
+    // Look across ALL students (any year prefix) to find the highest sequence number
+    const [rows] = await pool.query(
+      "SELECT student_number FROM erd_student WHERE student_number REGEXP '^[0-9]{4}-[0-9]+$'"
+    );
+    let nextSeq = 1;
+    if (rows.length > 0) {
+      const seqs = rows
+        .map(r => parseInt((r.student_number || "").split("-")[1]) || 0)
+        .filter(n => n > 0);
+      if (seqs.length > 0) nextSeq = Math.max(...seqs) + 1;
+    }
+    res.json({ student_number: `${year}-${String(nextSeq).padStart(4, "0")}` });
+  } catch (err) { res.status(500).json({ message: "Failed to generate next ID." }); }
+});
+
 app.get("/api/erd/students", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -761,7 +1024,19 @@ app.get("/api/erd/students", async (req, res) => {
               COALESCE(s.last_name,   u.last_name)        AS last_name,
               COALESCE(s.gender,      u.gender)           AS gender,
               COALESCE(s.profile_picture, u.profile_picture) AS profile_picture,
-              c.course
+              c.course,
+              s.email, s.mobile, s.birthdate, s.place_of_birth,
+              s.barangay, s.municipality, s.province, s.zip_code,
+              s.religion, s.citizenship, s.status, s.acr_no, s.classification,
+              s.father_last, s.father_first, s.father_middle, s.father_occupation,
+              s.mother_last, s.mother_first, s.mother_middle, s.mother_occupation,
+              s.parents_address, s.parents_mobile,
+              s.guardian_name, s.guardian_relationship, s.guardian_address, s.guardian_mobile,
+              s.spouse_name, s.spouse_occupation, s.spouse_address, s.spouse_mobile,
+              s.elem_school, s.elem_address, s.elem_year, s.elem_honors,
+              s.hs_school, s.hs_address, s.hs_year, s.hs_honors,
+              s.col_school, s.col_address, s.col_year, s.col_honors,
+              s.scholastic_notes
        FROM erd_student s
        LEFT JOIN erd_users u ON s.users_id = u.id
        LEFT JOIN erd_course c ON s.course_id = c.id
@@ -780,6 +1055,51 @@ app.get("/api/erd/students", async (req, res) => {
       profile_picture: r.profile_picture,
       year_enrolled: r.year_enrolled || (r.created_at ? new Date(r.created_at).getFullYear() : null),
       graduation_status: r.graduation_status || null,
+      gender: r.gender || null,
+      email: r.email || null,
+      mobile: r.mobile || null,
+      birthdate: r.birthdate ? r.birthdate.toISOString().split("T")[0] : null,
+      place_of_birth: r.place_of_birth || null,
+      barangay: r.barangay || null,
+      municipality: r.municipality || null,
+      province: r.province || null,
+      zip_code: r.zip_code || null,
+      religion: r.religion || null,
+      citizenship: r.citizenship || null,
+      status: r.status || null,
+      acr_no: r.acr_no || null,
+      classification: r.classification || null,
+      father_last: r.father_last || null,
+      father_first: r.father_first || null,
+      father_middle: r.father_middle || null,
+      father_occupation: r.father_occupation || null,
+      mother_last: r.mother_last || null,
+      mother_first: r.mother_first || null,
+      mother_middle: r.mother_middle || null,
+      mother_occupation: r.mother_occupation || null,
+      parents_address: r.parents_address || null,
+      parents_mobile: r.parents_mobile || null,
+      guardian_name: r.guardian_name || null,
+      guardian_relationship: r.guardian_relationship || null,
+      guardian_address: r.guardian_address || null,
+      guardian_mobile: r.guardian_mobile || null,
+      spouse_name: r.spouse_name || null,
+      spouse_occupation: r.spouse_occupation || null,
+      spouse_address: r.spouse_address || null,
+      spouse_mobile: r.spouse_mobile || null,
+      elem_school: r.elem_school || null,
+      elem_address: r.elem_address || null,
+      elem_year: r.elem_year || null,
+      elem_honors: r.elem_honors || null,
+      hs_school: r.hs_school || null,
+      hs_address: r.hs_address || null,
+      hs_year: r.hs_year || null,
+      hs_honors: r.hs_honors || null,
+      col_school: r.col_school || null,
+      col_address: r.col_address || null,
+      col_year: r.col_year || null,
+      col_honors: r.col_honors || null,
+      scholastic_notes: r.scholastic_notes || null,
       birthday: null, age: null, sex: r.gender || null, address: null, adviser: null
     })));
   } catch (err) {
@@ -789,7 +1109,21 @@ app.get("/api/erd/students", async (req, res) => {
 });
 
 app.post("/api/erd/students", async (req, res) => {
-  const { first_name, middle_name, last_name, course, student_number, profile_picture, year_level, section, year_enrolled, gender } = req.body;
+  const {
+    first_name, middle_name, last_name, course, student_number, profile_picture,
+    year_level, section, year_enrolled, gender,
+    email, mobile, birthdate, place_of_birth, barangay, municipality, province, zip_code,
+    religion, citizenship, status, acr_no, classification,
+    father_last, father_first, father_middle, father_occupation,
+    mother_last, mother_first, mother_middle, mother_occupation,
+    parents_address, parents_mobile,
+    guardian_name, guardian_relationship, guardian_address, guardian_mobile,
+    spouse_name, spouse_occupation, spouse_address, spouse_mobile,
+    elem_school, elem_address, elem_year, elem_honors,
+    hs_school, hs_address, hs_year, hs_honors,
+    col_school, col_address, col_year, col_honors,
+    scholastic_notes,
+  } = req.body;
 
   if (!first_name || !last_name || !student_number) {
     return res.status(400).json({ message: "first_name, last_name, and student_number are required." });
@@ -802,15 +1136,39 @@ app.post("/api/erd/students", async (req, res) => {
       courseId = courseRow ? courseRow.id : null;
     }
 
-    // Store all student data directly in erd_student — no erd_users row needed.
     const [studentResult] = await pool.query(
       `INSERT INTO erd_student
          (first_name, middle_name, last_name, gender, profile_picture,
-          student_number, course_id, year_level, section, year_enrolled)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [first_name, middle_name || null, last_name, gender || null, profile_picture || null,
-       student_number, courseId, year_level || null, section || null,
-       year_enrolled ? parseInt(year_enrolled, 10) : null]
+          student_number, course_id, year_level, section, year_enrolled,
+          email, mobile, birthdate, place_of_birth, barangay, municipality, province, zip_code,
+          religion, citizenship, status, acr_no, classification,
+          father_last, father_first, father_middle, father_occupation,
+          mother_last, mother_first, mother_middle, mother_occupation,
+          parents_address, parents_mobile,
+          guardian_name, guardian_relationship, guardian_address, guardian_mobile,
+          spouse_name, spouse_occupation, spouse_address, spouse_mobile,
+          elem_school, elem_address, elem_year, elem_honors,
+          hs_school, hs_address, hs_year, hs_honors,
+          col_school, col_address, col_year, col_honors,
+          scholastic_notes)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        first_name, middle_name||null, last_name, gender||null, profile_picture||null,
+        student_number, courseId, year_level||null, section||null,
+        year_enrolled ? parseInt(year_enrolled,10) : null,
+        email||null, mobile||null, birthdate||null, place_of_birth||null,
+        barangay||null, municipality||null, province||null, zip_code||null,
+        religion||null, citizenship||null, status||null, acr_no||null, classification||null,
+        father_last||null, father_first||null, father_middle||null, father_occupation||null,
+        mother_last||null, mother_first||null, mother_middle||null, mother_occupation||null,
+        parents_address||null, parents_mobile||null,
+        guardian_name||null, guardian_relationship||null, guardian_address||null, guardian_mobile||null,
+        spouse_name||null, spouse_occupation||null, spouse_address||null, spouse_mobile||null,
+        elem_school||null, elem_address||null, elem_year||null, elem_honors||null,
+        hs_school||null, hs_address||null, hs_year||null, hs_honors||null,
+        col_school||null, col_address||null, col_year||null, col_honors||null,
+        scholastic_notes||null,
+      ]
     );
 
     res.status(201).json({
@@ -826,7 +1184,21 @@ app.post("/api/erd/students", async (req, res) => {
 
 app.put("/api/erd/students/:id", async (req, res) => {
   const { id } = req.params;
-  const { first_name, middle_name, last_name, course, student_number, profile_picture, year_level, section, year_enrolled, gender } = req.body;
+  const {
+    first_name, middle_name, last_name, course, student_number, profile_picture,
+    year_level, section, year_enrolled, gender,
+    email, mobile, birthdate, place_of_birth, barangay, municipality, province, zip_code,
+    religion, citizenship, status, acr_no, classification,
+    father_last, father_first, father_middle, father_occupation,
+    mother_last, mother_first, mother_middle, mother_occupation,
+    parents_address, parents_mobile,
+    guardian_name, guardian_relationship, guardian_address, guardian_mobile,
+    spouse_name, spouse_occupation, spouse_address, spouse_mobile,
+    elem_school, elem_address, elem_year, elem_honors,
+    hs_school, hs_address, hs_year, hs_honors,
+    col_school, col_address, col_year, col_honors,
+    scholastic_notes,
+  } = req.body;
 
   if (!first_name || !last_name || !student_number) {
     return res.status(400).json({ message: "first_name, last_name, and student_number are required." });
@@ -842,24 +1214,49 @@ app.put("/api/erd/students/:id", async (req, res) => {
       courseId = courseRow ? courseRow.id : null;
     }
 
-    // Update personal info + academic info directly in erd_student
     await pool.query(
       `UPDATE erd_student
        SET first_name=?, middle_name=?, last_name=?, gender=?,
            profile_picture=?, student_number=?, course_id=?,
-           year_level=?, section=?, year_enrolled=?
+           year_level=?, section=?, year_enrolled=?,
+           email=?, mobile=?, birthdate=?, place_of_birth=?,
+           barangay=?, municipality=?, province=?, zip_code=?,
+           religion=?, citizenship=?, status=?, acr_no=?, classification=?,
+           father_last=?, father_first=?, father_middle=?, father_occupation=?,
+           mother_last=?, mother_first=?, mother_middle=?, mother_occupation=?,
+           parents_address=?, parents_mobile=?,
+           guardian_name=?, guardian_relationship=?, guardian_address=?, guardian_mobile=?,
+           spouse_name=?, spouse_occupation=?, spouse_address=?, spouse_mobile=?,
+           elem_school=?, elem_address=?, elem_year=?, elem_honors=?,
+           hs_school=?, hs_address=?, hs_year=?, hs_honors=?,
+           col_school=?, col_address=?, col_year=?, col_honors=?,
+           scholastic_notes=?
        WHERE id=?`,
-      [first_name, middle_name || null, last_name, gender || null,
-       profile_picture || null, student_number, courseId,
-       year_level || null, section || null,
-       year_enrolled ? parseInt(year_enrolled, 10) : null, id]
+      [
+        first_name, middle_name||null, last_name, gender||null,
+        profile_picture||null, student_number, courseId,
+        year_level||null, section||null, year_enrolled ? parseInt(year_enrolled,10) : null,
+        email||null, mobile||null, birthdate||null, place_of_birth||null,
+        barangay||null, municipality||null, province||null, zip_code||null,
+        religion||null, citizenship||null, status||null, acr_no||null, classification||null,
+        father_last||null, father_first||null, father_middle||null, father_occupation||null,
+        mother_last||null, mother_first||null, mother_middle||null, mother_occupation||null,
+        parents_address||null, parents_mobile||null,
+        guardian_name||null, guardian_relationship||null, guardian_address||null, guardian_mobile||null,
+        spouse_name||null, spouse_occupation||null, spouse_address||null, spouse_mobile||null,
+        elem_school||null, elem_address||null, elem_year||null, elem_honors||null,
+        hs_school||null, hs_address||null, hs_year||null, hs_honors||null,
+        col_school||null, col_address||null, col_year||null, col_honors||null,
+        scholastic_notes||null,
+        id
+      ]
     );
 
-    // Also sync to linked erd_users row if one exists (backward compat)
+    // Also sync basic fields to linked erd_users row if one exists (backward compat)
     if (studentRow.users_id) {
       await pool.query(
         "UPDATE erd_users SET first_name=?, middle_name=?, last_name=?, gender=?, profile_picture=? WHERE id=?",
-        [first_name, middle_name || null, last_name, gender || null, profile_picture || null, studentRow.users_id]
+        [first_name, middle_name||null, last_name, gender||null, profile_picture||null, studentRow.users_id]
       );
     }
 
@@ -1098,11 +1495,55 @@ app.delete("/api/erd/faculty/assignments/:id", async (req, res) => {
 });
 
 // ─── CURRICULUM SUBJECT REFERENCE ────────────────────────────────────────────
+// Ensure lec_hours, lab_hours, pre_requisite columns exist (compatible with all MySQL versions)
+(async () => {
+  try {
+    const [cols] = await pool.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'erd_subjects'`
+    );
+    const existing = cols.map(c => c.COLUMN_NAME);
+    if (!existing.includes("subject_code"))
+      await pool.query(`ALTER TABLE erd_subjects ADD COLUMN subject_code VARCHAR(100) DEFAULT NULL`);
+    else
+      await pool.query(`ALTER TABLE erd_subjects MODIFY COLUMN subject_code VARCHAR(100) DEFAULT NULL`);
+    // Drop unique constraint on subject column so same name can exist for different courses/year levels
+    try {
+      const [idxRows] = await pool.query(
+        `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'erd_subjects'
+            AND COLUMN_NAME = 'subject' AND NON_UNIQUE = 0 AND INDEX_NAME != 'PRIMARY'`
+      );
+      for (const row of idxRows) {
+        await pool.query(`ALTER TABLE erd_subjects DROP INDEX \`${row.INDEX_NAME}\``);
+        console.log('[INIT] Dropped unique index on erd_subjects.subject:', row.INDEX_NAME);
+      }
+    } catch (_) {}
+    if (!existing.includes("course_id"))
+      await pool.query(`ALTER TABLE erd_subjects ADD COLUMN course_id INT DEFAULT NULL`);
+    if (!existing.includes("lec_hours"))
+      await pool.query(`ALTER TABLE erd_subjects ADD COLUMN lec_hours INT NOT NULL DEFAULT 0`);
+    if (!existing.includes("lab_hours"))
+      await pool.query(`ALTER TABLE erd_subjects ADD COLUMN lab_hours INT NOT NULL DEFAULT 0`);
+    if (!existing.includes("pre_requisite"))
+      await pool.query(`ALTER TABLE erd_subjects ADD COLUMN pre_requisite VARCHAR(255) DEFAULT NULL`);
+    if (!existing.includes("description"))
+      await pool.query(`ALTER TABLE erd_subjects ADD COLUMN description TEXT DEFAULT NULL`);
+    console.log("erd_subjects columns OK (subject_code, course_id, lec_hours, lab_hours, pre_requisite, description)");
+  } catch (err) {
+    console.error("Failed to ensure erd_subjects columns:", err.message);
+  }
+})();
+
 app.get("/api/erd/subjects", async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT sub.id, sub.subject, sub.credits, sub.subject_code, sub.semester,
-              IFNULL(sub.year_level, NULL) AS year_level, c.course
+              IFNULL(sub.year_level, NULL) AS year_level, c.course,
+              IFNULL(sub.lec_hours, 0) AS lec_hours,
+              IFNULL(sub.lab_hours, 0) AS lab_hours,
+              IFNULL(sub.pre_requisite, 'None') AS pre_requisite,
+              sub.description
        FROM erd_subjects sub
        LEFT JOIN erd_course c ON sub.course_id = c.id
        ORDER BY COALESCE(FIELD(sub.year_level,'1st Year','2nd Year','3rd Year','4th Year'), 99) ASC,
@@ -1115,7 +1556,11 @@ app.get("/api/erd/subjects", async (req, res) => {
       units: r.credits,
       course: r.course || null,
       semester: r.semester || null,
-      year_level: r.year_level || null
+      year_level: r.year_level || null,
+      lec_hours: r.lec_hours ?? 0,
+      lab_hours: r.lab_hours ?? 0,
+      pre_requisite: r.pre_requisite || "None",
+      description: r.description || "",
     })));
   } catch (err) {
     console.error(err);
@@ -1124,7 +1569,7 @@ app.get("/api/erd/subjects", async (req, res) => {
 });
 
 app.post("/api/erd/subjects", async (req, res) => {
-  const { subject_title, units, subject_code, course, semester, year_level } = req.body;
+  const { subject_title, units, subject_code, course, semester, year_level, lec_hours, lab_hours, pre_requisite, description } = req.body;
   try {
     let courseId = null;
     if (course) {
@@ -1132,8 +1577,8 @@ app.post("/api/erd/subjects", async (req, res) => {
       courseId = courseRow ? courseRow.id : null;
     }
     await pool.query(
-      "INSERT INTO erd_subjects (subject, credits, subject_code, course_id, semester, year_level) VALUES (?, ?, ?, ?, ?, ?)",
-      [subject_title, parseInt(units, 10) || 3, subject_code || null, courseId, semester ? parseInt(semester, 10) : null, year_level || null]
+      "INSERT INTO erd_subjects (subject, credits, subject_code, course_id, semester, year_level, lec_hours, lab_hours, pre_requisite, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [subject_title, parseInt(units, 10) || 3, subject_code || null, courseId, semester ? parseInt(semester, 10) : null, year_level || null, parseInt(lec_hours, 10) || 0, parseInt(lab_hours, 10) || 0, pre_requisite || null, description || null]
     );
     res.status(201).json({ message: "Reference subject card attached to registry." });
   } catch (err) {
@@ -1144,7 +1589,7 @@ app.post("/api/erd/subjects", async (req, res) => {
 
 app.put("/api/erd/subjects/:id", async (req, res) => {
   const { id } = req.params;
-  const { subject_title, units, subject_code, course, semester, year_level } = req.body;
+  const { subject_title, units, subject_code, course, semester, year_level, lec_hours, lab_hours, pre_requisite, description } = req.body;
   try {
     let courseId = null;
     if (course) {
@@ -1152,8 +1597,8 @@ app.put("/api/erd/subjects/:id", async (req, res) => {
       courseId = courseRow ? courseRow.id : null;
     }
     await pool.query(
-      "UPDATE erd_subjects SET subject=?, credits=?, subject_code=?, course_id=?, semester=?, year_level=? WHERE id=?",
-      [subject_title, parseInt(units, 10) || 3, subject_code || null, courseId, semester ? parseInt(semester, 10) : null, year_level || null, id]
+      "UPDATE erd_subjects SET subject=?, credits=?, subject_code=?, course_id=?, semester=?, year_level=?, lec_hours=?, lab_hours=?, pre_requisite=?, description=? WHERE id=?",
+      [subject_title, parseInt(units, 10) || 3, subject_code || null, courseId, semester ? parseInt(semester, 10) : null, year_level || null, parseInt(lec_hours, 10) || 0, parseInt(lab_hours, 10) || 0, pre_requisite || null, description || null, id]
     );
     res.json({ message: "Curriculum target code realigned successfully." });
   } catch (err) {
@@ -1173,16 +1618,97 @@ app.delete("/api/erd/subjects/:id", async (req, res) => {
 });
 
 // ─── REGISTRAR REPORTING GRADES MATRIX ────────────────────────────────────────
+// ── TOR SUBJECTS: all enrolled subjects + grades (blank if not yet graded) ──
+app.get("/api/erd/tor-subjects/:studentId", async (req, res) => {
+  const { studentId } = req.params;
+  try {
+    const [[student]] = await pool.query(
+      `SELECT s.id, s.section, s.year_level, ec.course
+       FROM erd_student s
+       LEFT JOIN erd_course ec ON ec.id = s.course_id
+       WHERE s.id = ?`, [studentId]
+    );
+    if (!student) return res.status(404).json({ message: "Student not found." });
+
+    const [enrollments] = await pool.query(
+      `SELECT year_enrolled, year_level, semester
+       FROM erd_enrollment
+       WHERE student_id = ?
+       ORDER BY year_enrolled ASC, FIELD(year_level,'1st Year','2nd Year','3rd Year','4th Year') ASC, FIELD(semester,'1st Semester','2nd Semester') ASC`,
+      [studentId]
+    );
+    if (enrollments.length === 0) return res.json([]);
+
+    // Batch-fetch all grades for this student once
+    const [allGrades] = await pool.query(
+      `SELECT subject_id, semester, year_start, grade, remarks FROM erd_grades WHERE student_id = ?`,
+      [studentId]
+    );
+    const gradeMap = {};
+    allGrades.forEach(g => {
+      const k = `${g.subject_id}|${g.semester}|${g.year_start}`;
+      gradeMap[k] = g;
+    });
+
+    const results = [];
+    for (const enr of enrollments) {
+      const semInt = enr.semester === '1st Semester' ? 1
+                   : enr.semester === '2nd Semester' ? 2 : null;
+      if (!semInt) continue;
+
+      // Always use the current curriculum (erd_subjects) so the transcript
+      // reflects the up-to-date subject list, not old class_schedule snapshots.
+      const [subjects] = await pool.query(
+        `SELECT sub.id AS subject_id, sub.subject AS subject_title,
+                sub.subject_code, sub.credits AS units, sub.description AS class_code
+         FROM erd_subjects sub
+         LEFT JOIN erd_course ec ON ec.id = sub.course_id
+         WHERE (ec.course = ? OR sub.course_id IS NULL)
+           AND sub.year_level = ? AND sub.semester = ?
+         ORDER BY sub.subject ASC`,
+        [student.course, enr.year_level, semInt]
+      );
+
+      for (const subj of subjects) {
+        const key = `${subj.subject_id}|${semInt}|${enr.year_enrolled}`;
+        const gRec = gradeMap[key] || null;
+        results.push({
+          subject_id:    subj.subject_id,
+          subject_title: subj.subject_title || "—",
+          subject_code:  subj.subject_code  || null,
+          units:         subj.units || 3,
+          class_code:    subj.class_code || null,
+          semester:      semInt,
+          year_level:    enr.year_level,
+          year_start:    enr.year_enrolled,
+          year_end:      parseInt(enr.year_enrolled) + 1,
+          grade:         gRec ? gRec.grade   : null,
+          remarks:       gRec ? gRec.remarks : null,
+        });
+      }
+    }
+    res.json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch TOR subjects." });
+  }
+});
+
 app.get("/api/erd/grades/:studentId", async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT eg.*, sub.subject AS subject_title, sub.credits AS units
+      `SELECT eg.*, sub.subject AS subject_title, sub.credits AS units,
+              sub.subject_code, sub.year_level AS sub_year_level
        FROM erd_grades eg
        JOIN erd_subjects sub ON eg.subject_id = sub.id
-       WHERE eg.student_id = ? ORDER BY eg.semester ASC, sub.subject ASC`,
+       WHERE eg.student_id = ? ORDER BY eg.year_start ASC, eg.semester ASC, sub.subject ASC`,
       [req.params.studentId]
     );
-    res.json(rows.map(r => ({ ...r, subject_code: null })));
+    res.json(rows.map(r => ({
+      ...r,
+      subject_code: r.subject_code || null,
+      year_level: r.year_level || r.sub_year_level || null
+    })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to map historical matrix data matching targeted scholar node." });
@@ -1234,6 +1760,124 @@ app.delete("/api/erd/grades/:id", async (req, res) => {
   }
 });
 
+// ─── CLASS SCHEDULE ──────────────────────────────────────────────────────────
+// Auto-create table if not exists
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS class_schedule (
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        day           VARCHAR(20)  NOT NULL,
+        course        VARCHAR(255) DEFAULT NULL,
+        year_level    VARCHAR(50)  DEFAULT NULL,
+        section       VARCHAR(50)  DEFAULT NULL,
+        subject_id    INT          DEFAULT NULL,
+        subject_title VARCHAR(255) DEFAULT NULL,
+        time          VARCHAR(100) DEFAULT NULL,
+        room          VARCHAR(100) DEFAULT NULL,
+        faculty_id    INT          DEFAULT NULL,
+        created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+    // Add columns if upgrading from old table
+    const [cols] = await pool.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='class_schedule'`
+    );
+    const existing = cols.map(c => c.COLUMN_NAME);
+    if (!existing.includes("course"))     await pool.query(`ALTER TABLE class_schedule ADD COLUMN course VARCHAR(255) DEFAULT NULL AFTER day`);
+    if (!existing.includes("year_level")) await pool.query(`ALTER TABLE class_schedule ADD COLUMN year_level VARCHAR(50) DEFAULT NULL AFTER course`);
+    if (!existing.includes("section"))    await pool.query(`ALTER TABLE class_schedule ADD COLUMN section VARCHAR(50) DEFAULT NULL AFTER year_level`);
+    if (!existing.includes("semester"))   await pool.query(`ALTER TABLE class_schedule ADD COLUMN semester TINYINT DEFAULT NULL AFTER section`);
+  } catch (err) { console.error("class_schedule table init error:", err); }
+})();
+
+// GET all schedule rows (joined with subject + faculty names)
+app.get("/api/erd/class-schedule", async (req, res) => {
+  try {
+    const { course, year_level, section, semester } = req.query;
+    const sem = (semester != null && semester !== "") ? parseInt(semester, 10) : null;
+    const sec = section || null;
+    const crs = course || null;
+    const yl  = year_level || null;
+    // Catalog-driven: the subject list ALWAYS comes from the current curriculum
+    // (erd_subjects). Any existing class_schedule row for that section/semester is
+    // LEFT-JOINed on to supply day/time/room/instructor. This means the schedule
+    // always reflects the current subjects — no stale/old subjects from past edits.
+    const [rows] = await pool.query(`
+      SELECT cs.id AS id, cs.day, ec.course, sub.year_level, cs.section,
+             sub.semester, sub.id AS subject_id, sub.subject AS subject_title,
+             cs.time, cs.room, cs.faculty_id,
+             CONCAT(IFNULL(u.first_name,''), ' ', IFNULL(u.last_name,'')) AS faculty_name,
+             sub.subject_code, sub.credits AS units
+      FROM erd_subjects sub
+      LEFT JOIN erd_course ec ON ec.id = sub.course_id
+      LEFT JOIN class_schedule cs ON cs.subject_id = sub.id
+             AND (? IS NULL OR cs.section = ?)
+             AND (? IS NULL OR cs.semester = ?)
+      LEFT JOIN erd_users u ON u.id = cs.faculty_id
+      WHERE (sub.course_id IS NULL OR ? IS NULL OR ec.course = ?)
+        AND (? IS NULL OR sub.year_level = ?)
+        AND (? IS NULL OR sub.semester = ?)
+      ORDER BY sub.semester ASC, sub.subject ASC
+    `, [sec, sec, sem, sem, crs, crs, yl, yl, sem, sem]);
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to fetch class schedule." }); }
+});
+
+// POST — add a new schedule row
+app.post("/api/erd/class-schedule", async (req, res) => {
+  const { day, course, year_level, section, semester, subject_id, subject_title, time, room, faculty_id } = req.body;
+  if (!day) return res.status(400).json({ message: "Day is required." });
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO class_schedule (day, course, year_level, section, semester, subject_id, subject_title, time, room, faculty_id) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [day, course||null, year_level||null, section||null, semester ? parseInt(semester,10) : null, subject_id||null, subject_title||null, time||null, room||null, faculty_id||null]
+    );
+    res.json({ id: result.insertId, day, course, year_level, section, semester, subject_id, subject_title, time, room, faculty_id });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to create schedule entry." }); }
+});
+
+// PUT — update a schedule row
+app.put("/api/erd/class-schedule/:id", async (req, res) => {
+  const { day, subject_id, subject_title, time, room, faculty_id } = req.body;
+  try {
+    await pool.query(
+      `UPDATE class_schedule SET day=?, subject_id=?, subject_title=?, time=?, room=?, faculty_id=? WHERE id=?`,
+      [day||null, subject_id||null, subject_title||null, time||null, room||null, faculty_id||null, req.params.id]
+    );
+    res.json({ message: "Updated." });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to update schedule entry." }); }
+});
+
+// DELETE — remove a schedule row
+app.delete("/api/erd/class-schedule/:id", async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM class_schedule WHERE id=?`, [req.params.id]);
+    res.json({ message: "Deleted." });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to delete schedule entry." }); }
+});
+
+// GET all class-schedule entries that have a faculty assigned (for Faculty Schedule widget)
+app.get("/api/erd/class-schedule/by-faculty", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT cs.id, cs.day, cs.course, cs.year_level, cs.section, cs.semester,
+              cs.subject_id, cs.subject_title, cs.time, cs.room, cs.faculty_id,
+              u.first_name, u.last_name, u.profile_picture
+       FROM class_schedule cs
+       LEFT JOIN erd_users u ON u.id = cs.faculty_id
+       WHERE cs.faculty_id IS NOT NULL
+       ORDER BY FIELD(cs.day,'MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'), cs.id`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch faculty class schedule." });
+  }
+});
+
+// ─── LIBRARY: removed. Tables dropped and feature paused (see drop_library.sql). ───
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => console.log(`[PRODUCTION READY] Portal backend listener established on network port -> ${PORT}`));
 
@@ -1249,6 +1893,26 @@ app.listen(PORT, () => console.log(`[PRODUCTION READY] Portal backend listener e
     }
   } catch (err) {
     console.error("[INIT] Could not add year_level to erd_subjects:", err.message);
+  }
+})();
+
+// ─── BACKFILL class_schedule.subject_id ────────────────────────────────────────
+// Old rows were inserted without subject_id. Match by title so the JOIN works.
+(async () => {
+  try {
+    const [result] = await pool.query(`
+      UPDATE class_schedule cs
+      JOIN erd_subjects sub
+        ON LOWER(TRIM(sub.subject)) = LOWER(TRIM(cs.subject_title))
+      SET cs.subject_id = sub.id
+      WHERE cs.subject_id IS NULL
+        AND cs.subject_title IS NOT NULL
+        AND cs.subject_title != ''
+    `);
+    if (result.affectedRows > 0)
+      console.log(`[INIT] Backfilled subject_id on ${result.affectedRows} class_schedule row(s).`);
+  } catch (err) {
+    console.error("[INIT] class_schedule subject_id backfill failed:", err.message);
   }
 })();
 
@@ -1325,6 +1989,70 @@ app.listen(PORT, () => console.log(`[PRODUCTION READY] Portal backend listener e
     }
   } catch (err) {
     console.error("[INIT] Could not add year_enrolled to erd_student:", err.message);
+  }
+})();
+
+// erd_student SI columns — all personal-info fields used by the Student
+// Information Sheet. Added defensively; older deployments may be missing them.
+(async () => {
+  const siCols = [
+    "email VARCHAR(255) NULL",
+    "mobile VARCHAR(30) NULL",
+    "birthdate DATE NULL",
+    "place_of_birth VARCHAR(255) NULL",
+    "barangay VARCHAR(100) NULL",
+    "municipality VARCHAR(100) NULL",
+    "province VARCHAR(100) NULL",
+    "zip_code VARCHAR(20) NULL",
+    "religion VARCHAR(100) NULL",
+    "citizenship VARCHAR(100) NULL",
+    "status VARCHAR(50) NULL",
+    "acr_no VARCHAR(100) NULL",
+    "classification VARCHAR(50) NULL",
+    "father_last VARCHAR(100) NULL",
+    "father_first VARCHAR(100) NULL",
+    "father_middle VARCHAR(100) NULL",
+    "father_occupation VARCHAR(255) NULL",
+    "mother_last VARCHAR(100) NULL",
+    "mother_first VARCHAR(100) NULL",
+    "mother_middle VARCHAR(100) NULL",
+    "mother_occupation VARCHAR(255) NULL",
+    "parents_address TEXT NULL",
+    "parents_mobile VARCHAR(30) NULL",
+    "guardian_name VARCHAR(255) NULL",
+    "guardian_relationship VARCHAR(100) NULL",
+    "guardian_address TEXT NULL",
+    "guardian_mobile VARCHAR(30) NULL",
+    "spouse_name VARCHAR(255) NULL",
+    "spouse_occupation VARCHAR(255) NULL",
+    "spouse_address TEXT NULL",
+    "spouse_mobile VARCHAR(30) NULL",
+    "elem_school VARCHAR(255) NULL",
+    "elem_address TEXT NULL",
+    "elem_year VARCHAR(10) NULL",
+    "elem_honors VARCHAR(255) NULL",
+    "hs_school VARCHAR(255) NULL",
+    "hs_address TEXT NULL",
+    "hs_year VARCHAR(10) NULL",
+    "hs_honors VARCHAR(255) NULL",
+    "col_school VARCHAR(255) NULL",
+    "col_address TEXT NULL",
+    "col_year VARCHAR(10) NULL",
+    "col_honors VARCHAR(255) NULL",
+    "scholastic_notes TEXT NULL",
+  ];
+  for (const colDef of siCols) {
+    const colName = colDef.split(" ")[0];
+    try {
+      const [[r]] = await pool.query(
+        "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='erd_student' AND COLUMN_NAME=?",
+        [colName]
+      );
+      if (!r) {
+        await pool.query(`ALTER TABLE erd_student ADD COLUMN ${colDef}`);
+        console.log(`[INIT] Added ${colName} to erd_student.`);
+      }
+    } catch(e) { console.error(`[INIT] Could not add ${colName} to erd_student:`, e.message); }
   }
 })();
 
@@ -1426,13 +2154,41 @@ app.get("/api/erd/enrollments", async (req, res) => {
   }
 });
 
+// Count enrolled students for a specific section + semester + year + year_level (term-based)
+app.get("/api/erd/enrollments/count", async (req, res) => {
+  try {
+    const { section, semester, year_enrolled, year_level } = req.query;
+    if (!section || !semester) return res.json({ count: 0, max_students: null });
+    const semMap = { "1": "1st Semester", "2": "2nd Semester", "S": "Summer" };
+    const semLabel = semMap[String(semester)] || semester;
+    // Build dynamic WHERE clause
+    let cntWhere = "WHERE s.section = ? AND e.semester = ?";
+    const cntParams = [section, semLabel];
+    if (year_enrolled) { cntWhere += " AND e.year_enrolled = ?"; cntParams.push(year_enrolled); }
+    if (year_level)    { cntWhere += " AND s.year_level = ?";   cntParams.push(year_level); }
+    const [rows] = await pool.query(
+      `SELECT COUNT(DISTINCT e.student_id) AS cnt
+       FROM erd_enrollment e
+       JOIN erd_student s ON s.id = e.student_id
+       ${cntWhere}`,
+      cntParams
+    );
+    // Get max_students from erd_section
+    const [[sec]] = await pool.query("SELECT max_students FROM erd_section WHERE name=?", [section]);
+    res.json({ count: rows[0].cnt || 0, max_students: sec ? sec.max_students : null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to count enrollments." });
+  }
+});
+
 app.get("/api/erd/enrollments/:studentId", async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT id, student_id, year_enrolled, year_level, semester, created_at
        FROM erd_enrollment
        WHERE student_id = ?
-       ORDER BY year_enrolled ASC, FIELD(semester, '1st Semester', '2nd Semester') ASC`,
+       ORDER BY year_enrolled ASC, FIELD(year_level, '1st Year', '2nd Year', '3rd Year', '4th Year') ASC, FIELD(semester, '1st Semester', '2nd Semester') ASC`,
       [req.params.studentId]
     );
     res.json(rows);
@@ -1448,12 +2204,49 @@ app.post("/api/erd/enrollments", async (req, res) => {
     return res.status(400).json({ message: "student_id, year_enrolled, year_level, and semester are all required." });
   }
   try {
+    // Count prior enrollments to determine classification
+    const [[{ priorCount }]] = await pool.query(
+      "SELECT COUNT(*) AS priorCount FROM erd_enrollment WHERE student_id = ?",
+      [student_id]
+    );
+    const newClassification = priorCount === 0 ? "New" : "Old";
+
+    // Enforce block capacity limit (term-based, filtered by year_level)
+    const [[studentRow2]] = await pool.query("SELECT section FROM erd_student WHERE id=?", [student_id]);
+    const section = studentRow2?.section;
+    if (section) {
+      const [[secRow]] = await pool.query("SELECT max_students FROM erd_section WHERE name=?", [section]);
+      if (secRow && secRow.max_students !== null) {
+        const [[{ cnt }]] = await pool.query(
+          `SELECT COUNT(DISTINCT e.student_id) AS cnt
+           FROM erd_enrollment e
+           JOIN erd_student s ON s.id = e.student_id
+           WHERE s.section = ? AND e.semester = ? AND e.year_enrolled = ?
+             ${year_level ? "AND s.year_level = ?" : ""}`,
+          year_level ? [section, semester, year_enrolled, year_level] : [section, semester, year_enrolled]
+        );
+        if (cnt >= secRow.max_students) {
+          return res.status(409).json({
+            message: `Section "${section}" has reached its enrollment limit of ${secRow.max_students} for this term. Please enroll in another section.`,
+            limitReached: true,
+          });
+        }
+      }
+    }
+
     const [result] = await pool.query(
       `INSERT INTO erd_enrollment (student_id, year_enrolled, year_level, semester)
        VALUES (?, ?, ?, ?)`,
       [student_id, year_enrolled, year_level, semester]
     );
-    res.status(201).json({ message: "Enrollment record created.", id: result.insertId });
+
+    // Auto-update classification on the student record
+    await pool.query(
+      "UPDATE erd_student SET classification = ? WHERE id = ?",
+      [newClassification, student_id]
+    );
+
+    res.status(201).json({ message: "Enrollment record created.", id: result.insertId, classification: newClassification });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to create enrollment record." });

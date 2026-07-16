@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 
-const GREEN      = "#2E7D32";
-const DARK_GREEN = "#1B5E20";
+const GREEN      = "#3d6e01";
+const DARK_GREEN = "#3d6e01";
 const WHITE      = "#FFFFFF";
 const GRAY       = "#6B7280";
 const LIGHT_GRAY = "#F9FAFB";
@@ -167,7 +167,7 @@ export default function AccountSettings({ user }) {
       <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
         <div style={{ position: "relative", flexShrink: 0 }}>
           <div onClick={() => picInputRef.current?.click()}
-            style={{ width: "72px", height: "72px", borderRadius: "50%", overflow: "hidden", cursor: "pointer", border: `2px solid ${BORDER}`, boxShadow: "0 2px 8px rgba(0,0,0,0.10)", background: "#E8F5E9", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}
+            style={{ width: "72px", height: "72px", borderRadius: "50%", overflow: "hidden", cursor: "pointer", border: `2px solid ${BORDER}`, boxShadow: "0 2px 8px rgba(0,0,0,0.10)", background: "#eaf2d9", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}
             title="Click to change photo"
             onMouseEnter={e => { const ov = e.currentTarget.querySelector(".pic-overlay"); if(ov) ov.style.opacity=1; }}
             onMouseLeave={e => { const ov = e.currentTarget.querySelector(".pic-overlay"); if(ov) ov.style.opacity=0; }}>
@@ -225,7 +225,7 @@ export default function AccountSettings({ user }) {
         </div>
 
         {message.text && (
-          <div style={{ marginBottom: "14px", padding: "10px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, background: message.type === "success" ? "#E8F5E9" : "#FEF2F2", color: message.type === "success" ? DARK_GREEN : RED }}>
+          <div style={{ marginBottom: "14px", padding: "10px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, background: message.type === "success" ? "#eaf2d9" : "#FEF2F2", color: message.type === "success" ? DARK_GREEN : RED }}>
             {message.type === "success" ? "✅ " : "⚠️ "}{message.text}
           </div>
         )}
@@ -258,7 +258,7 @@ export default function AccountSettings({ user }) {
         </div>
 
         {pwMessage.text && (
-          <div style={{ marginBottom: "14px", padding: "10px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, background: pwMessage.type === "success" ? "#E8F5E9" : "#FEF2F2", color: pwMessage.type === "success" ? DARK_GREEN : RED }}>
+          <div style={{ marginBottom: "14px", padding: "10px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, background: pwMessage.type === "success" ? "#eaf2d9" : "#FEF2F2", color: pwMessage.type === "success" ? DARK_GREEN : RED }}>
             {pwMessage.type === "success" ? "✅ " : "⚠️ "}{pwMessage.text}
           </div>
         )}

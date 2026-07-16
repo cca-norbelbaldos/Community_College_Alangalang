@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 // ── Toast types ───────────────────────────────────────────────────────────────
 const TYPES = {
@@ -93,7 +94,7 @@ function ConfirmPortal({ data, onDone }) {
   const handleConfirm = () => { onDone(); if (onConfirm) onConfirm(); };
   const handleCancel  = () => { onDone(); if (onCancel)  onCancel();  };
 
-  return (
+  return createPortal(
     <div style={{
       position: "fixed", inset: 0,
       background: "rgba(0,0,0,0.45)",
@@ -138,7 +139,8 @@ function ConfirmPortal({ data, onDone }) {
           >{confirmLabel}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

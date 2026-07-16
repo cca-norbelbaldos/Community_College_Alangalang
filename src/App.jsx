@@ -25,8 +25,10 @@ export default function App() {
   const handleLogin = (userData) => {
     setIsLoading(true);
     sessionStorage.setItem("cca_user", JSON.stringify(userData));
+    // Always land on Overview after login — clear any previously stored page
+    sessionStorage.removeItem("cca_dashboard_active_view");
     setUser(userData);
-    
+
     setTimeout(() => setIsLoading(false), 450);
   };
 

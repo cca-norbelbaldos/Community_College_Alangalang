@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import { showToast, showConfirm } from "../components/Toast";
 
 const GOLD       = "#F5A800";
-const GREEN      = "#2E7D32";
-const DARK_GREEN = "#1B5E20";
+const GREEN      = "#3d6e01";
+const DARK_GREEN = "#3d6e01";
 const WHITE      = "#FFFFFF";
 const GRAY       = "#6B7280";
 const LIGHT_GRAY = "#F9FAFB";
@@ -26,7 +26,7 @@ const EMPTY_FORM = {
 function roleBadge(r) {
   const rl = r.toLowerCase();
   if (rl === "administrator") return { bg: "#FFF8E1", color: GOLD,      border: "#FFE082" };
-  if (rl === "faculty")       return { bg: "#E8F5E9", color: GREEN,     border: "#A5D6A7" };
+  if (rl === "faculty")       return { bg: "#eaf2d9", color: GREEN,     border: "#a3c46d" };
   if (rl === "registrar")     return { bg: "#F3E5F5", color: "#8E24AA", border: "#CE93D8" };
   return                             { bg: "#F3F4F6", color: "#374151", border: BORDER    };
 }
@@ -35,7 +35,7 @@ function avatarColor(roles) {
   const rl = (Array.isArray(roles) ? (roles[0] || "") : (roles || "")).toLowerCase();
   if (rl === "administrator") return { bg: "#FFF3CD", color: "#B8860B" };
   if (rl === "registrar")     return { bg: "#F3E5F5", color: "#8E24AA" };
-  return                             { bg: "#E8F5E9", color: DARK_GREEN };
+  return                             { bg: "#eaf2d9", color: DARK_GREEN };
 }
 
 function fullName(u) {
@@ -166,8 +166,9 @@ export default function UserManagementModule() {
       first_name: form.firstName, middle_name: form.middleName, last_name: form.lastName,
       suffix: form.suffix, gender: form.gender, email: form.email,
       id_no: form.idNo, designation: form.designation,
-      profile_picture: form.profilePicture || undefined,
-      signature: form.signature || undefined
+      // Send explicit "" (not undefined) so a removed image is actually cleared server-side.
+      profile_picture: form.profilePicture ?? "",
+      signature: form.signature ?? ""
     };
     if (form.password || !editingId) payload.password = form.password;
 
@@ -248,157 +249,77 @@ export default function UserManagementModule() {
         </button>
       </div>
 
-      {/* Table */}
-      <div style={{ background: WHITE, borderRadius: "12px", border: `1px solid ${BORDER}`, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-          <thead>
-            <tr style={{ background: LIGHT_GRAY, borderBottom: `1px solid ${BORDER}` }}>
-              <Th>Identity Profile</Th>
-              <Th>Username</Th>
-              <Th>Role</Th>
-              <Th>ID No.</Th>
-              <Th>Designation</Th>
-              <Th align="center">Actions</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan="6"><BellLoader /></td></tr>
-            ) : pagedUsers.length === 0 ? (
-              <tr><td colSpan="6" style={{ padding: "40px", textAlign: "center", color: GRAY, fontSize: "14px" }}>No users matched your search.</td></tr>
-            ) : (
-              pagedUsers.map((u) => {
-                const av   = avatarColor(u.roles);
-                const init = (u.firstName?.charAt(0) || u.lastName?.charAt(0) || "?").toUpperCase();
-                const name = fullName(u);
-                return (
-                  <tr key={u.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
-
-                    {/* Identity Profile */}
-                    <td style={{ padding: "14px 18px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        {u.profilePicture ? (
-                          <img src={u.profilePicture} alt={name}
-                            style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", border: `2px solid ${BORDER}`, flexShrink: 0 }} />
-                        ) : (
-                          <div style={{
-                            width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
-                            background: av.bg, color: av.color,
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: "16px", fontWeight: 800
-                          }}>
-                            {init}
-                          </div>
-                        )}
-                        <div>
-                          <div style={{ fontSize: "13px", fontWeight: 700, color: "#111827" }}>{name}</div>
-                          {u.email && <div style={{ fontSize: "11px", color: GRAY, marginTop: "2px" }}>{u.email}</div>}
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Username */}
-                    <td style={{ padding: "14px 18px", fontSize: "13px", color: BLUE, fontWeight: 600 }}>
-                      {u.username || "-"}
-                    </td>
-
-                    {/* Role badges */}
-                    <td style={{ padding: "14px 18px" }}>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
-                        {(Array.isArray(u.roles) ? u.roles : []).map((r, idx) => {
-                          const s = roleBadge(r);
-                          return (
-                            <span key={idx} style={{
-                              padding: "3px 10px", background: s.bg, color: s.color,
-                              border: `1px solid ${s.border}`, borderRadius: "20px",
-                              fontWeight: 700, fontSize: "11px", textTransform: "uppercase", whiteSpace: "nowrap"
-                            }}>{r}</span>
-                          );
-                        })}
-                        {(!u.roles || u.roles.length === 0) && <span style={{ fontSize: "12px", color: GRAY }}>-</span>}
-                      </div>
-                    </td>
-
-                    {/* ID No. */}
-                    <td style={{ padding: "14px 18px", fontSize: "13px", color: "#111827" }}>
-                      {u.idNo || "-"}
-                    </td>
-
-                    {/* Designation */}
-                    <td style={{ padding: "14px 18px", fontSize: "13px", color: "#111827" }}>
-                      {u.designation || "-"}
-                    </td>
-
-                    {/* 3-dot Actions */}
-                    <td style={{ padding: "14px 18px", textAlign: "center", position: "relative" }}>
-                      <div style={{ display: "inline-block", position: "relative" }}>
-                        <button
-                          type="button"
-                          onClick={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
-                          style={{
-                            width: 32, height: 32, border: `1px solid ${BORDER}`, borderRadius: "6px",
-                            background: openMenuId === u.id ? LIGHT_GRAY : WHITE,
-                            cursor: "pointer", fontSize: "18px", color: GRAY,
-                            display: "flex", alignItems: "center", justifyContent: "center"
-                          }}>
-                          ...
-                        </button>
-
-                        {openMenuId === u.id && createPortal(
-                          <DropdownMenu
-                            onClose={() => setOpenMenuId(null)}
-                            onEdit={() => openEditModal(u)}
-                            onDelete={() => requestDelete(u)}
-                            uid={u.id}
-                          />,
-                          document.body
-                        )}
-                      </div>
-                      <span data-uid={u.id} style={{ position: "absolute", right: 18, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-
-        {/* Pagination */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "16px 18px", borderTop: `1px solid ${BORDER}` }}>
-          <PageNavBtn onClick={() => goToPage(1)}               disabled={currentPage === 1}>{"<<"}</PageNavBtn>
-          <PageNavBtn onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}>{"<"}</PageNavBtn>
-
-          {Array.from({ length: totalPages }, (_, i) => i + 1)
-            .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
-            .reduce((acc, p, idx, arr) => {
-              if (idx > 0 && p - arr[idx - 1] > 1) acc.push("ellipsis-" + p);
-              acc.push(p);
-              return acc;
-            }, [])
-            .map(p =>
-              typeof p === "string"
-                ? <span key={p} style={{ color: GRAY, fontSize: "13px", padding: "0 4px" }}>...</span>
-                : (
-                  <button key={p} type="button" onClick={() => goToPage(p)}
-                    style={{
-                      width: 32, height: 32, borderRadius: "50%", border: "none",
-                      background: p === currentPage ? "#E8EAF6" : "transparent",
-                      color: p === currentPage ? "#3F51B5" : GRAY,
-                      fontWeight: p === currentPage ? 700 : 500,
-                      fontSize: "13px", cursor: "pointer"
-                    }}>{p}</button>
-                )
-            )}
-
-          <PageNavBtn onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages}>{">"}</PageNavBtn>
-          <PageNavBtn onClick={() => goToPage(totalPages)}       disabled={currentPage === totalPages}>{">>"}</PageNavBtn>
-
-          <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-            style={{ marginLeft: "12px", padding: "6px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "13px", background: WHITE, color: GRAY, cursor: "pointer" }}>
-            {PAGE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+      {/* Cards */}
+      {loading ? (
+        <div style={{ padding: "60px", textAlign: "center", color: GRAY, fontSize: "13px" }}>Loading users...</div>
+      ) : pagedUsers.length === 0 ? (
+        <div style={{ padding: "60px", textAlign: "center", color: GRAY, fontSize: "13px" }}>No users found.</div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "16px" }}>
+          {pagedUsers.map((u) => {
+            const av   = avatarColor(u.roles);
+            const init = (u.firstName?.charAt(0) || u.lastName?.charAt(0) || "?").toUpperCase();
+            const name = fullName(u);
+            return (
+              <div key={u.id} style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "12px", padding: "20px", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", textAlign: "center" }}>
+                {/* Avatar */}
+                {u.profilePicture ? (
+                  <img src={u.profilePicture} alt={name}
+                    style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", border: `2px solid ${BORDER}` }} />
+                ) : (
+                  <div style={{ width: 64, height: 64, borderRadius: "50%", background: av.bg, color: av.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", fontWeight: 800 }}>
+                    {init}
+                  </div>
+                )}
+                {/* Name */}
+                <div style={{ fontSize: "13px", fontWeight: 700, color: "#111827", lineHeight: 1.3 }}>{name}</div>
+                {/* Role badges */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", justifyContent: "center" }}>
+                  {(Array.isArray(u.roles) ? u.roles : []).map((r, i) => {
+                    const s = roleBadge(r);
+                    return (
+                      <span key={i} style={{ padding: "2px 10px", background: s.bg, color: s.color, border: `1px solid ${s.border}`, borderRadius: "4px", fontWeight: 600, fontSize: "11px", textTransform: "capitalize" }}>
+                        {r}
+                      </span>
+                    );
+                  })}
+                </div>
+                {/* Email */}
+                <div style={{ fontSize: "11px", color: GRAY, wordBreak: "break-all" }}>{u.email || "—"}</div>
+                {/* Username */}
+                <div style={{ fontSize: "12px", color: BLUE, fontWeight: 600 }}>@{u.username || "—"}</div>
+                {/* Designation */}
+                {u.designation && <div style={{ fontSize: "11px", color: GRAY }}>{u.designation}</div>}
+                {/* Actions */}
+                <div style={{ display: "flex", gap: "8px", marginTop: "4px", width: "100%" }}>
+                  <button type="button" onClick={() => openEditModal(u)}
+                    style={{ flex: 1, padding: "6px 0", border: `1px solid ${BORDER}`, borderRadius: "6px", background: WHITE, fontSize: "12px", fontWeight: 600, color: "#374151", cursor: "pointer" }}>
+                    Edit
+                  </button>
+                  <button type="button" onClick={() => requestDelete(u)}
+                    style={{ flex: 1, padding: "6px 0", border: `1px solid #FECACA`, borderRadius: "6px", background: "#FEF2F2", fontSize: "12px", fontWeight: 600, color: RED, cursor: "pointer" }}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "16px 0 0" }}>
+          <PageNavBtn onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}>{"‹"}</PageNavBtn>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+            <button key={p} type="button" onClick={() => goToPage(p)}
+              style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: p === currentPage ? DARK_GREEN : "transparent", color: p === currentPage ? WHITE : GRAY, fontWeight: p === currentPage ? 700 : 400, fontSize: "13px", cursor: "pointer" }}>
+              {p}
+            </button>
+          ))}
+          <PageNavBtn onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages}>{"›"}</PageNavBtn>
+        </div>
+      )}
 
       {/* Add / Edit Modal */}
       {showModal && createPortal(
@@ -615,6 +536,10 @@ export default function UserManagementModule() {
 }
 
 /* ─── Helpers ──────────────────────────────────────────────── */
+
+const tdSt = {
+  padding: "10px 12px", fontSize: "13px", color: "#111827", verticalAlign: "middle", textAlign: "center",
+};
 
 const plainInputStyle = {
   padding: "10px 12px", border: `1px solid ${BORDER}`, borderRadius: "6px",

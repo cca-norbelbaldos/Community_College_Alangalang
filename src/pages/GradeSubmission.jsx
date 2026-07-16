@@ -3,8 +3,8 @@ import { useEffect, useState, useCallback } from "react";
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
   gold:       "#F5A800",
-  green:      "#2E7D32",
-  darkGreen:  "#1B5E20",
+  green:      "#3d6e01",
+  darkGreen:  "#3d6e01",
   white:      "#FFFFFF",
   gray:       "#6B7280",
   border:     "#E5E7EB",
@@ -18,7 +18,7 @@ const C = {
 const REMARKS_OPTIONS = ["", "Passed", "Failed", "Incomplete", "Dropped"];
 
 const remarksColor = (r) => {
-  if (r === "Passed")     return { color: C.green,  bg: "#E8F5E9" };
+  if (r === "Passed")     return { color: C.green,  bg: "#eaf2d9" };
   if (r === "Failed")     return { color: C.red,    bg: "#FFEBEE" };
   if (r === "Incomplete") return { color: C.gold,   bg: "#FFF8E1" };
   if (r === "Dropped")    return { color: C.gray,   bg: "#F3F4F6" };
@@ -279,7 +279,7 @@ export default function GradeSubmission({ facultyId }) {
       {selectedStudent && (
         <div style={{
           display: "flex", alignItems: "center", gap: 14,
-          background: "#E8F5E9", border: `1px solid #A5D6A7`,
+          background: "#eaf2d9", border: `1px solid #a3c46d`,
           borderRadius: 10, padding: "10px 18px", marginBottom: 16,
         }}>
           <div style={{

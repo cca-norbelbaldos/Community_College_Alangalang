@@ -1,315 +1,25 @@
-import { useState } from "react";
-import ccaLogo      from "./assets/cca_logo.jpg";
-import alangSeal    from "./assets/Alangalang.png";
-import ccaBg        from "./assets/cca_bg.png";
+import { useState, useEffect, useRef } from "react";
+import ccaLogo   from "./assets/cca_logo.svg";
+import alangSeal from "./assets/Alangalang.png";
 
-const GREEN      = "#3A7D3A";
-const DARK_GREEN = "#2D6A2D";
-const GOLD       = "#D4A017";
-const NAVY       = "#1B3A6B";
+const GREEN      = "#3d6e01";
+const DARK_GREEN = "#3d6e01";
+const GOLD       = "#F5A800";
 const WHITE      = "#FFFFFF";
 const GRAY       = "#6B7280";
 const BORDER     = "#D1D5DB";
 
-/* ─────────────────────────────────────────────────────────
-   ROOT — switches between landing and login
-───────────────────────────────────────────────────────── */
+/* ── Animated floating orbs for the left panel ─────────── */
+const ORBS = [
+  { w:220, h:220, top:"8%",   left:"10%",  dur:"7s",  del:"0s",   op:0.07 },
+  { w:140, h:140, top:"65%",  left:"5%",   dur:"9s",  del:"1.5s", op:0.06 },
+  { w:180, h:180, top:"45%",  left:"68%",  dur:"8s",  del:"0.8s", op:0.05 },
+  { w:90,  h:90,  top:"80%",  left:"55%",  dur:"6s",  del:"2s",   op:0.09 },
+  { w:60,  h:60,  top:"15%",  left:"75%",  dur:"5s",  del:"1s",   op:0.10 },
+  { w:110, h:110, top:"30%",  left:"2%",   dur:"10s", del:"0.3s", op:0.06 },
+];
+
 export default function CCALoginPortal({ onLogin }) {
-  const [view, setView] = useState("landing");
-  return view === "landing"
-    ? <LandingPage onGoLogin={() => setView("login")} />
-    : <LoginPage   onLogin={onLogin} onBack={() => setView("landing")} />;
-}
-
-/* ─────────────────────────────────────────────────────────
-   LANDING PAGE  (mirrors eLGU layout)
-───────────────────────────────────────────────────────── */
-function LandingPage({ onGoLogin }) {
-  return (
-    <>
-    <style>{`
-      @keyframes ccaFadeSlideDown {
-        from { opacity: 0; transform: translateY(-22px); }
-        to   { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes ccaFadeSlideUp {
-        from { opacity: 0; transform: translateY(22px); }
-        to   { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes ccaLogoZoom {
-        from { opacity: 0; transform: scale(0.72); }
-        to   { opacity: 1; transform: scale(1); }
-      }
-      @keyframes ccaHeroFloat {
-        0%   { transform: translateY(0px); }
-        50%  { transform: translateY(-10px); }
-        100% { transform: translateY(0px); }
-      }
-      @keyframes ccaFadeIn {
-        from { opacity: 0; }
-        to   { opacity: 1; }
-      }
-      .cca-nav-left  { animation: ccaFadeSlideDown 0.7s cubic-bezier(0.22,1,0.36,1) both; }
-      .cca-nav-btn   { animation: ccaFadeSlideDown 0.7s 0.15s cubic-bezier(0.22,1,0.36,1) both; }
-      .cca-hero-img  {
-        animation:
-          ccaLogoZoom 0.9s 0.1s cubic-bezier(0.22,1,0.36,1) both,
-          ccaHeroFloat 4s 1.2s ease-in-out infinite;
-      }
-      .cca-footer    { animation: ccaFadeSlideUp 0.7s 0.2s cubic-bezier(0.22,1,0.36,1) both; }
-    `}</style>
-    <div style={{
-      height: "100vh",
-      overflow: "hidden",
-      background: WHITE,
-      backgroundColor: "#FFFFFF",
-      fontFamily: "system-ui, sans-serif",
-      display: "flex",
-      flexDirection: "column",
-      position: "relative",
-      overflowX: "hidden",
-    }}>
-
-
-
-      {/* Accent stripe top */}
-      <div style={{ position:"absolute",top:0,left:0,right:0,height:4,background:`linear-gradient(90deg,${DARK_GREEN},${GOLD},${GREEN})`,zIndex:3 }} />
-
-      {/* Dot grids both sides */}
-      <DotPattern />
-
-      {/* ── NAV BAR ───────────────────────────────────────── */}
-      <nav style={{
-        position: "relative", zIndex: 2,
-        display: "flex", alignItems: "center",
-        justifyContent: "space-between",
-        padding: "10px 36px",
-        background: "#FFFFFF",
-        borderBottom: "none",
-        boxShadow: "none",
-      }}>
-        {/* Left branding */}
-        <div className="cca-nav-left" style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          {/* Seal with gold ring */}
-          <img src={alangSeal} alt="Seal"
-            style={{ width: 60, height: 60, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-          {/* Text block */}
-          <div style={{ borderLeft: "3px solid " + GOLD, paddingLeft: 14 }}>
-            <div style={{
-              fontWeight: 900, fontSize: 20, color: DARK_GREEN,
-              lineHeight: 1.15, letterSpacing: 0.3,
-              textShadow: "0 1px 2px rgba(0,0,0,0.07)",
-            }}>
-              Municipality of Alangalang
-            </div>
-            <div style={{
-              fontFamily: "'Times New Roman', Times, serif",
-              fontStyle: "italic", fontSize: 15,
-              color: "#111827", marginTop: 2, fontWeight: 600,
-            }}>
-              Leyte
-            </div>
-          </div>
-        </div>
-
-        {/* Right — LOGIN only */}
-        <button
-          className="cca-nav-btn"
-          onClick={onGoLogin}
-          style={{
-            padding: "9px 30px",
-            background: GREEN,
-            color: WHITE,
-            border: "none",
-            borderRadius: 4,
-            fontSize: 14,
-            fontWeight: 700,
-            letterSpacing: 1,
-            cursor: "pointer",
-            boxShadow: "0 2px 8px rgba(58,125,58,0.30)",
-            transition: "background 0.15s",
-          }}
-          onMouseOver={e => e.currentTarget.style.background = DARK_GREEN}
-          onMouseOut={e  => e.currentTarget.style.background = GREEN}
-        >
-          LOGIN
-        </button>
-      </nav>
-
-      {/* Content spacer — background image centered between nav and footer */}
-      <div className="cca-hero-img" style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundImage: `url(${ccaBg})`,
-        backgroundSize: "80%",
-        backgroundPosition: "center 55%",
-        backgroundRepeat: "no-repeat",
-      }} />
-
-      {/* Footer — eLGU-style full-width */}
-      <footer className="cca-footer" style={{
-        position: "relative", zIndex: 2,
-        marginTop: "auto",
-        background: "rgba(255,255,255,0.92)",
-        backdropFilter: "blur(8px)",
-        borderTop: "3px solid " + GREEN,
-      }}>
-        {/* Main footer content — Logo | Mission | Vision | Class Hours+Address | Contact */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "140px 1fr 1fr 1fr 1fr",
-          gap: "0",
-          padding: "14px 48px",
-          alignItems: "start",
-        }}>
-
-          {/* Col 1 — CCA Logo */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, paddingRight: 20, borderRight: "1px solid " + BORDER }}>
-            <img src={ccaLogo} alt="CCA Logo"
-              style={{ width: 160, height: 160, borderRadius: "50%", objectFit: "cover", border: "none" }} />
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: GRAY, marginTop: 2 }}>Data Privacy Statement</div>
-              <div style={{ fontSize: 10, color: GRAY, marginTop: 2 }}>Terms of Service</div>
-            </div>
-          </div>
-
-          {/* Col 2 — Mission */}
-          <div style={{ padding: "0 20px", borderRight: "1px solid " + BORDER }}>
-            <div style={{ fontWeight: 800, fontSize: 11, color: "#111827", marginBottom: 5 }}>MISSION:</div>
-            <div style={{ fontSize: 10, color: "#374151", lineHeight: 1.6 }}>
-              Community College of Alangalang commits to develop lifelong learners and values-driven professionals through student-centered and gender-responsive education, promoting excellence in the fields of education, health, environmental sustainability, security, management, accounting, information communication and technology. It upholds quality through competent, qualified, and values-oriented faculty and administrators, while delivering technology-driven, innovative, outcomes-based, and research-based programs that provide accessible and responsive education to effectively address local, national, and global challenges.
-            </div>
-          </div>
-
-          {/* Col 3 — Vision + Class Hours + Address */}
-          <div style={{ padding: "0 20px", borderRight: "1px solid " + BORDER }}>
-            <div style={{ fontWeight: 800, fontSize: 11, color: "#111827", marginBottom: 5 }}>VISION:</div>
-            <div style={{ fontSize: 10, color: "#374151", lineHeight: 1.6, marginBottom: 10 }}>
-              An inclusive, values-driven community college promoting quality education fostering sustainable development and transformative social change.
-            </div>
-            <div style={{ fontWeight: 800, fontSize: 11, color: "#111827", marginBottom: 5 }}>CLASS HOURS:</div>
-            <div style={{ fontSize: 10, color: "#374151", marginBottom: 2 }}>Monday – Friday</div>
-            <div style={{ fontSize: 10, color: "#374151", fontWeight: 700, marginBottom: 10 }}>07:00AM – 05:00PM</div>
-            <div style={{ fontWeight: 800, fontSize: 11, color: "#111827", marginBottom: 5 }}>ADDRESS:</div>
-            <div style={{ fontSize: 10, color: "#374151", lineHeight: 1.6 }}>
-              Community College of Alangalang,<br />Leyte, Philippines
-            </div>
-          </div>
-
-          {/* Col 4 — Contact Information */}
-          <div style={{ padding: "0 20px", borderRight: "1px solid " + BORDER }}>
-            <div style={{ fontWeight: 800, fontSize: 11, color: "#111827", marginBottom: 5 }}>CONTACT INFORMATION:</div>
-            <div style={{ fontSize: 10, color: GRAY, fontWeight: 700 }}>Mobile Number:</div>
-            <div style={{ fontSize: 10, color: "#374151", marginBottom: 2 }}>+63-(0)919-065-1703</div>
-            <div style={{ fontSize: 10, color: "#374151", marginBottom: 8 }}>+63-(0)920-975-0584</div>
-            <div style={{ fontSize: 10, color: GRAY, fontWeight: 700 }}>Email:</div>
-            <div style={{ fontSize: 10, color: GREEN, marginBottom: 8 }}>communitycollegeofalangalang@gmail.com</div>
-            <div style={{ fontSize: 10, color: GRAY, fontWeight: 700 }}>Facebook Page:</div>
-            <div style={{ fontSize: 10, color: GREEN }}>Community College of Alangalang</div>
-          </div>
-
-          {/* Col 5 — Emergency Contacts */}
-          <div style={{ padding: "0 0 0 20px" }}>
-            <div style={{ fontWeight: 800, fontSize: 11, color: "#111827", marginBottom: 5 }}>IN CASE OF EMERGENCY:</div>
-            <div style={{ fontSize: 10, color: "#374151", marginBottom: 8 }}>Please contact:</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 8px" }}>
-              {/* Left: BFP + MDRRMO */}
-              <div>
-                <div style={{ fontSize: 10, color: GRAY, fontWeight: 700 }}>BFP Alangalang:</div>
-                <div style={{ fontSize: 10, color: "#374151", marginBottom: 2 }}>0945-866-3852</div>
-                <div style={{ fontSize: 10, color: "#374151", marginBottom: 10 }}>0920-260-4623</div>
-                <div style={{ fontSize: 10, color: GRAY, fontWeight: 700 }}>MDRRMO Alangalang:</div>
-                <div style={{ fontSize: 10, color: "#374151", marginBottom: 2 }}>0999-994-7880</div>
-                <div style={{ fontSize: 10, color: "#374151" }}>0917-143-2294</div>
-              </div>
-              {/* Right: PNP + RHU */}
-              <div>
-                <div style={{ fontSize: 10, color: GRAY, fontWeight: 700 }}>PNP Alangalang:</div>
-                <div style={{ fontSize: 10, color: "#374151", marginBottom: 2 }}>0998-598-6481</div>
-                <div style={{ fontSize: 10, color: "#374151", marginBottom: 10 }}>0926-544-1128</div>
-                <div style={{ fontSize: 10, color: GRAY, fontWeight: 700 }}>RHU Alangalang:</div>
-                <div style={{ fontSize: 10, color: "#374151", marginBottom: 2 }}>0915-394-1757</div>
-                <div style={{ fontSize: 10, color: "#374151" }}>0938-752-0045</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom bar */}
-        <div style={{
-          borderTop: "1px solid " + BORDER,
-          padding: "10px 48px",
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          background: DARK_GREEN,
-        }}>
-          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.85)", fontWeight: 600 }}>
-            © {new Date().getFullYear()} Community College of Alangalang — All Rights Reserved
-          </span>
-          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.65)" }}>
-            Managed by CCA - Education Management Information System
-          </span>
-        </div>
-      </footer>
-    </div>
-    </>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────
-   DOT GRID PATTERN  (both sides)
-───────────────────────────────────────────────────────── */
-function DotGrid({ side }) {
-  const dots = [];
-  const cols = 18, rows = 26, gap = 24;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const cx = c - cols / 2, cy = r - rows / 2;
-      const dist = Math.sqrt(cx * cx * 0.6 + cy * cy);
-      if (dist > 9) continue;
-      const opacity = Math.max(0.05, 0.20 - dist * 0.018);
-      dots.push(
-        <circle
-          key={`${r}-${c}`}
-          cx={c * gap} cy={r * gap} r={2.5}
-          fill={GOLD} opacity={opacity}
-        />
-      );
-    }
-  }
-  const w = cols * gap, h = rows * gap;
-  return (
-    <svg
-      style={{
-        position: "absolute",
-        [side]: 0,
-        top: "50%",
-        transform: "translateY(-50%)",
-        width: 460, height: 640,
-        zIndex: 1, pointerEvents: "none",
-        opacity: 0.85,
-      }}
-      viewBox={`0 0 ${w} ${h}`}
-    >
-      {dots}
-    </svg>
-  );
-}
-
-function DotPattern() {
-  return (
-    <>
-      <DotGrid side="left" />
-      <DotGrid side="right" />
-    </>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────
-   LOGIN PAGE  (existing polished card)
-───────────────────────────────────────────────────────── */
-function LoginPage({ onLogin, onBack }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPw,   setShowPw]   = useState(false);
@@ -336,143 +46,287 @@ function LoginPage({ onLogin, onBack }) {
   };
 
   const inputStyle = (focused) => ({
-    width: "100%", padding: "11px 42px 11px 38px",
+    width: "100%", padding: "11px 42px 11px 40px",
     border: `1.5px solid ${focused ? GREEN : BORDER}`,
-    borderRadius: 10, fontSize: 14, color: "#111827",
-    background: WHITE, outline: "none", boxSizing: "border-box",
-    boxShadow: focused ? "0 0 0 3px rgba(46,125,50,0.13)" : "none",
-    fontFamily: "inherit", transition: "border-color 0.18s, box-shadow 0.18s",
+    borderRadius: 8, fontSize: 13, color: "#111827",
+    background: focused ? "#f2f9e8" : WHITE,
+    outline: "none", boxSizing: "border-box",
+    boxShadow: focused ? `0 0 0 3px rgba(46,125,50,0.13)` : "none",
+    fontFamily: "inherit", transition: "border-color 0.2s, box-shadow 0.2s, background 0.2s",
   });
 
   return (
-    <div style={{
-      display: "flex", alignItems: "center", justifyContent: "center",
-      minHeight: "100vh",
-      background: `linear-gradient(145deg, #E8F5E9 0%, #F3F4F6 50%, #FFF8E1 100%)`,
-      fontFamily: "system-ui, sans-serif", padding: 16,
-      position: "relative", overflow: "hidden",
-    }}>
+    <>
+    <style>{`
+      /* ── entrance ── */
+      @keyframes slideInLeft  { from{opacity:0;transform:translateX(-40px)} to{opacity:1;transform:translateX(0)} }
+      @keyframes slideInRight { from{opacity:0;transform:translateX(40px)}  to{opacity:1;transform:translateX(0)} }
+      @keyframes fadeUp       { from{opacity:0;transform:translateY(20px)}  to{opacity:1;transform:translateY(0)} }
+      /* ── continuous ── */
+      @keyframes orbFloat     { 0%,100%{transform:translateY(0px) scale(1)} 50%{transform:translateY(-18px) scale(1.04)} }
+      @keyframes shimmer      { 0%{background-position:-200% center} 100%{background-position:200% center} }
+      @keyframes spin         { to{transform:rotate(360deg)} }
+      @keyframes errorShake   { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+      @keyframes pulseDot     { 0%,100%{opacity:0.6;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
+      @keyframes lineGrow     { from{width:0} to{width:500px} }
+      /* ── classes ── */
+      .cca-left    { animation: slideInLeft  0.7s cubic-bezier(0.22,1,0.36,1) both; }
+      .cca-right   { animation: slideInRight 0.7s 0.12s cubic-bezier(0.22,1,0.36,1) both; }
+      .cca-tag     { animation: fadeUp 0.6s 0.5s both; }
+      .cca-name1   { animation: fadeUp 0.6s 0.3s both; }
+      .cca-name2   { animation: fadeUp 0.6s 0.4s both; }
+      .cca-line    { animation: lineGrow 0.8s 0.6s cubic-bezier(0.22,1,0.36,1) both; }
+      .form-field  { animation: fadeUp 0.5s both; }
+      .login-btn:hover:not(:disabled){ background:${DARK_GREEN}!important; box-shadow:0 8px 24px rgba(27,94,32,0.42)!important; transform:translateY(-2px)!important; }
+      .login-btn:active:not(:disabled){ transform:translateY(0)!important; }
+      .pw-eye:hover{ color:${GREEN}!important; }
+      .shimmer-bar {
+        background: linear-gradient(90deg, ${GOLD} 0%, #ffe066 40%, ${GOLD} 60%, #c47f00 100%);
+        background-size: 200% auto;
+        animation: shimmer 2.4s linear infinite;
+      }
+    `}</style>
 
-      {/* Back button */}
-      <button
-        onClick={onBack}
-        style={{
-          position: "absolute", top: 20, left: 24,
-          background: "none", border: "1px solid #D1D5DB",
-          borderRadius: 6, padding: "6px 14px",
-          fontSize: 13, color: GRAY, cursor: "pointer",
-          display: "flex", alignItems: "center", gap: 6,
-          fontFamily: "inherit", fontWeight: 600,
-        }}
-      >← Back</button>
+    <div style={{ display:"flex", height:"100vh", overflow:"hidden", fontFamily:"system-ui,-apple-system,sans-serif" }}>
 
-      {/* Blobs */}
-      <div style={{ position:"absolute",top:"-100px",left:"-100px",width:340,height:340,borderRadius:"50%",background:"rgba(46,125,50,0.06)",pointerEvents:"none" }} />
-      <div style={{ position:"absolute",bottom:"-120px",right:"-80px",width:400,height:400,borderRadius:"50%",background:"rgba(245,168,0,0.05)",pointerEvents:"none" }} />
-
-      <style>{`
-        @keyframes cardEntrance { from{opacity:0;transform:translateY(28px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
-        @keyframes errorShake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
-        @keyframes spin { to{transform:rotate(360deg)} }
-        .login-submit-btn:hover:not(:disabled){ background:linear-gradient(135deg,#1B5E20,#155218)!important; box-shadow:0 6px 22px rgba(27,94,32,0.38)!important; transform:translateY(-1px)!important; }
-        .login-submit-btn:active:not(:disabled){ transform:translateY(0)!important; }
-        .pw-toggle-btn:hover{ color:#2E7D32!important; }
-      `}</style>
-
-      {/* Card */}
-      <div style={{
-        width:"100%", maxWidth:420,
-        background:WHITE, borderRadius:20,
-        boxShadow:"0 24px 64px -12px rgba(0,0,0,0.15)",
-        overflow:"hidden",
-        animation:"cardEntrance 0.42s cubic-bezier(0.34,1.56,0.64,1) forwards",
-        position:"relative", zIndex:1,
+      {/* ════════════ LEFT PANEL ════════════ */}
+      <div className="cca-left" style={{
+        flex: "0 0 65%",
+        background: WHITE,
+        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+        position:"relative", overflow:"hidden", padding:"40px 60px",
       }}>
 
-        {/* Header */}
-        <div style={{
-          background:`linear-gradient(135deg,${DARK_GREEN} 0%,${GREEN} 55%,#43A047 85%,#4CAF50 100%)`,
-          padding:"30px 36px 24px", textAlign:"center", color:WHITE,
-          position:"relative", overflow:"hidden",
-        }}>
-          <div style={{ position:"absolute",top:"-30px",right:"-30px",width:180,height:180,borderRadius:"50%",background:"rgba(255,255,255,0.06)",pointerEvents:"none" }} />
-          <div style={{ display:"flex",justifyContent:"center",marginBottom:14 }}>
-            <div style={{ width:88,height:88,borderRadius:"50%",border:"3px solid rgba(255,255,255,0.55)",boxShadow:"0 4px 22px rgba(0,0,0,0.22),0 0 0 6px rgba(255,255,255,0.08)",overflow:"hidden",background:WHITE }}>
-              <img src={ccaLogo} alt="CCA" style={{ width:"100%",height:"100%",objectFit:"cover" }} />
+        {/* Animated orbs */}
+        {ORBS.map((o,i) => (
+          <div key={i} style={{
+            position:"absolute", top:o.top, left:o.left,
+            width:o.w, height:o.h, borderRadius:"50%",
+            background:"rgba(46,125,50,0.07)",
+            animation:`orbFloat ${o.dur} ${o.del} ease-in-out infinite`,
+            pointerEvents:"none",
+          }} />
+        ))}
+
+        {/* Dot grid */}
+        <DotPattern />
+
+        {/* ── Main brand block ── */}
+        <div style={{ display:"flex",flexDirection:"column",alignItems:"center",position:"relative",zIndex:2,marginTop:"-230px" }}>
+          <img src={ccaLogo} alt="CCA" style={{ width:220,height:220,objectFit:"contain",filter:"drop-shadow(0 8px 24px rgba(0,0,0,0.12))" }} />
+          <div style={{ marginTop:-20,textAlign:"center" }}>
+            <div className="cca-name1" style={{ fontSize:38,letterSpacing:10,textTransform:"uppercase",color:GRAY,fontWeight:700,marginBottom:12 }}>Community College of</div>
+            <div className="cca-name2" style={{ fontSize:112,fontWeight:900,color:GOLD,letterSpacing:4,textTransform:"uppercase",textShadow:"0 2px 12px rgba(0,0,0,0.10)",lineHeight:1 }}>Alangalang</div>
+            <div className="cca-line shimmer-bar" style={{ height:4,width:500,borderRadius:2,margin:"18px auto 0" }} />
+
+            {/* Core values */}
+            <div style={{ marginTop:64, display:"inline-flex", alignItems:"center", gap:0 }}>
+              {["Innovation","Integrity","Inclusivity","Excellence"].map((val, i, arr) => (
+                <span key={val} style={{ display:"flex", alignItems:"center" }}>
+                  <span style={{
+                    fontSize:13, fontWeight:700, color:DARK_GREEN,
+                    letterSpacing:2, textTransform:"uppercase",
+                    padding:"0 20px",
+                  }}
+                  onMouseOver={e => e.currentTarget.style.color = GOLD}
+                  onMouseOut={e  => e.currentTarget.style.color = DARK_GREEN}
+                  >{val}</span>
+                  {i < arr.length - 1 && (
+                    <span style={{ width:1, height:18, background:GOLD, opacity:0.7, display:"inline-block" }} />
+                  )}
+                </span>
+              ))}
             </div>
           </div>
-          <div style={{ fontSize:10,letterSpacing:4,textTransform:"uppercase",opacity:0.75,marginBottom:4 }}>Community College of</div>
-          <div style={{ fontSize:22,fontWeight:800,letterSpacing:1.5 }}>ALANGALANG</div>
-          <div style={{ display:"inline-flex",alignItems:"center",gap:6,marginTop:12,background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.22)",borderRadius:20,padding:"5px 16px",fontSize:11,fontWeight:700,letterSpacing:0.5 }}>
-            <span style={{ width:7,height:7,borderRadius:"50%",background:"#4ADE80",display:"inline-block",boxShadow:"0 0 6px #4ADE80" }} />
-            Student Information System
-          </div>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ padding:"28px 32px 32px" }}>
-          <div style={{ marginBottom:20,fontSize:15,fontWeight:700,color:"#111827",textAlign:"center" }}>Sign in to your account</div>
-
-          {error && (
-            <div style={{ marginBottom:16,padding:"10px 14px",background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:8,color:"#991B1B",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:8,animation:"errorShake 0.38s ease" }}>
-              <span>⚠️</span><span>{error}</span>
-            </div>
-          )}
-
-          <div style={{ marginBottom:16 }}>
-            <label style={{ display:"block",fontSize:12,fontWeight:700,color:GRAY,marginBottom:6,letterSpacing:0.3 }}>USERNAME</label>
-            <div style={{ position:"relative" }}>
-              <span style={{ position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",display:"flex",alignItems:"center",color:"#9CA3AF" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-              </span>
-              <input type="text" autoComplete="username" value={username}
-                onChange={e=>{setUsername(e.target.value);setError("");}}
-                onFocus={()=>setFocusU(true)} onBlur={()=>setFocusU(false)}
-                placeholder="Enter your username" style={inputStyle(focusU)} disabled={loading} />
-            </div>
-          </div>
-
-          <div style={{ marginBottom:24 }}>
-            <label style={{ display:"block",fontSize:12,fontWeight:700,color:GRAY,marginBottom:6,letterSpacing:0.3 }}>PASSWORD</label>
-            <div style={{ position:"relative" }}>
-              <span style={{ position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",display:"flex",alignItems:"center",color:"#9CA3AF" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-              </span>
-              <input type={showPw?"text":"password"} autoComplete="current-password" value={password}
-                onChange={e=>{setPassword(e.target.value);setError("");}}
-                onFocus={()=>setFocusP(true)} onBlur={()=>setFocusP(false)}
-                placeholder="Enter your password" style={inputStyle(focusP)} disabled={loading} />
-              <button type="button" className="pw-toggle-btn" onClick={()=>setShowPw(p=>!p)} tabIndex={-1}
-                style={{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",fontSize:16,color:"#9CA3AF",padding:"2px 4px",lineHeight:1,transition:"color 0.15s" }}>
-                {showPw ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                )}
-              </button>
-            </div>
-          </div>
-
-          <button type="submit" className="login-submit-btn" disabled={loading} style={{
-            width:"100%", padding:"13px",
-            background:loading?"#9CA3AF":`linear-gradient(135deg,${DARK_GREEN} 0%,${GREEN} 100%)`,
-            color:WHITE, border:"none", borderRadius:10, fontSize:15, fontWeight:800,
-            cursor:loading?"not-allowed":"pointer",
-            boxShadow:loading?"none":"0 4px 14px rgba(27,94,32,0.28)",
-            transition:"background 0.18s,box-shadow 0.18s,transform 0.12s",
-            display:"flex", alignItems:"center", justifyContent:"center", gap:8, letterSpacing:0.5,
-          }}>
-            {loading ? (
-              <><span style={{ width:16,height:16,borderRadius:"50%",border:"2.5px solid rgba(255,255,255,0.35)",borderTopColor:WHITE,display:"inline-block",animation:"spin 0.75s linear infinite" }} />Signing in...</>
-            ) : "Sign In"}
-          </button>
-        </form>
-
-        {/* Footer */}
-        <div style={{ padding:"14px 32px 20px",textAlign:"center",borderTop:`1px solid ${BORDER}`,background:"#FAFAFA" }}>
-          <span style={{ fontSize:11,color:"#9CA3AF" }}>© {new Date().getFullYear()} Community College of Alangalang &nbsp;·&nbsp; All rights reserved</span>
         </div>
       </div>
+
+      {/* ════════════ RIGHT PANEL ════════════ */}
+      <div className="cca-right" style={{
+        flex: 1,
+        background: `linear-gradient(160deg, #eaf2d9 0%, #f1f8e9 50%, #ffffff 100%)`,
+        display:"flex", flexDirection:"column",
+        alignItems:"stretch", justifyContent:"stretch",
+        position:"relative", minWidth:0, overflow:"hidden",
+      }}>
+
+        {/* Decorative blobs */}
+        <div style={{ position:"absolute",top:"-40px",right:"-40px",width:180,height:180,borderRadius:"50%",background:"rgba(46,125,50,0.06)",pointerEvents:"none" }} />
+        <div style={{ position:"absolute",bottom:"-60px",left:"-30px",width:200,height:200,borderRadius:"50%",background:"rgba(245,168,0,0.05)",pointerEvents:"none" }} />
+
+        {/* Dot pattern */}
+        <div style={{ position:"absolute",inset:0,backgroundImage:`radial-gradient(circle, rgba(46,125,50,0.07) 1.2px, transparent 1.2px)`,backgroundSize:"22px 22px",pointerEvents:"none" }} />
+
+        {/* Full-height glassmorphism card */}
+        <div style={{
+          flex:1,
+          background:"rgba(255,255,255,0.75)",
+          backdropFilter:"blur(18px)",
+          WebkitBackdropFilter:"blur(18px)",
+          border:"none",
+          borderLeft:"1px solid rgba(255,255,255,0.90)",
+          boxShadow:"-4px 0 24px rgba(27,94,32,0.07)",
+          padding:"0 32px",
+          position:"relative", zIndex:1,
+          display:"flex", flexDirection:"column", justifyContent:"center",
+        }}>
+
+          {/* Top shimmer accent */}
+          <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${GOLD},${GREEN},${GOLD})`,backgroundSize:"200% auto",animation:"shimmer 2.4s linear infinite" }} />
+
+          {/* Heading */}
+          <div style={{ textAlign:"center",marginBottom:20 }}>
+            <div style={{ fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:GREEN,marginBottom:5,whiteSpace:"nowrap" }}>Education Management Information System</div>
+            <div style={{ fontSize:20,fontWeight:900,color:DARK_GREEN,marginBottom:3,letterSpacing:0.3 }}>Welcome Back 👋</div>
+            <div style={{ fontSize:11,color:GRAY }}>Sign in to continue to your account</div>
+          </div>
+
+          <form onSubmit={handleSubmit} style={{ display:"flex",flexDirection:"column",gap:0,width:"100%",maxWidth:280,margin:"0 auto" }}>
+
+            {error && (
+              <div style={{ marginBottom:12,padding:"8px 12px",background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:7,color:"#991B1B",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:7,animation:"errorShake 0.38s ease" }}>
+                <span>⚠️</span><span>{error}</span>
+              </div>
+            )}
+
+            {/* Username — floating label box */}
+            <div style={{ marginBottom:20, position:"relative" }}>
+              <div style={{
+                position:"relative",
+                border:`1.8px solid ${focusU ? GREEN : username ? DARK_GREEN : BORDER}`,
+                borderRadius:10,
+                background: WHITE,
+                transition:"border-color 0.2s, box-shadow 0.2s",
+                boxShadow: focusU ? `0 0 0 3px rgba(46,125,50,0.13)` : "none",
+              }}>
+                {/* Floating label */}
+                <label style={{
+                  position:"absolute", left:36, top:"50%",
+                  transform: (focusU || username) ? "translateY(-50%) scale(0.82)" : "translateY(-50%)",
+                  top: (focusU || username) ? 0 : "50%",
+                  transformOrigin:"left center",
+                  fontSize:13, fontWeight:600,
+                  color: focusU ? GREEN : username ? DARK_GREEN : "#9CA3AF",
+                  pointerEvents:"none", transition:"all 0.18s ease",
+                  background: WHITE, padding:"0 4px", lineHeight:1,
+                  whiteSpace:"nowrap",
+                }}>Username</label>
+                {/* Icon */}
+                <span style={{ position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",color:focusU?GREEN:"#9CA3AF",transition:"color 0.2s" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                </span>
+                <input type="text" autoComplete="username" value={username}
+                  onChange={e=>{setUsername(e.target.value);setError("");}}
+                  onFocus={()=>setFocusU(true)} onBlur={()=>setFocusU(false)}
+                  style={{ width:"100%", padding:"14px 40px 6px 36px", border:"none", borderRadius:10, fontSize:13, color:"#111827", background:"transparent", outline:"none", boxSizing:"border-box", fontFamily:"inherit" }}
+                  disabled={loading} />
+              </div>
+            </div>
+
+            {/* Password — floating label box */}
+            <div style={{ marginBottom:22, position:"relative" }}>
+              <div style={{
+                position:"relative",
+                border:`1.8px solid ${focusP ? GREEN : password ? DARK_GREEN : BORDER}`,
+                borderRadius:10,
+                background: WHITE,
+                transition:"border-color 0.2s, box-shadow 0.2s",
+                boxShadow: focusP ? `0 0 0 3px rgba(46,125,50,0.13)` : "none",
+              }}>
+                {/* Floating label */}
+                <label style={{
+                  position:"absolute", left:36, top:"50%",
+                  transform: (focusP || password) ? "translateY(-50%) scale(0.82)" : "translateY(-50%)",
+                  top: (focusP || password) ? 0 : "50%",
+                  transformOrigin:"left center",
+                  fontSize:13, fontWeight:600,
+                  color: focusP ? GREEN : password ? DARK_GREEN : "#9CA3AF",
+                  pointerEvents:"none", transition:"all 0.18s ease",
+                  background: WHITE, padding:"0 4px", lineHeight:1,
+                  whiteSpace:"nowrap",
+                }}>Password</label>
+                {/* Lock icon */}
+                <span style={{ position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",color:focusP?GREEN:"#9CA3AF",transition:"color 0.2s" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                </span>
+                <input type={showPw?"text":"password"} autoComplete="current-password" value={password}
+                  onChange={e=>{setPassword(e.target.value);setError("");}}
+                  onFocus={()=>setFocusP(true)} onBlur={()=>setFocusP(false)}
+                  style={{ width:"100%", padding:"14px 40px 6px 36px", border:"none", borderRadius:10, fontSize:13, color:"#111827", background:"transparent", outline:"none", boxSizing:"border-box", fontFamily:"inherit" }}
+                  disabled={loading} />
+                {/* Eye toggle */}
+                <button type="button" className="pw-eye" onClick={()=>setShowPw(p=>!p)} tabIndex={-1}
+                  style={{ position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:"#9CA3AF",padding:"2px 4px",lineHeight:1,transition:"color 0.15s" }}>
+                  {showPw
+                    ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  }
+                </button>
+              </div>
+            </div>
+
+            <button type="submit" className="login-btn" disabled={loading} style={{
+              width:"100%", padding:"11px",
+              background: loading ? "#9CA3AF" : `linear-gradient(135deg,${DARK_GREEN},${GREEN})`,
+              color:WHITE, border:"none", borderRadius:9,
+              fontSize:13, fontWeight:800, letterSpacing:1,
+              cursor: loading?"not-allowed":"pointer",
+              boxShadow: loading?"none":"0 5px 18px rgba(27,94,32,0.32)",
+              transition:"all 0.2s ease",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+            }}>
+              {loading
+                ? <><span style={{ width:13,height:13,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.35)",borderTopColor:WHITE,display:"inline-block",animation:"spin 0.75s linear infinite" }} />Signing in...</>
+                : "Sign In →"
+              }
+            </button>
+
+            {/* Developed by */}
+            <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:8,marginTop:65,paddingTop:20,borderTop:`1px solid ${BORDER}` }}>
+              <span style={{ fontSize:10,fontWeight:700,color:GRAY,letterSpacing:2,textTransform:"uppercase" }}>Developed by</span>
+              <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+                <img src={alangSeal} alt="Alangalang Seal" style={{ width:48,height:48,borderRadius:"50%",objectFit:"cover",border:`2px solid ${BORDER}` }} />
+                <div>
+                  <div style={{ fontSize:15,fontWeight:800,color:DARK_GREEN,lineHeight:1.3 }}>Municipality of Alangalang</div>
+                  <div style={{ fontSize:12,fontStyle:"italic",color:GRAY,lineHeight:1.3 }}>Leyte, Philippines</div>
+                </div>
+              </div>
+            </div>
+          </form>
+
+          {/* Footer */}
+          <div style={{ position:"absolute",bottom:14,left:0,right:0,textAlign:"center",fontSize:9,color:"#9CA3AF" }}>
+            © {new Date().getFullYear()} Community College of Alangalang — All rights reserved
+          </div>
+
+          {/* Bottom shimmer accent */}
+          <div style={{ position:"absolute",bottom:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${GREEN},${GOLD},${GREEN})`,backgroundSize:"200% auto",animation:"shimmer 2.4s linear infinite reverse" }} />
+        </div>
+      </div>
+
     </div>
+    </>
   );
 }
+
+/* ── Dot grid ───────────────────────────────────────────── */
+function DotGrid({ side }) {
+  const dots = [];
+  const cols = 16, rows = 24, gap = 26;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cx = c - cols / 2, cy = r - rows / 2;
+      const dist = Math.sqrt(cx * cx * 0.5 + cy * cy);
+      if (dist > 9) continue;
+      const opacity = Math.max(0.02, 0.14 - dist * 0.014);
+      dots.push(<circle key={`${r}-${c}`} cx={c * gap} cy={r * gap} r={2.2} fill={GREEN} opacity={opacity} />);
+    }
+  }
+  const w = cols * gap, h = rows * gap;
+  return (
+    <svg style={{ position:"absolute",[side]:0,top:"50%",transform:"translateY(-50%)",width:430,height:640,zIndex:1,pointerEvents:"none" }} viewBox={`0 0 ${w} ${h}`}>
+      {dots}
+    </svg>
+  );
+}
+function DotPattern() { return <><DotGrid side="left" /><DotGrid side="right" /></>; }

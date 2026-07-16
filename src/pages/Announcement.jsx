@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { showToast } from "../components/Toast";
 
 const GOLD       = "#F5A800";
-const GREEN      = "#2E7D32";
-const DARK_GREEN = "#1B5E20";
+const GREEN      = "#3d6e01";
+const DARK_GREEN = "#3d6e01";
 const WHITE      = "#FFFFFF";
 const GRAY       = "#6B7280";
 const BORDER     = "#E5E7EB";

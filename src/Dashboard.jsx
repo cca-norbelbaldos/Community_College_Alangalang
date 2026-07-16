@@ -10,10 +10,12 @@ import Announcements from "./pages/Announcement";
 import AssignedSubject from "./pages/AssignedSubject";
 import Designation from "./pages/Designation";
 import AccountSettings from "./pages/AccountSettings";
+import SubjectCatalog from "./pages/SubjectCatalog";
+import Library from "./pages/Library";
 
 const GOLD       = "#F5A800";
-const GREEN      = "#2E7D32";
-const DARK_GREEN = "#1B5E20";
+const GREEN      = "#3d6e01";
+const DARK_GREEN = "#3d6e01";
 const WHITE      = "#FFFFFF";
 const GRAY       = "#6B7280";
 const LIGHT_GRAY = "#F9FAFB";
@@ -22,6 +24,7 @@ const PURPLE     = "#6366F1";
 const LIGHT_PURPLE = "rgba(99,102,241,0.12)";
 
 import ccaLogo from "./assets/cca_logo.jpg";
+import ccaLogoSvg from "./assets/cca_logo.svg";
 
 // ── Simple flat nav icons (replacing the old emoji set) ──────────────────────
 const svgIconProps = { width: 15, height: 15, viewBox: "0 0 24 24", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" };
@@ -31,8 +34,11 @@ const ICON_HOME = (
 const ICON_LAYERS = (
   <svg {...svgIconProps} stroke="#A78BFA"><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></svg>
 );
+const ICON_SUBJECT = (
+  <svg {...svgIconProps} width={13} height={13} stroke="#22D3EE"><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></svg>
+);
 const ICON_PERSON = (
-  <svg {...svgIconProps} stroke="#CBD5E1"><circle cx="12" cy="7" r="4" /><path d="M5 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2" /></svg>
+  <svg {...svgIconProps} stroke="#3d6e01"><circle cx="12" cy="7" r="4" /><path d="M5 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2" /></svg>
 );
 const ICON_DOCUMENT = (
   <svg {...svgIconProps} stroke="#34D399"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><polyline points="14 3 14 8 19 8" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="16" y2="17" /></svg>
@@ -61,6 +67,9 @@ const ICON_GEAR = (
 const ICON_ACCOUNT = (
   <svg {...svgIconProps} stroke="#38BDF8"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a8 8 0 0 1 16 0v1" /></svg>
 );
+const ICON_LIBRARY = (
+  <svg {...svgIconProps} stroke="#4ADE80"><path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14" /><path d="M4 19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2" /><line x1="9" y1="7" x2="15" y2="7" /><line x1="9" y1="11" x2="15" y2="11" /></svg>
+);
 
 // Main nav items (no User Management, no System Controls here)
 const MAIN_NAV = [
@@ -68,17 +77,17 @@ const MAIN_NAV = [
   { label: "Student List",        icon: ICON_LAYERS,   featureKey: "feat_student_list",  alwaysFor: ["administrator"] },
   { label: "Faculty Hub",         icon: ICON_PERSON,   featureKey: "feat_faculty_mgmt",  alwaysFor: ["administrator"] },
   { label: "Registrar Console",   icon: ICON_DOCUMENT, featureKey: "feat_registrar_mgmt",alwaysFor: ["administrator"] },
+  { label: "Library",             icon: ICON_LIBRARY,  featureKey: "feat_library",       alwaysFor: ["administrator"] },
   { label: "Create Announcement", icon: ICON_BELL,     featureKey: "feat_announcements",  alwaysFor: ["administrator"] },
-
-  { label: "Class Schedule",      icon: ICON_CLOCK,    featureKey: "feat_class_sched",    alwaysFor: ["faculty"] },
 ];
 
 // Admin Settings dropdown items
 const ADMIN_SETTINGS_ITEMS = [
-  { label: "Users", icon: ICON_USERS, component: "UserManagement" },
-  { label: "Roles", icon: ICON_TAG, component: "Roles" },
-  { label: "Courses", icon: ICON_CAP, component: "Courses" },
-  { label: "Designation", icon: ICON_IDCARD, component: "Designation" },
+  { label: "Users",       icon: ICON_USERS,   component: "UserManagement" },
+  { label: "Roles",       icon: ICON_TAG,     component: "Roles" },
+  { label: "Courses",     icon: ICON_CAP,     component: "Courses" },
+  { label: "Designation", icon: ICON_IDCARD,  component: "Designation" },
+  { label: "Subjects",    icon: ICON_SUBJECT, component: "Subjects" },
 ];
 
 // ── ROLE → NAV MAPPING ────────────────────────────────────────────────────────
@@ -343,7 +352,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
   });
 
   // Admin settings sub-views
-  const adminSubViews = ["Users", "Roles", "Courses", "Designation"];
+  const adminSubViews = ["Users", "Roles", "Courses", "Designation", "Subjects"];
 
   const activeLabel = adminSubViews.includes(activeView) ? activeView : activeView;
   const activeIcon  = activeView === "Users" ? ICON_USERS
@@ -356,8 +365,9 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
   const navBtnStyle = (label) => ({
     display: "flex", alignItems: "center", gap: "8px", width: "100%",
     padding: "8px 12px",
-    background: activeView === label ? "rgba(255,255,255,0.18)" : "transparent",
-    border: "none", borderRadius: "6px", color: WHITE,
+    background: activeView === label ? DARK_GREEN : "transparent",
+    border: "none", borderRadius: "8px",
+    color: activeView === label ? WHITE : DARK_GREEN,
     fontSize: "12px", fontWeight: activeView === label ? 700 : 500,
     textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "nowrap"
   });
@@ -381,8 +391,8 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
           position: relative;
         }
         .nav-interactive-btn:hover {
-          background: rgba(255, 255, 255, 0.1) !important;
-          transform: translateX(4px);
+          background: rgba(61,110,1,0.10) !important;
+          transform: translateX(3px);
         }
         .nav-interactive-btn:active {
           transform: translateX(1px);
@@ -390,9 +400,9 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
 
         /* Dropdown nested list items */
         .subnav-interactive-btn:hover {
-          background: rgba(255, 255, 255, 0.08) !important;
+          background: rgba(61,110,1,0.08) !important;
           padding-left: 18px !important;
-          color: ${GOLD} !important;
+          color: ${DARK_GREEN} !important;
         }
 
         /* Metric card container hover enhancements */
@@ -444,7 +454,13 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
             <span style={{ display: "block", width: "16px", height: "2px", background: DARK_GREEN, borderRadius: "2px" }} />
             <span style={{ display: "block", width: "16px", height: "2px", background: DARK_GREEN, borderRadius: "2px" }} />
           </button>
-          <div style={{ fontSize: "13px", fontWeight: 700, color: DARK_GREEN }}>Community College of Alangalang</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <img src={ccaLogo} alt="CCA" style={{ width: "36px", height: "36px", objectFit: "contain", borderRadius: "4px" }} />
+            <div style={{ lineHeight: 1.15 }}>
+              <div style={{ fontSize: "9px", fontWeight: 600, color: DARK_GREEN, letterSpacing: "0.08em", textTransform: "uppercase" }}>Community College of</div>
+              <div style={{ fontSize: "14px", fontWeight: 900, color: DARK_GREEN, letterSpacing: "0.04em", textTransform: "uppercase" }}>Alangalang</div>
+            </div>
+          </div>
         </div>
 
         {/* Right side: bell + avatar grouped together */}
@@ -479,7 +495,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                 <div style={{ maxHeight: "260px", overflowY: "auto" }}>
                   {todayEvents.map(ev => (
                     <div key={ev.id} style={{ padding: "12px 14px", borderBottom: `1px solid ${BORDER}`, background: "#FFFDE7" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#1B5E20" }}>📅 {ev.title}</div>
+                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#3d6e01" }}>📅 {ev.title}</div>
                       <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "2px" }}>{ev.department || "General"}</div>
                       {ev.body && <div style={{ fontSize: "11px", color: "#374151", marginTop: "4px", lineHeight: 1.4 }}>{ev.body.length > 80 ? ev.body.substring(0,80)+"…" : ev.body}</div>}
                     </div>
@@ -539,18 +555,30 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
       {/* ── SIDEBAR ── */}
-      <div style={{
+      <div className="app-sidebar" style={{
         width: sidebarOpen ? "230px" : "64px",
         minWidth: sidebarOpen ? "230px" : "64px",
-        background: DARK_GREEN, color: WHITE,
+        background: "#ffffff",
         display: "flex", flexDirection: "column",
-        borderRight: `1px solid ${BORDER}`,
+        borderRight: `1px solid #ffffff`,
         overflow: "hidden",
         transition: "width 0.25s ease, min-width 0.25s ease",
-        flexShrink: 0
+        flexShrink: 0,
+        position: "relative",
       }}>
+        {/* Mascot watermark at bottom */}
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, top: 0, pointerEvents: "none", overflow: "hidden", zIndex: 0, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <img src={ccaLogoSvg} alt="" style={{ width: "700px", opacity: 0.35, display: "block", marginBottom: "-55px", marginLeft: "27px" }} />
+        </div>
+        {/* Decorative floating icons */}
+        {sidebarOpen && (
+          <>
+            <div style={{ position: "absolute", bottom: "230px", right: "18px", fontSize: "32px", opacity: 0.18, pointerEvents: "none", zIndex: 0, transform: "rotate(-10deg)" }}>📚</div>
+            <div style={{ position: "absolute", bottom: "170px", left: "14px", fontSize: "26px", opacity: 0.15, pointerEvents: "none", zIndex: 0, transform: "rotate(12deg)" }}>⚙️</div>
+          </>
+        )}
         {/* Nav links */}
-        <div style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: "4px", overflowY: "auto" }}>
+        <div style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: "4px", overflowY: "auto", position: "relative", zIndex: 1 }}>
 
           {/* Main nav items — icon-only, centered, when collapsed */}
           {visibleNav.map(link => (
@@ -588,8 +616,9 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   justifyContent: sidebarOpen ? "flex-start" : "center",
                   padding: sidebarOpen ? "8px 12px" : "10px 0",
                   background: adminSubViews.includes(activeView)
-                    ? "rgba(255,255,255,0.15)" : "transparent",
-                  border: "none", borderRadius: "6px", color: WHITE,
+                    ? DARK_GREEN : "transparent",
+                  border: "none", borderRadius: "8px",
+                  color: adminSubViews.includes(activeView) ? WHITE : DARK_GREEN,
                   fontSize: "12px", fontWeight: 600,
                   textAlign: "left", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap"
                 }}
@@ -615,11 +644,11 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                       style={{
                         display: "flex", alignItems: "center", gap: "8px", width: "100%",
                         padding: "7px 12px",
-                        background: activeView === item.label ? "rgba(255,255,255,0.15)" : "transparent",
+                        background: activeView === item.label ? DARK_GREEN : "transparent",
                         border: "none",
-                        borderLeft: `2px solid ${activeView === item.label ? WHITE : "rgba(255,255,255,0.25)"}`,
-                        borderRadius: "0 6px 6px 0",
-                        color: WHITE, fontSize: "11px",
+                        borderLeft: `2px solid ${activeView === item.label ? DARK_GREEN : "rgba(61,110,1,0.3)"}`,
+                        borderRadius: "0 8px 8px 0",
+                        color: activeView === item.label ? WHITE : DARK_GREEN, fontSize: "11px",
                         fontWeight: activeView === item.label ? 700 : 400,
                         textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "nowrap"
                       }}
@@ -646,9 +675,9 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
             <>
               {/* Metric cards */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "12px", marginBottom: "16px" }}>
-                <MetricCard label="Registered Students" value={metrics.students} desc="Active profiles"    icon="🎓" color="#1E88E5" />
-                <MetricCard label="Faculty Instructors"  value={metrics.faculty}  desc="Teaching positions" icon="👩‍🏫" color={GREEN} />
-                <MetricCard label="System Bulletins"     value={metrics.announcements} desc="Live announcements" icon="📢" color={GOLD} />
+                <MetricCard label="Registered Students" value={metrics.students} desc="Active profiles"    icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E88E5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12.5V17c0 1.5 2.5 3 6 3s6-1.5 6-3v-4.5"/></svg>} color="#1E88E5" />
+                <MetricCard label="Faculty Instructors"  value={metrics.faculty}  desc="Teaching positions" icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/></svg>} color={GREEN} />
+                <MetricCard label="System Bulletins"     value={metrics.announcements} desc="Live announcements" icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={GOLD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>} color={GOLD} />
                 <SystemAccountsCard
                   count={metrics.systemAccounts}
                   users={systemUsers}
@@ -673,17 +702,18 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   {activeView === "Student List"        && <AddStudents user={user} />}
                   {activeView === "Faculty Hub"         && <Faculty />}
                   {activeView === "Registrar Console"   && <Registrar user={user} />}
+                  {activeView === "Library"             && <Library user={user} />}
                   {activeView === "Create Announcement" && (
                     <Announcements user={user} onPosted={() => {
                       fetchPortalData();
                       setActiveView("Overview Workspace");
                     }} />
                   )}
-                  {activeView === "Class Schedule"    && <AssignedSubject user={user} view="schedule" />}
                   {activeView === "Users"             && <UserManagementModule />}
                   {activeView === "Roles"             && <RolesManagementModule />}
                   {activeView === "Courses"           && <CourseManagement />}
                   {activeView === "Designation"        && <Designation />}
+                  {activeView === "Subjects"            && <SubjectCatalog />}
                   {activeView === "Account Settings"    && <AccountSettings user={user} />}
                 </>
               )}
@@ -733,7 +763,7 @@ function SystemAccountsCard({ count, users, open, onToggle, onClose, cardRef }) 
     const r = (Array.isArray(roles) ? (roles[0] || "") : (roles || "")).toLowerCase();
     if (r === "administrator") return { bg: "#FFF8E1", color: "#B8860B" };
     if (r === "registrar")     return { bg: "#F3E5F5", color: "#8E24AA" };
-    if (r === "faculty")       return { bg: "#E8F5E9", color: "#2E7D32" };
+    if (r === "faculty")       return { bg: "#eaf2d9", color: "#3d6e01" };
     return                            { bg: "#E3F2FD", color: "#1E88E5" };
   };
   const init    = (u) => ((u.first_name || u.firstName || u.username || "?").charAt(0)).toUpperCase();
@@ -761,7 +791,7 @@ function SystemAccountsCard({ count, users, open, onToggle, onClose, cardRef }) 
     const rl = (r || "").toLowerCase();
     if (rl === "administrator") return { bg: "#FFF8E1", color: "#B8860B" };
     if (rl === "registrar")     return { bg: "#F3E5F5", color: "#8E24AA" };
-    if (rl === "faculty")       return { bg: "#E8F5E9", color: "#2E7D32" };
+    if (rl === "faculty")       return { bg: "#eaf2d9", color: "#3d6e01" };
     return                             { bg: "#F3F4F6", color: "#374151" };
   };
 
@@ -794,7 +824,7 @@ function SystemAccountsCard({ count, users, open, onToggle, onClose, cardRef }) 
           style={{ fontSize: "20px", width: "38px", height: "38px", background: "rgba(99,102,241,0.1)", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", transition: "transform 0.3s ease" }}
           className="metric-icon-circle"
         >
-          👥
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3"/><path d="M2 20v-1a5 5 0 0 1 5-5h2"/><circle cx="17" cy="10" r="2.5"/><path d="M15.5 14.2A4 4 0 0 1 22 18v2"/></svg>
         </div>
       </div>
 
@@ -847,30 +877,27 @@ function SystemAccountsCard({ count, users, open, onToggle, onClose, cardRef }) 
                   {/* Avatar */}
                   <div style={{ position: "relative", flexShrink: 0 }}>
                     <div style={{ width: "34px", height: "34px", borderRadius: "50%", background: av(roleList).bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 800, color: av(roleList).color, overflow: "hidden" }}>
-                      {p ? <img src={p} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : init(u)}
+                      {p ? <img src={p} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} /> : init(u)}
                     </div>
-                    <span style={{ position: "absolute", bottom: 0, right: 0, width: "9px", height: "9px", borderRadius: "50%", background: isOnline ? "#22C55E" : "#D1D5DB", border: "2px solid white" }} />
+                    {/* Online indicator */}
+                    <span style={{ position: "absolute", bottom: 0, right: 0, width: "9px", height: "9px", borderRadius: "50%", background: isOnline ? "#22C55E" : "#D1D5DB", border: "1.5px solid white" }} />
                   </div>
-                  {/* Name + roles */}
+                  {/* Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {name(u)}
-                    </div>
-                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "3px" }}>
-                      {roleList.slice(0, 2).map((r, ri) => {
-                        const bs = roleBadgeStyle(r);
+                    <div style={{ fontSize: "12px", fontWeight: 700, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name(u)}</div>
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "2px" }}>
+                      {roleList.map(r => {
+                        const rb = roleBadgeStyle(r);
                         return (
-                          <span key={ri} style={{ fontSize: "10px", fontWeight: 700, padding: "1px 6px", borderRadius: "8px", background: bs.bg, color: bs.color, textTransform: "uppercase" }}>
-                            {r}
-                          </span>
+                          <span key={r} style={{ fontSize: "9px", fontWeight: 700, background: rb.bg, color: rb.color, padding: "1px 6px", borderRadius: "8px", textTransform: "capitalize" }}>{r}</span>
                         );
                       })}
                     </div>
                   </div>
-                  {/* Username */}
-                  <div style={{ fontSize: "11px", color: GRAY_C, flexShrink: 0, maxWidth: "70px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    @{u.username || "—"}
-                  </div>
+                  {/* Status */}
+                  <span style={{ fontSize: "9px", fontWeight: 700, color: isOnline ? "#16A34A" : GRAY_C, whiteSpace: "nowrap" }}>
+                    {isOnline ? "● Online" : "○ Offline"}
+                  </span>
                 </div>
               );
             })}

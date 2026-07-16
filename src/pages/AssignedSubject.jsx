@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
-const DARK_GREEN = "#1B5E20";
-const GREEN      = "#2E7D32";
+const DARK_GREEN = "#3d6e01";
+const GREEN      = "#3d6e01";
 const GOLD       = "#F5A800";
 const GRAY       = "#6B7280";
 const BORDER     = "#E5E7EB";
@@ -50,7 +50,7 @@ export default function AssignedSubject({ user, view = "subjects" }) {
                       <div style={{ fontSize: "11px", color: GRAY, marginTop: "2px" }}>Subject ID: {a.subject_id}</div>
                     )}
                   </div>
-                  <span style={{ flexShrink: 0, fontSize: "11px", fontWeight: 700, background: "#E8F5E9", color: GREEN, borderRadius: "6px", padding: "3px 9px" }}>
+                  <span style={{ flexShrink: 0, fontSize: "11px", fontWeight: 700, background: "#eaf2d9", color: GREEN, borderRadius: "6px", padding: "3px 9px" }}>
                     {a.units ?? "—"} units
                   </span>
                 </div>
