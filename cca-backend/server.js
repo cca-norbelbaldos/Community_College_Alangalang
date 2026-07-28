@@ -10,7 +10,7 @@ app.use(
       const allowedOrigins = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "http://192.168.100.238:5173",
+        "http://192.168.0.118:5173",
       ];
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
@@ -121,6 +121,110 @@ app.put("/api/erd/system-config", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to save system structural access policies." });
+  }
+});
+
+// ─── MAINTENANCE MODE ────────────────────────────────────────────────────────
+// When ON, every non-administrator is shown a maintenance screen instead of the app.
+app.get("/api/erd/maintenance", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT `value` FROM erd_system_config WHERE `key`='maintenance' LIMIT 1");
+    let on = 0;
+    if (rows.length) { try { on = JSON.parse(rows[0].value)?.on ? 1 : 0; } catch { on = 0; } }
+    res.json({ on });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ on: 0 });
+  }
+});
+
+app.put("/api/erd/maintenance", async (req, res) => {
+  const on = req.body?.on ? 1 : 0;
+  try {
+    await pool.query(
+      "INSERT INTO erd_system_config (`key`, `value`) VALUES ('maintenance', ?) " +
+      "ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)",
+      [JSON.stringify({ on })]
+    );
+    res.json({ on });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to update maintenance mode." });
+  }
+});
+
+// ─── STUDENT ATTENDANCE ──────────────────────────────────────────────────────
+// Faculty submit attendance per class + date from their own account; the
+// administrator sees the composed records from every instructor.
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_attendance (
+        id             INT AUTO_INCREMENT PRIMARY KEY,
+        faculty_id     INT NULL,
+        subject_id     INT NULL,
+        subject_code   VARCHAR(50) NULL,
+        subject_title  VARCHAR(255) NULL,
+        course         VARCHAR(255) NULL,
+        year_level     VARCHAR(50) NULL,
+        section        VARCHAR(50) NULL,
+        att_date       DATE NOT NULL,
+        student_id     INT NOT NULL,
+        student_number VARCHAR(50) NULL,
+        student_name   VARCHAR(255) NULL,
+        status         VARCHAR(2) NOT NULL,
+        created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_att (subject_id, section, att_date, student_id)
+      )
+    `);
+  } catch (err) { console.error("erd_attendance table init error:", err); }
+})();
+
+// Faculty submits attendance for one class + date (replaces prior marks for it).
+app.post("/api/erd/attendance", async (req, res) => {
+  const { faculty_id, class: cls = {}, date, records = [] } = req.body || {};
+  if (!date || !cls.subject_id) return res.status(400).json({ message: "date and class.subject_id are required." });
+  try {
+    // Clear existing marks for this class + date, then insert the submitted set.
+    await pool.query(
+      "DELETE FROM erd_attendance WHERE subject_id = ? AND att_date = ? AND ((section IS NULL AND ? IS NULL) OR section = ?)",
+      [cls.subject_id, date, cls.section || null, cls.section || null]
+    );
+    for (const r of records) {
+      if (!r.student_id || !r.status) continue;
+      await pool.query(
+        `INSERT INTO erd_attendance
+           (faculty_id, subject_id, subject_code, subject_title, course, year_level, section, att_date, student_id, student_number, student_name, status)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [faculty_id ?? null, cls.subject_id, cls.subject_code ?? null, cls.subject_title ?? null, cls.course ?? null,
+         cls.year_level ?? null, cls.section ?? null, date, r.student_id, r.student_number ?? null, r.student_name ?? null, r.status]
+      );
+    }
+    res.json({ saved: records.length });
+  } catch (err) {
+    console.error("POST /api/erd/attendance failed:", err);
+    res.status(500).json({ message: "Failed to save attendance." });
+  }
+});
+
+// Read attendance — administrator/college-admin composed view (optional filters).
+app.get("/api/erd/attendance", async (req, res) => {
+  const { date, faculty_id } = req.query;
+  try {
+    const [rows] = await pool.query(
+      `SELECT a.*, TRIM(CONCAT(IFNULL(u.first_name,''), ' ', IFNULL(u.last_name,''))) AS faculty_name
+       FROM erd_attendance a
+       LEFT JOIN erd_users u ON u.id = a.faculty_id
+       WHERE (? IS NULL OR a.att_date = ?)
+         AND (? IS NULL OR a.faculty_id = ?)
+       ORDER BY a.att_date DESC, faculty_name ASC, a.subject_code ASC, a.student_name ASC`,
+      [date || null, date || null, faculty_id || null, faculty_id || null]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("GET /api/erd/attendance failed:", err);
+    res.status(500).json({ message: "Failed to fetch attendance." });
   }
 });
 

@@ -173,7 +173,25 @@ export default function RolesManagementModule() {
       case "faculty":       return { bg: "#eaf2d9", color: GREEN };
       case "student":       return { bg: "#E3F2FD", color: "#1E88E5" };
       case "registrar":     return { bg: "#F3E5F5", color: "#8E24AA" };
-      default:              return { bg: "#F3F4F6", color: "#374151" };
+      default: {
+        // Custom roles get a stable, distinct color derived from their name.
+        const palette = [
+          { bg: "#E0F2F1", color: "#00897B" }, // teal
+          { bg: "#FFF3E0", color: "#EF6C00" }, // orange
+          { bg: "#FCE4EC", color: "#D81B60" }, // pink
+          { bg: "#E8EAF6", color: "#3949AB" }, // indigo
+          { bg: "#FFEBEE", color: "#E53935" }, // red
+          { bg: "#E0F7FA", color: "#00ACC1" }, // cyan
+          { bg: "#F1F8E9", color: "#7CB342" }, // lime
+          { bg: "#EFEBE9", color: "#6D4C41" }, // brown
+          { bg: "#E1F5FE", color: "#0288D1" }, // light blue
+          { bg: "#FFF8E1", color: "#F9A825" }, // amber
+        ];
+        let h = 0;
+        const s = String(name || "");
+        for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+        return palette[h % palette.length];
+      }
     }
   };
 

@@ -461,12 +461,14 @@ function GenderDonut() {
   }, []);
   const male   = students.filter(s => (s.gender || "").toLowerCase() === "male").length;
   const female = students.filter(s => (s.gender || "").toLowerCase() === "female").length;
+  const lgbt   = students.filter(s => (s.gender || "").toLowerCase() === "lgbtqia+").length;
   const total  = students.length;
-  const other  = total - male - female;
+  const other  = total - male - female - lgbt;
   const R = 42, C = 2 * Math.PI * R;
   const seg = (v) => total ? (v / total) * C : 0;
-  const mLen = seg(male), fLen = seg(female), uLen = seg(other);
+  const mLen = seg(male), fLen = seg(female), lLen = seg(lgbt), uLen = seg(other);
   const pct = (v) => total ? Math.round((v / total) * 100) : 0;
+  const RAINBOW = "linear-gradient(90deg,#e40303,#ff8c00,#ffed00,#008026,#004dff,#750787)";
   const dot = (c) => ({ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: c, flexShrink: 0 });
   return (
     <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: "12px", marginTop: "4px" }}>
@@ -476,11 +478,22 @@ function GenderDonut() {
       ) : (
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <svg width="104" height="104" viewBox="0 0 104 104" style={{ flexShrink: 0 }}>
+            <defs>
+              <linearGradient id="genderRainbow" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#e40303" />
+                <stop offset="20%" stopColor="#ff8c00" />
+                <stop offset="40%" stopColor="#ffed00" />
+                <stop offset="60%" stopColor="#008026" />
+                <stop offset="80%" stopColor="#004dff" />
+                <stop offset="100%" stopColor="#750787" />
+              </linearGradient>
+            </defs>
             <g transform="rotate(-90 52 52)">
               <circle cx="52" cy="52" r={R} fill="none" stroke="#eeeeee" strokeWidth="14" />
               {male > 0 && <circle cx="52" cy="52" r={R} fill="none" stroke="#3B82F6" strokeWidth="14" strokeDasharray={`${mLen} ${C}`} strokeDashoffset="0" />}
               {female > 0 && <circle cx="52" cy="52" r={R} fill="none" stroke="#EC4899" strokeWidth="14" strokeDasharray={`${fLen} ${C}`} strokeDashoffset={`-${mLen}`} />}
-              {other > 0 && <circle cx="52" cy="52" r={R} fill="none" stroke="#9CA3AF" strokeWidth="14" strokeDasharray={`${uLen} ${C}`} strokeDashoffset={`-${mLen + fLen}`} />}
+              {lgbt > 0 && <circle cx="52" cy="52" r={R} fill="none" stroke="url(#genderRainbow)" strokeWidth="14" strokeDasharray={`${lLen} ${C}`} strokeDashoffset={`-${mLen + fLen}`} />}
+              {other > 0 && <circle cx="52" cy="52" r={R} fill="none" stroke="#9CA3AF" strokeWidth="14" strokeDasharray={`${uLen} ${C}`} strokeDashoffset={`-${mLen + fLen + lLen}`} />}
             </g>
             <text x="52" y="49" textAnchor="middle" fontSize="18" fontWeight="800" fill={DARK_GREEN}>{total}</text>
             <text x="52" y="63" textAnchor="middle" fontSize="7.5" fill={GRAY}>students</text>
@@ -488,6 +501,7 @@ function GenderDonut() {
           <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: "11px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={dot("#3B82F6")} /><b style={{ color: "#3B82F6" }}>Male</b>&nbsp;{male} ({pct(male)}%)</div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={dot("#EC4899")} /><b style={{ color: "#EC4899" }}>Female</b>&nbsp;{female} ({pct(female)}%)</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={dot(RAINBOW)} /><b style={{ background: RAINBOW, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>LGBTQIA+</b>&nbsp;{lgbt} ({pct(lgbt)}%)</div>
             {other > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={dot("#9CA3AF")} /><b style={{ color: "#6B7280" }}>Other</b>&nbsp;{other} ({pct(other)}%)</div>}
           </div>
         </div>
@@ -533,6 +547,175 @@ function QuickActions({ user }) {
 }
 
 // ── Main Overview ─────────────────────────────────────────────────────────────
+// ── Faculty / Instructor Teaching Load ───────────────────────────────────────
+function FacultyLoad() {
+  const [rows, setRows]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    // Class Assignment data (Registrar) lives in the class-schedule table.
+    fetch(`${import.meta.env.VITE_API_URL}/api/erd/class-schedule`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { setRows(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  // Keep only rows that actually have an instructor assigned.
+  const assigned = rows.filter(r => r.faculty_id && (r.faculty_name || "").trim());
+  const byFac = {};
+  assigned.forEach(r => {
+    const key = r.faculty_id;
+    if (!byFac[key]) byFac[key] = { name: (r.faculty_name || "").trim() || "—", rows: [] };
+    byFac[key].rows.push(r);
+  });
+  const facList = Object.values(byFac).sort((x, y) => x.name.localeCompare(y.name));
+  const unitsOf = (r) => parseFloat(r.units) || 0;
+  const codeOf  = (r) => r.subject_code || "—";
+
+  const thL = { padding: "9px 12px", textAlign: "left", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: WHITE, whiteSpace: "nowrap" };
+  const tdL = { padding: "8px 12px", fontSize: "12px", color: "#111827", borderTop: `1px solid ${BORDER}`, verticalAlign: "top" };
+
+  return (
+    <div style={{ background: WHITE, borderRadius: "12px", border: `1px solid ${BORDER}`, overflow: "hidden", display: "flex", flexDirection: "column", height: "340px" }}>
+      <div style={{ padding: "12px 16px", background: LIGHT_GRAY, borderBottom: `1px solid ${BORDER}`, flexShrink: 0 }}>
+        <div style={{ fontSize: "13px", fontWeight: 700, color: DARK_GREEN }}>Faculty Teaching Load</div>
+        <div style={{ fontSize: "11px", color: GRAY, marginTop: "2px" }}>Subjects and units assigned to each instructor</div>
+      </div>
+      <div style={{ overflowX: "auto", overflowY: "auto", flex: 1, minHeight: 0 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr style={{ background: DARK_GREEN, position: "sticky", top: 0, zIndex: 1 }}>
+            <th style={thL}>Instructor</th>
+            <th style={{ ...thL, textAlign: "center", width: "90px" }}>Subjects</th>
+            <th style={{ ...thL, textAlign: "center", width: "80px" }}>Total Units</th>
+            <th style={thL}>Assigned Subjects</th>
+          </tr></thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={4} style={{ ...tdL, textAlign: "center", color: GRAY, padding: "24px" }}>Loading…</td></tr>
+            ) : facList.length === 0 ? (
+              <tr><td colSpan={4} style={{ ...tdL, textAlign: "center", color: GRAY, padding: "24px" }}>No teaching loads assigned yet.</td></tr>
+            ) : facList.map((f, i) => {
+              const totalUnits = f.rows.reduce((s, a) => s + unitsOf(a), 0);
+              return (
+                <tr key={i} style={{ background: i % 2 ? LIGHT_GRAY : WHITE }}>
+                  <td style={{ ...tdL, fontWeight: 700 }}>{f.name}</td>
+                  <td style={{ ...tdL, textAlign: "center" }}>{f.rows.length}</td>
+                  <td style={{ ...tdL, textAlign: "center", fontWeight: 700, color: DARK_GREEN }}>{totalUnits}</td>
+                  <td style={tdL}>
+                    {f.rows.map((a, j) => (
+                      <span key={j} style={{ display: "inline-block", fontSize: "10px", fontWeight: 700, background: "#eaf2d9", color: DARK_GREEN, padding: "2px 7px", borderRadius: "10px", margin: "1px 4px 1px 0" }}>
+                        {codeOf(a)}{a.section ? ` · ${a.section}` : ""}
+                      </span>
+                    ))}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Student Attendance Statistics (bar graph) ────────────────────────────────
+function AttendanceStats() {
+  const [rows, setRows]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/api/erd/attendance`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { setRows(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const P = rows.filter(r => r.status === "P").length;
+  const L = rows.filter(r => r.status === "L").length;
+  const A = rows.filter(r => r.status === "A").length;
+  const total = P + L + A;
+  const max = Math.max(P, L, A, 1);
+  const rate = total ? Math.round((P / total) * 100) : 0;
+  const bars = [["Present", P, "#16A34A"], ["Late", L, "#B45309"], ["Absent", A, "#DC2626"]];
+
+  const W = 280, H = 168, padT = 20, padB = 30, bw = 54;
+  const gap = (W - bars.length * bw) / (bars.length + 1);
+  const chartH = H - padT - padB;
+
+  return (
+    <div style={{ background: WHITE, borderRadius: "12px", border: `1px solid ${BORDER}`, height: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "12px 16px", background: LIGHT_GRAY, borderBottom: `1px solid ${BORDER}` }}>
+        <div style={{ fontSize: "13px", fontWeight: 700, color: DARK_GREEN }}>Student Attendance Statistics</div>
+        <div style={{ fontSize: "11px", color: GRAY, marginTop: "2px" }}>All submitted attendance</div>
+      </div>
+      <div style={{ flex: 1, padding: "10px 12px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        {loading ? (
+          <div style={{ fontSize: "11px", color: GRAY, padding: "20px" }}>Loading…</div>
+        ) : total === 0 ? (
+          <div style={{ fontSize: "11px", color: GRAY, textAlign: "center", padding: "20px" }}>No attendance submitted yet.</div>
+        ) : (
+          <>
+            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: "300px" }}>
+              <line x1="0" y1={padT + chartH} x2={W} y2={padT + chartH} stroke={BORDER} />
+              {bars.map(([label, val, color], i) => {
+                const h = (val / max) * chartH;
+                const x = gap + i * (bw + gap);
+                const y = padT + chartH - h;
+                return (
+                  <g key={label}>
+                    <rect x={x} y={y} width={bw} height={h} rx="4" fill={color} />
+                    <text x={x + bw / 2} y={y - 5} textAnchor="middle" fontSize="12" fontWeight="800" fill={color}>{val}</text>
+                    <text x={x + bw / 2} y={padT + chartH + 16} textAnchor="middle" fontSize="10" fill={GRAY}>{label}</text>
+                    <text x={x + bw / 2} y={padT + chartH + 27} textAnchor="middle" fontSize="9" fill={GRAY}>{Math.round((val / total) * 100)}%</text>
+                  </g>
+                );
+              })}
+            </svg>
+            <div style={{ marginTop: "6px", fontSize: "12px", color: GRAY }}>
+              Attendance rate: <b style={{ color: DARK_GREEN }}>{rate}%</b> · <b>{total}</b> record(s)
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Maintenance Mode toggle (administrator only) ─────────────────────────────
+function MaintenanceToggle() {
+  const [on, setOn]       = useState(false);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/api/erd/maintenance`)
+      .then(r => r.ok ? r.json() : { on: 0 }).then(d => setOn(!!d.on)).catch(() => {});
+  }, []);
+  const toggle = async () => {
+    const next = !on;
+    setSaving(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/maintenance`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on: next ? 1 : 0 }),
+      });
+      if (res.ok) { setOn(next); showToast(next ? "Maintenance mode ON — non-admins are locked out." : "Maintenance mode OFF.", next ? "warning" : "success"); }
+      else showToast("Failed to update maintenance mode.", "error");
+    } catch { showToast("Network error.", "error"); }
+    setSaving(false);
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", background: on ? "#FEF3C7" : WHITE, border: `1px solid ${on ? "#FCD34D" : BORDER}`, borderRadius: "12px", padding: "12px 16px", marginBottom: "16px" }}>
+      <div>
+        <div style={{ fontSize: "13px", fontWeight: 800, color: on ? "#92400E" : DARK_GREEN }}>🛠 Maintenance Mode</div>
+        <div style={{ fontSize: "11px", color: GRAY, marginTop: "2px" }}>
+          {on ? "System is locked for everyone except administrators." : "Turn on to lock out all non-administrator users."}
+        </div>
+      </div>
+      <button onClick={toggle} disabled={saving} title="Toggle maintenance mode"
+        style={{ position: "relative", width: "92px", height: "34px", borderRadius: "18px", border: "none", cursor: saving ? "default" : "pointer", background: on ? "#DC2626" : "#9CA3AF", transition: "background 0.2s", flexShrink: 0 }}>
+        <span style={{ position: "absolute", top: 0, bottom: 0, display: "flex", alignItems: "center", fontSize: "11px", fontWeight: 800, color: WHITE, left: on ? "14px" : "auto", right: on ? "auto" : "14px" }}>{on ? "ON" : "OFF"}</span>
+        <span style={{ position: "absolute", top: "4px", left: on ? "calc(100% - 30px)" : "4px", width: "26px", height: "26px", borderRadius: "50%", background: WHITE, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+      </button>
+    </div>
+  );
+}
+
 export default function Overview({ user }) {
   const [loading, setLoading]         = useState(true);
   const [announcements, setAnnouncements] = useState([]);
@@ -570,6 +753,7 @@ export default function Overview({ user }) {
 
   return (
     <div style={{ fontFamily: "system-ui", minWidth: 0 }}>
+      {isAdmin && <MaintenanceToggle />}
       <style>{`
         .ov-note-card { transition: box-shadow 0.15s ease; }
         .ov-note-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; }
@@ -630,7 +814,7 @@ export default function Overview({ user }) {
                           )}
                         </div>
                         {note.body && (
-                          <div style={{ padding: "6px 12px 10px", fontSize: "11px", color: GRAY, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                          <div style={{ padding: "6px 12px 10px", fontSize: "11px", color: GRAY, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                             {note.body}
                           </div>
                         )}
@@ -658,6 +842,18 @@ export default function Overview({ user }) {
           <QuickActions user={user} />
         </div>
       </div>
+
+      {/* ── Faculty Teaching Load + Attendance Statistics — admins only ── */}
+      {(isAdmin || String(user?.role || "").toLowerCase() === "college_administrator") && (
+        <div style={{ marginTop: "16px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", alignItems: "stretch" }}>
+          <div style={{ gridColumn: "span 2" }}>
+            <FacultyLoad />
+          </div>
+          <div>
+            <AttendanceStats />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

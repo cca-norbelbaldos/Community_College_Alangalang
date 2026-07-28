@@ -4,6 +4,7 @@ import LoginPortal from "./CCALoginPortal";
 import Dashboard from "./Dashboard";
 import AppLoader from "./components/Apploader";
 import ToastManager from "./components/Toast";
+import MaintenancePage from "./components/MaintenancePage";
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -13,6 +14,23 @@ export default function App() {
 
   // Global loading state
   const [isLoading, setIsLoading] = useState(true);
+
+  // Maintenance mode — when ON, every non-administrator sees the maintenance screen.
+  const [maintenance, setMaintenance] = useState(false);
+  useEffect(() => {
+    let active = true;
+    const check = () => {
+      fetch(`${import.meta.env.VITE_API_URL}/api/erd/maintenance`)
+        .then(r => r.ok ? r.json() : { on: 0 })
+        .then(d => { if (active) setMaintenance(!!d.on); })
+        .catch(() => {});
+    };
+    check();
+    const iv = setInterval(check, 15000);
+    return () => { active = false; clearInterval(iv); };
+  }, []);
+
+  const isAdmin = String(user?.role || "").toLowerCase() === "administrator";
 
   // Trigger loader on initialization refresh (Optimized to be faster)
   useEffect(() => {
@@ -52,6 +70,16 @@ export default function App() {
           </Routes>
         </div>
       </BrowserRouter>
+    );
+  }
+
+  // Maintenance mode — non-administrators are locked out until it's turned off.
+  if (maintenance && !isAdmin) {
+    return (
+      <div style={{ position: "relative", minHeight: "100vh" }}>
+        <ToastManager />
+        <MaintenancePage onLogout={handleLogout} />
+      </div>
     );
   }
 

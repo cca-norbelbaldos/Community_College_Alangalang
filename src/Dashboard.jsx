@@ -11,7 +11,8 @@ import AssignedSubject from "./pages/AssignedSubject";
 import Designation from "./pages/Designation";
 import AccountSettings from "./pages/AccountSettings";
 import SubjectCatalog from "./pages/SubjectCatalog";
-import Library from "./pages/Library";
+import StudentAttendance from "./pages/StudentAttendance";
+import AttendanceAdmin from "./pages/AttendanceAdmin";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#3d6e01";
@@ -73,11 +74,11 @@ const ICON_LIBRARY = (
 
 // Main nav items (no User Management, no System Controls here)
 const MAIN_NAV = [
-  { label: "Overview Workspace",  icon: ICON_HOME,     featureKey: "feat_overview",      alwaysFor: ["administrator", "faculty"] },
+  { label: "Overview Workspace",  icon: ICON_HOME,     featureKey: "feat_overview",      alwaysFor: ["administrator", "faculty", "registrar_staff", "college_administrator"] },
   { label: "Student List",        icon: ICON_LAYERS,   featureKey: "feat_student_list",  alwaysFor: ["administrator"] },
   { label: "Faculty Hub",         icon: ICON_PERSON,   featureKey: "feat_faculty_mgmt",  alwaysFor: ["administrator"] },
-  { label: "Registrar Console",   icon: ICON_DOCUMENT, featureKey: "feat_registrar_mgmt",alwaysFor: ["administrator"] },
-  { label: "Library",             icon: ICON_LIBRARY,  featureKey: "feat_library",       alwaysFor: ["administrator"] },
+  { label: "Registrar Console",   icon: ICON_DOCUMENT, featureKey: "feat_registrar_mgmt",alwaysFor: ["administrator", "registrar_staff"] },
+  { label: "Student Attendance",  icon: ICON_CLOCK,    featureKey: "feat_student_attendance", alwaysFor: ["faculty", "administrator", "college_administrator"] },
   { label: "Create Announcement", icon: ICON_BELL,     featureKey: "feat_announcements",  alwaysFor: ["administrator"] },
 ];
 
@@ -316,7 +317,8 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
 
   // ── Build visible nav ─────────────────────────────────────────────────────
   // Start with the static MAIN_NAV items this role always sees
-  const visibleNav = MAIN_NAV.filter(link => link.alwaysFor.includes(user?.role));
+  const _roleLc = String(user?.role || "").toLowerCase();
+  const visibleNav = MAIN_NAV.filter(link => link.alwaysFor.some(r => r.toLowerCase() === _roleLc));
 
   // Then add any MAIN_NAV items granted via the Roles Management permissions
   // checklist for ANY role this user holds (their primary role, plus any
@@ -702,7 +704,11 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   {activeView === "Student List"        && <AddStudents user={user} />}
                   {activeView === "Faculty Hub"         && <Faculty />}
                   {activeView === "Registrar Console"   && <Registrar user={user} />}
-                  {activeView === "Library"             && <Library user={user} />}
+                  {activeView === "Student Attendance"  && (
+                    (isAdmin || String(user?.role || "").toLowerCase() === "college_administrator")
+                      ? <AttendanceAdmin />
+                      : <StudentAttendance user={user} />
+                  )}
                   {activeView === "Create Announcement" && (
                     <Announcements user={user} onPosted={() => {
                       fetchPortalData();

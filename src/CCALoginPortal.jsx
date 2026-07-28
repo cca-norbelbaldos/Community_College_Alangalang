@@ -27,6 +27,16 @@ export default function CCALoginPortal({ onLogin }) {
   const [error,    setError]    = useState("");
   const [focusU,   setFocusU]   = useState(false);
   const [focusP,   setFocusP]   = useState(false);
+  // Show "Back to Time Attendance" only when the user actually arrived here FROM
+  // the Time Attendance system; otherwise show "Go to Time Attendance". Uses the
+  // document referrer so it works even though the two systems are different origins.
+  const TA_URL = import.meta.env.VITE_TIME_ATTENDANCE_URL;
+  const cameFromTA = (() => {
+    try {
+      if (!TA_URL || !document.referrer) return false;
+      return new URL(document.referrer).host === new URL(TA_URL).host;
+    } catch { return false; }
+  })();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -280,6 +290,18 @@ export default function CCALoginPortal({ onLogin }) {
                 : "Sign In →"
               }
             </button>
+
+            {/* Go to / Back to Time Attendance System — URL via VITE_TIME_ATTENDANCE_URL */}
+            {TA_URL && (
+              <div style={{ display:"flex", justifyContent:"flex-end", width:"100%", marginTop:10 }}>
+                <a href={TA_URL} style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:12, fontWeight:700, color:DARK_GREEN, textDecoration:"none", letterSpacing:0.3 }}>
+                  {cameFromTA ? "← Back to Time Attendance" : "Go to Time Attendance"}
+                  {!cameFromTA && (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  )}
+                </a>
+              </div>
+            )}
 
             {/* Developed by */}
             <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:8,marginTop:65,paddingTop:20,borderTop:`1px solid ${BORDER}` }}>

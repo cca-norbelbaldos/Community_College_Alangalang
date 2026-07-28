@@ -160,7 +160,7 @@ function StudentSIFormModal({ student, courses = [], onClose, onUpdated, activeS
   const ci = (extra={}) => ({
     width: "100%", padding: "4px 6px", border: "none", outline: "none",
     fontSize: "12px", boxSizing: "border-box", background: "transparent",
-    fontFamily: TNR, color: "#000", ...extra,
+    fontFamily: TNR, color: "#000", textTransform: "uppercase", ...extra,
   });
   const rlc = (w = "110px") => ({
     background: WHITE, color: "#000", padding: "5px 8px",
@@ -275,7 +275,7 @@ function StudentSIFormModal({ student, courses = [], onClose, onUpdated, activeS
             <div style={fc(1)}><div style={bl()}>Religion</div><input style={ci()} value={f("religion")} onChange={e => sf("religion", e.target.value)} /></div>
             <div style={fc(0.8)}><div style={bl()}>Gender</div>
               <select style={ci({ cursor: "pointer" })} value={f("gender")} onChange={e => sf("gender", e.target.value)}>
-                <option>Male</option><option>Female</option>
+                <option>Male</option><option>Female</option><option>LGBTQIA+</option>
               </select>
             </div>
             <div style={fc(0.9)}><div style={bl()}>Status</div>
@@ -426,11 +426,27 @@ function StudentInfoCard({ student, enrollments, subjects, assignedSubjectIds = 
   const [loadingMap, setLoadingMap] = useState({});
 
   const isAdmin = user?.role === "administrator";
-  // Auto-fill the College Registrar's signature with the logged-in user's name
-  // when they are an administrator or registrar.
+  // College Registrar signatory:
+  //  · registrar / administrator → the logged-in user's own name
+  //  · registrar_staff           → the name of whoever holds the REGISTRAR role
   const _signRole = String(user?.role || "").toLowerCase();
-  const registrarSignName = (_signRole === "registrar" || _signRole === "administrator" || _signRole === "admin")
-    ? ([user.first_name, user.middle_name, user.last_name].filter(Boolean).join(" ").trim() || user.username || "")
+  const _ownSignName = [user.first_name, user.middle_name, user.last_name].filter(Boolean).join(" ").trim() || user.username || "";
+  const [registrarRoleName, setRegistrarRoleName] = useState("");
+  useEffect(() => {
+    if (_signRole !== "registrar_staff") return;
+    fetch(`${import.meta.env.VITE_API_URL}/api/erd/users`)
+      .then(r => r.ok ? r.json() : [])
+      .then(list => {
+        const reg = (Array.isArray(list) ? list : []).find(u => {
+          const roles = Array.isArray(u.roles) ? u.roles.map(x => String(x).toLowerCase()) : [String(u.role || "").toLowerCase()];
+          return roles.includes("registrar");
+        });
+        if (reg) setRegistrarRoleName([reg.first_name, reg.middle_name, reg.last_name].filter(Boolean).join(" ").trim() || reg.username || "");
+      }).catch(() => {});
+  }, [_signRole]);
+  const registrarSignName =
+    (_signRole === "registrar" || _signRole === "administrator" || _signRole === "admin") ? _ownSignName
+    : (_signRole === "registrar_staff") ? registrarRoleName
     : "";
   const isGraduated = student.graduation_status === 'graduated';
   // Grades are locked for graduated students; admins can always edit
@@ -971,6 +987,7 @@ body{
                       <img src={ccaLogo} alt="CCA" style={{ width: "75px", height: "75px", objectFit: "contain", marginTop: "-18px" }} />
                     </div>
                     <div style={{ width: "100%", textAlign: "center" }}>
+                      <div style={{ fontSize: "8pt", fontFamily: TNR }}>Republic of the Philippines</div>
                       <div style={{ fontSize: "14pt", fontWeight: 900, fontFamily: TNR, textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1.1 }}>Community College of Alangalang</div>
                       <div style={{ fontSize: "8pt", fontFamily: TNR }}>Alangalang, Leyte</div>
                     </div>

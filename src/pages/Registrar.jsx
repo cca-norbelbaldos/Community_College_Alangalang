@@ -270,7 +270,7 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
             <div style={fc(0.8)}>
               <div style={bl(SI_GREEN)}>Gender</div>
               <select style={ci({ cursor: "pointer" })} value={f("gender")} onChange={e => sf("gender", e.target.value)}>
-                <option>Male</option><option>Female</option>
+                <option>Male</option><option>Female</option><option>LGBTQIA+</option>
               </select>
             </div>
             <div style={fc(0.9)}>
@@ -522,10 +522,27 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
 
 export default function Registrar({ user = {} }) {
   const isAdmin = user?.role === "administrator";
-  // Signature name for the Transcript — only auto-filled when a REGISTRAR is logged in.
+  // Signatory name for official records.
+  //  · registrar / administrator → the logged-in user's own name
+  //  · registrar_staff           → the name of whoever holds the REGISTRAR role
   const _signRole = String(user?.role || "").toLowerCase();
-  const registrarSignName = (_signRole === "registrar" || _signRole === "administrator" || _signRole === "admin")
-    ? ([user.first_name, user.middle_name, user.last_name].filter(Boolean).join(" ").trim() || user.username || "")
+  const _ownSignName = [user.first_name, user.middle_name, user.last_name].filter(Boolean).join(" ").trim() || user.username || "";
+  const [registrarRoleName, setRegistrarRoleName] = useState("");
+  useEffect(() => {
+    if (_signRole !== "registrar_staff") return;
+    fetch(`${import.meta.env.VITE_API_URL}/api/erd/users`)
+      .then(r => r.ok ? r.json() : [])
+      .then(list => {
+        const reg = (Array.isArray(list) ? list : []).find(u => {
+          const roles = Array.isArray(u.roles) ? u.roles.map(x => String(x).toLowerCase()) : [String(u.role || "").toLowerCase()];
+          return roles.includes("registrar");
+        });
+        if (reg) setRegistrarRoleName([reg.first_name, reg.middle_name, reg.last_name].filter(Boolean).join(" ").trim() || reg.username || "");
+      }).catch(() => {});
+  }, [_signRole]);
+  const registrarSignName =
+    (_signRole === "registrar" || _signRole === "administrator" || _signRole === "admin") ? _ownSignName
+    : (_signRole === "registrar_staff") ? registrarRoleName
     : "";
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -541,6 +558,7 @@ export default function Registrar({ user = {} }) {
   const [transactionSubTab, setTransactionSubTab] = useState("student_info");
   const [reportsSubTab, setReportsSubTab] = useState("student_record");
   const [studentRecordSubTab, setStudentRecordSubTab] = useState("transcript_of_records"); // always starts at leftmost
+  const [slcCourse, setSlcCourse] = useState(""); // Student List by Course — course filter ("" = all)
   const [maintenanceSubTab, setMaintenanceSubTab] = useState("program_curriculum");
   const [torStudentId, setTorStudentId]   = useState("");
   const [torGrades, setTorGrades]         = useState([]);
@@ -1180,13 +1198,8 @@ export default function Registrar({ user = {} }) {
         }}>
           {[
             { key: "transcript_of_records",     label: "Transcript of Records" },
-            { key: "student_semestral_grade",   label: "Student Semestral Grade" },
             { key: "student_evaluation_form",   label: "Student Evaluation Form" },
-            { key: "students_gwa",              label: "Students GWA" },
-            { key: "semestral_gwa",             label: "Semestral GWA" },
-            { key: "semestral_grade_by_batch",  label: "Semestral Grade by Batch" },
-            { key: "list_of_students_by_grade", label: "List of Students by Grade" },
-            { key: "subjects_assignment",       label: "Subjects Assignment" },
+            { key: "student_list_by_course",   label: "Student List by Course" },
           ].map((sub, i) => {
             const isActive = studentRecordSubTab === sub.key;
             return (
@@ -1222,6 +1235,62 @@ export default function Registrar({ user = {} }) {
       {activeTab === "reports" && reportsSubTab === "student_record" && studentRecordSubTab === "student_evaluation_form" && (
         <StudentEvaluationForm students={students} registrarName={registrarSignName} />
       )}
+
+      {/* ── STUDENT LIST BY COURSE content ── */}
+      {activeTab === "reports" && reportsSubTab === "student_record" && studentRecordSubTab === "student_list_by_course" && (() => {
+        const courseOptions = [...new Set((students || []).map(s => s.course).filter(Boolean))].sort();
+        const rows = (students || []).filter(s => !slcCourse || s.course === slcCourse);
+        return (
+          <div style={{ marginTop: "12px" }}>
+            {/* Filter bar */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "13px", fontWeight: 800, color: DARK_GREEN }}>Student List by Course</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <label style={{ fontSize: "10px", fontWeight: 700, color: GRAY, textTransform: "uppercase", letterSpacing: "0.05em" }}>Course</label>
+                <select value={slcCourse} onChange={e => setSlcCourse(e.target.value)}
+                  style={{ padding: "6px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "12px", background: WHITE, cursor: "pointer", minWidth: "160px" }}>
+                  <option value="">All Courses</option>
+                  {courseOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                {slcCourse && (
+                  <button type="button" onClick={() => setSlcCourse("")}
+                    style={{ padding: "6px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "11px", background: WHITE, cursor: "pointer", color: "#EF4444" }}>Clear</button>
+                )}
+              </div>
+            </div>
+
+            {/* Table */}
+            <div style={{ border: `1px solid ${BORDER}`, borderRadius: "8px", overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                <thead>
+                  <tr style={{ background: DARK_GREEN, color: WHITE }}>
+                    {["#", "Student ID#", "Last Name", "First Name", "Middle Name", "Course", "Year Level", "Section"].map(h => (
+                      <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.length === 0 ? (
+                    <tr><td colSpan={8} style={{ padding: "24px", textAlign: "center", color: GRAY }}>No students found.</td></tr>
+                  ) : rows.map((s, i) => (
+                    <tr key={s.id} style={{ background: i % 2 === 0 ? WHITE : "#f9f9f6", borderBottom: `1px solid ${BORDER}` }}>
+                      <td style={{ padding: "7px 12px", color: GRAY }}>{i + 1}</td>
+                      <td style={{ padding: "7px 12px", fontFamily: "monospace", color: BLUE, whiteSpace: "nowrap" }}>{s.student_number || "—"}</td>
+                      <td style={{ padding: "7px 12px", fontWeight: 600 }}>{s.last_name || "—"}</td>
+                      <td style={{ padding: "7px 12px" }}>{s.first_name || "—"}</td>
+                      <td style={{ padding: "7px 12px", color: GRAY }}>{s.middle_name || "—"}</td>
+                      <td style={{ padding: "7px 12px" }}>{s.course || "—"}</td>
+                      <td style={{ padding: "7px 12px" }}>{s.year_level || "—"}</td>
+                      <td style={{ padding: "7px 12px" }}>{s.section || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p style={{ margin: "8px 0 0", fontSize: "11px", color: GRAY }}>{rows.length} student(s){slcCourse ? ` · ${slcCourse}` : " · all courses"}</p>
+          </div>
+        );
+      })()}
 
       {/* ── TRANSCRIPT OF RECORDS content ── */}
       {activeTab === "reports" && reportsSubTab === "student_record" && studentRecordSubTab === "transcript_of_records" && (
@@ -1409,7 +1478,7 @@ export default function Registrar({ user = {} }) {
                         <div style={{ fontWeight:900, fontSize:"8.5pt", textTransform:"uppercase", paddingLeft:"20px" }}>Office of the Registrar</div>
                         <div style={{ paddingLeft:"20px" }}>Community College of Alangalang</div>
                         <div style={{ paddingLeft:"20px" }}>Alangalang, Leyte</div>
-                        <div style={{ paddingLeft:"20px" }}>Tel. No. —</div>
+                        <div style={{ paddingLeft:"20px" }}>communitycollegeofalangalang@gmail.com</div>
                       </td>
                     </tr>
                     <tr>
@@ -1624,7 +1693,7 @@ export default function Registrar({ user = {} }) {
                           <div style={{ fontWeight:900, fontSize:"8.5pt", textTransform:"uppercase", paddingLeft:"20px" }}>Office of the Registrar</div>
                           <div style={{ paddingLeft:"20px" }}>Community College of Alangalang</div>
                           <div style={{ paddingLeft:"20px" }}>Alangalang, Leyte</div>
-                          <div style={{ paddingLeft:"20px" }}>Tel. No. —</div>
+                          <div style={{ paddingLeft:"20px" }}>communitycollegeofalangalang@gmail.com</div>
                         </td>
                       </tr>
                       <tr>
@@ -2234,6 +2303,7 @@ export default function Registrar({ user = {} }) {
                         style={{ width: "100%", border: "none", borderBottom: `1px solid ${BORDER}`, fontSize: "12px", fontWeight: 700, outline: "none", background: "transparent", color: "#111827", cursor: "pointer", boxSizing: "border-box" }}>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
+                        <option value="LGBTQIA+">LGBTQIA+</option>
                       </select>
                     </div>
                     <div style={{ padding: "6px 10px", borderRight: `1px solid ${BORDER}` }}>
@@ -2366,6 +2436,7 @@ export default function Registrar({ user = {} }) {
                 <img src={ccaLogo}        alt="CCA"        style={{ width: "75px", height: "75px", objectFit: "contain" }} />
               </div>
               <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: "8pt", fontFamily: TNR }}>Republic of the Philippines</div>
                 <div style={{ fontSize: "14pt", fontWeight: 900, fontFamily: TNR, textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1.1 }}>Community College of Alangalang</div>
                 <div style={{ fontSize: "8pt", fontFamily: TNR }}>Alangalang, Leyte</div>
               </div>
@@ -2434,7 +2505,7 @@ export default function Registrar({ user = {} }) {
             {/* Registrar Signature */}
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "4px" }}>
               <div style={{ textAlign: "center", minWidth: "180px" }}>
-                <div style={{ borderBottom: "1px solid #333", marginBottom: "2px", height: "32px" }} />
+                <div style={{ borderBottom: "1px solid #333", marginBottom: "2px", height: "32px", display: "flex", alignItems: "flex-end", justifyContent: "center", fontWeight: 800, fontSize: "9pt", fontFamily: TNR, textTransform: "uppercase" }}>{registrarSignName}</div>
                 <div style={{ fontSize: "6.5pt", fontFamily: TNR }}>College Registrar's Signature</div>
               </div>
             </div>
@@ -2580,6 +2651,7 @@ export default function Registrar({ user = {} }) {
                   <option value="">All</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
+                  <option value="LGBTQIA+">LGBTQIA+</option>
                 </select>
               </div>
 
@@ -2722,7 +2794,7 @@ export default function Registrar({ user = {} }) {
                                 <div style={{ fontWeight: 900, fontSize: "8.5pt", textTransform: "uppercase", paddingLeft: "20px" }}>Office of the Registrar</div>
                                 <div style={{ paddingLeft: "20px" }}>Community College of Alangalang</div>
                                 <div style={{ paddingLeft: "20px" }}>Alangalang, Leyte</div>
-                                <div style={{ paddingLeft: "20px" }}>Tel. No. —</div>
+                                <div style={{ paddingLeft: "20px" }}>communitycollegeofalangalang@gmail.com</div>
                               </td>
                             </tr>
                             <tr>
@@ -2844,6 +2916,7 @@ export default function Registrar({ user = {} }) {
                   <option value="">All</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
+                  <option value="LGBTQIA+">LGBTQIA+</option>
                 </select>
               </div>
 
@@ -3006,7 +3079,7 @@ export default function Registrar({ user = {} }) {
                                 <div style={{ fontWeight: 900, fontSize: "8.5pt", textTransform: "uppercase", paddingLeft: "20px" }}>Office of the Registrar</div>
                                 <div style={{ paddingLeft: "20px" }}>Community College of Alangalang</div>
                                 <div style={{ paddingLeft: "20px" }}>Alangalang, Leyte</div>
-                                <div style={{ paddingLeft: "20px" }}>Tel. No. —</div>
+                                <div style={{ paddingLeft: "20px" }}>communitycollegeofalangalang@gmail.com</div>
                               </td>
                             </tr>
                             <tr>
@@ -3367,7 +3440,7 @@ export default function Registrar({ user = {} }) {
                     <div style={{ fontWeight:900, fontSize:"8.5pt", textTransform:"uppercase", paddingLeft:"20px" }}>Office of the Registrar</div>
                     <div style={{ paddingLeft:"20px" }}>Community College of Alangalang</div>
                     <div style={{ paddingLeft:"20px" }}>Alangalang, Leyte</div>
-                    <div style={{ paddingLeft:"20px" }}>Tel. No. —</div>
+                    <div style={{ paddingLeft:"20px" }}>communitycollegeofalangalang@gmail.com</div>
                   </td>
                 </tr>
                 <tr>
@@ -3582,7 +3655,7 @@ export default function Registrar({ user = {} }) {
                       <div style={{ fontWeight:900, fontSize:"8.5pt", textTransform:"uppercase", paddingLeft:"20px" }}>Office of the Registrar</div>
                       <div style={{ paddingLeft:"20px" }}>Community College of Alangalang</div>
                       <div style={{ paddingLeft:"20px" }}>Alangalang, Leyte</div>
-                      <div style={{ paddingLeft:"20px" }}>Tel. No. —</div>
+                      <div style={{ paddingLeft:"20px" }}>communitycollegeofalangalang@gmail.com</div>
                     </td>
                   </tr>
                   <tr>
@@ -3822,6 +3895,7 @@ export default function Registrar({ user = {} }) {
               <select value={studentForm.gender} onChange={e=>setStudentForm({...studentForm,gender:e.target.value})} style={{ padding:"8px",border:`1px solid ${BORDER}`,borderRadius:"6px",background:WHITE }}>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
+                <option value="LGBTQIA+">LGBTQIA+</option>
               </select>
             </div>
             <div style={{ display:"flex",gap:"10px" }}>
@@ -3892,15 +3966,16 @@ const CAND_LEGEND = [
 function ApplicationForm({ student, onClose }) {
   if (!student) return null;
   const full = (a, b, c) => [a, b, c].filter(Boolean).join(" ");
-  const val = (v) => v || " ";
+  const val = () => "" || " ";
   const cbox = (on) => <span style={{ display: "inline-block", width: 11, height: 11, border: "1px solid #000", borderRadius: "50%", marginRight: 4, lineHeight: "10px", textAlign: "center", fontSize: 8, verticalAlign: "middle" }}>{on ? "✓" : ""}</span>;
   const CELL = { border: "1px solid #000", padding: "3px 6px", fontSize: "8.5pt", verticalAlign: "top", fontFamily: '"Times New Roman", Times, serif' };
   const SUB = { fontSize: "6.5pt", color: "#333", fontStyle: "italic" };
-  const age = student.birthdate ? Math.floor((Date.now() - new Date(student.birthdate)) / (365.25 * 864e5)) : "";
-  const nameLGM = [student.last_name, student.first_name, student.middle_name].filter(Boolean).join(", ");
-  const addr = [student.barangay, student.municipality, student.province].filter(Boolean).join(", ");
-  const fatherName = [student.father_last, student.father_first, student.father_middle].filter(Boolean).join(", ");
-  const motherName = [student.mother_last, student.mother_first, student.mother_middle].filter(Boolean).join(", ");
+  // Application Form prints BLANK — filled in by hand. Values below are empty.
+  const age = "";
+  const nameLGM = "";
+  const addr = "";
+  const fatherName = "";
+  const motherName = "";
   const sq = (on) => <span style={{ display: "inline-block", width: 10, height: 10, border: "1px solid #000", margin: "0 2px 0 4px", verticalAlign: "middle", textAlign: "center", lineHeight: "9px", fontSize: 8 }}>{on ? "✓" : ""}</span>;
   const BAR = { background: "#3d6e01", color: "#fff", border: "1px solid #2d5201", fontWeight: 800, fontSize: "8.5pt", padding: "1px 6px", margin: "4px 0 2px" };
   const ROW = { display: "flex", alignItems: "flex-end", gap: 6, margin: "1px 0", fontSize: "8pt" };
@@ -3979,7 +4054,7 @@ function ApplicationForm({ student, onClose }) {
               <div style={{ ...SUB, textAlign: "center", marginBottom: 2 }}>(Last Name, Given Name Middle Name)</div>
               <div style={ROW}><span style={LBL}>Present Address:</span><span style={FILL}>{addr}</span></div>
               <div style={ROW}><span style={LBL}>Permanent Address:</span><span style={FILL}>{addr}</span></div>
-              <div style={ROW}><span style={LBL}>Date of Birth:</span><span style={{ ...FILL, flex: "0 0 100px" }}>{val(student.birthdate)}</span><span style={LBL}>Age:</span><span style={{ ...FILL, flex: "0 0 34px" }}>{age}</span><span style={LBL}>Sex:</span><span style={{ ...FILL, flex: "0 0 50px" }}>{student.gender || ""}</span><span style={LBL}>Civil Status:</span><span style={{ ...FILL, flex: "0 0 55px" }}></span></div>
+              <div style={ROW}><span style={LBL}>Date of Birth:</span><span style={{ ...FILL, flex: "0 0 100px" }}>{val(student.birthdate)}</span><span style={LBL}>Age:</span><span style={{ ...FILL, flex: "0 0 34px" }}>{age}</span><span style={LBL}>Sex:</span><span style={{ ...FILL, flex: "0 0 50px" }}></span><span style={LBL}>Civil Status:</span><span style={{ ...FILL, flex: "0 0 55px" }}></span></div>
               <div style={ROW}><span style={LBL}>Place of Birth:</span><span style={FILL}>{val(student.place_of_birth)}</span></div>
               <div style={ROW}><span style={LBL}>Religion:</span><span style={FILL}>{val(student.religion)}</span><span style={LBL}>Nationality:</span><span style={FILL}>{val(student.citizenship)}</span></div>
               <div style={ROW}><span style={LBL}>Mobile Numbers:</span><span style={FILL}>{val(student.mobile)}</span><span style={LBL}>Email Add:</span><span style={FILL}>{val(student.email)}</span></div>
@@ -4338,6 +4413,7 @@ function CandidateGradForm({ student, grades, user = {}, onClose }) {
               <img src={alangalangLogo} alt="" style={{ width: 65, height: 65, objectFit: "contain" }} />
             </td>
             <td style={{ textAlign: "center", verticalAlign: "middle" }}>
+              <div style={{ fontSize: "8.5pt" }}>Republic of the Philippines</div>
               <div style={{ fontSize: "15pt", fontWeight: 900, textTransform: "uppercase", letterSpacing: 1, lineHeight: 1.1 }}>Community College of Alangalang</div>
               <div style={{ fontSize: "8.5pt" }}>Alangalang, Leyte</div>
               <div style={{ fontSize: "12pt", fontWeight: 800, marginTop: 6, letterSpacing: 1 }}>RECORDS OF CANDIDATES FOR GRADUATION</div>
@@ -4426,7 +4502,7 @@ function CandidateGradForm({ student, grades, user = {}, onClose }) {
               <span style={{ marginLeft: 30 }}>I hereby certify that the foregoing records of </span>
               <span style={{ borderBottom: "1px solid #000", fontWeight: 700, padding: "0 50px" }}>{fullName.toUpperCase()}</span>
               <span> have been verified by me, and that true copies of the official records substantiating the same are kept in the files of our school; also certify that this student has enrolled in this institution on (date) </span>
-              <span style={{ borderBottom: "1px solid #000", fontWeight: 700, padding: "0 12px" }}>{student.year_enrolled ? `S.Y. ${student.year_enrolled}` : "     "}</span>
+              <span style={{ borderBottom: "1px solid #000", fontWeight: 700, padding: "0 12px" }}>{student.year_enrolled ? `${new Date().toLocaleString("en-US", { month: "long" })} ${student.year_enrolled}` : "     "}</span>
               <span> of the current school year.</span>
             </div>
 
@@ -4613,7 +4689,7 @@ function StudentEvaluationForm({ students = [], registrarName = "" }) {
                         <div style={{ fontWeight: 900, fontSize: "8.5pt", textTransform: "uppercase", paddingLeft: "20px" }}>Office of the Registrar</div>
                         <div style={{ paddingLeft: "20px" }}>Community College of Alangalang</div>
                         <div style={{ paddingLeft: "20px" }}>Alangalang, Leyte</div>
-                        <div style={{ paddingLeft: "20px" }}>Tel. No. —</div>
+                        <div style={{ paddingLeft: "20px" }}>communitycollegeofalangalang@gmail.com</div>
                       </td>
                     </tr>
                     <tr>
