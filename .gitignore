@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Environment variables (contain secrets — do NOT commit)
+.env
+.env.*
+!.env.example
+cca-backend/.env
+cca-backend/.env.*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
