@@ -312,6 +312,7 @@ function EnrollmentStats({ user }) {
 
   const isMale   = e => (e.gender || "").toLowerCase() === "male";
   const isFemale = e => (e.gender || "").toLowerCase() === "female";
+  const isLgbt   = e => (e.gender || "").toLowerCase() === "lgbtqia+";
 
   // year_enrolled is a number (e.g. 2025); derive "2025-2026" from it
   const toSY = yr => yr ? `${yr}-${parseInt(yr) + 1}` : null;
@@ -333,11 +334,12 @@ function EnrollmentStats({ user }) {
   const filtered = bySchoolYear.filter(e => e.semester === activeSem);
   const male        = filtered.filter(isMale).length;
   const female      = filtered.filter(isFemale).length;
-  const unspecified = filtered.length - male - female;
+  const lgbt        = filtered.filter(isLgbt).length;
+  const unspecified = filtered.length - male - female - lgbt;
 
   const byYearLevel = YEAR_LEVELS.map(lvl => {
     const rows = filtered.filter(e => e.year_level === lvl);
-    return { label: lvl, total: rows.length, male: rows.filter(isMale).length, female: rows.filter(isFemale).length };
+    return { label: lvl, total: rows.length, male: rows.filter(isMale).length, female: rows.filter(isFemale).length, lgbt: rows.filter(isLgbt).length };
   });
 
   const downloadXlsx = () => {
@@ -347,10 +349,10 @@ function EnrollmentStats({ user }) {
       ["School Year", schoolYear === "all" ? "All School Years" : schoolYear],
       ["Semester", activeSem],
       [],
-      ["Year Level", "Total", "Male", "Female", "Unspecified"],
-      ...byYearLevel.map(r => [r.label, r.total, r.male, r.female, r.total - r.male - r.female]),
+      ["Year Level", "Total", "Male", "Female", "LGBTQIA+", "Unspecified"],
+      ...byYearLevel.map(r => [r.label, r.total, r.male, r.female, r.lgbt, r.total - r.male - r.female - r.lgbt]),
       [],
-      ["TOTAL", filtered.length, male, female, unspecified],
+      ["TOTAL", filtered.length, male, female, lgbt, unspecified],
     ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws["!cols"] = [{ wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 14 }];
@@ -416,7 +418,7 @@ function EnrollmentStats({ user }) {
             {(() => {
               const data = byYearLevel;
               const W = 660, H = 104, padL = 30, padR = 14, padT = 10, padB = 20;
-              const maxV = Math.max(1, ...data.map(d => Math.max(d.male, d.female)));
+              const maxV = Math.max(1, ...data.map(d => Math.max(d.male, d.female, d.lgbt)));
               const n = data.length;
               const X = (i) => padL + (n <= 1 ? (W - padL - padR) / 2 : (i / (n - 1)) * (W - padL - padR));
               const Y = (v) => padT + (1 - v / maxV) * (H - padT - padB);
@@ -424,6 +426,16 @@ function EnrollmentStats({ user }) {
               const TICKS = 4;
               return (
                 <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "104px", overflow: "visible" }}>
+                  <defs>
+                    <linearGradient id="enrollRainbow" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#e40303" />
+                      <stop offset="20%" stopColor="#ff8c00" />
+                      <stop offset="40%" stopColor="#ffed00" />
+                      <stop offset="60%" stopColor="#008026" />
+                      <stop offset="80%" stopColor="#004dff" />
+                      <stop offset="100%" stopColor="#750787" />
+                    </linearGradient>
+                  </defs>
                   {Array.from({ length: TICKS + 1 }).map((_, t) => {
                     const v = (maxV * (TICKS - t)) / TICKS;
                     const yy = Y(v);
@@ -437,8 +449,10 @@ function EnrollmentStats({ user }) {
                   {data.map((d, i) => <text key={"x" + i} x={X(i)} y={H - 8} textAnchor="middle" fontSize="9.5" fill={GRAY}>{d.label}</text>)}
                   <path d={path("male")} fill="none" stroke="#3B82F6" strokeWidth="2.5" strokeLinejoin="round" />
                   <path d={path("female")} fill="none" stroke="#EC4899" strokeWidth="2.5" strokeLinejoin="round" />
+                  <path d={path("lgbt")} fill="none" stroke="url(#enrollRainbow)" strokeWidth="2.5" strokeLinejoin="round" />
                   {data.map((d, i) => <circle key={"m" + i} cx={X(i)} cy={Y(d.male)} r="4" fill="#fff" stroke="#3B82F6" strokeWidth="2" />)}
                   {data.map((d, i) => <circle key={"f" + i} cx={X(i)} cy={Y(d.female)} r="4" fill="#fff" stroke="#EC4899" strokeWidth="2" />)}
+                  {data.map((d, i) => <circle key={"l" + i} cx={X(i)} cy={Y(d.lgbt)} r="4" fill="#fff" stroke="#750787" strokeWidth="2" />)}
                 </svg>
               );
             })()}
@@ -843,8 +857,8 @@ export default function Overview({ user }) {
         </div>
       </div>
 
-      {/* ── Faculty Teaching Load + Attendance Statistics — admins only ── */}
-      {(isAdmin || String(user?.role || "").toLowerCase() === "college_administrator") && (
+      {/* ── Faculty Teaching Load + Attendance Statistics — admins, college admin & registrar ── */}
+      {["administrator", "college_administrator", "registrar"].includes(String(user?.role || "").toLowerCase()) && (
         <div style={{ marginTop: "16px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", alignItems: "stretch" }}>
           <div style={{ gridColumn: "span 2" }}>
             <FacultyLoad />

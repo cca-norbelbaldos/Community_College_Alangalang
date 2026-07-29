@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { showToast, showConfirm } from "../components/Toast";
+import { processProfileImage } from "../utils/image";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#3d6e01";
@@ -440,10 +441,10 @@ export default function UserManagementModule() {
                     onChange={(e) => {
                       const file = e.target.files[0];
                       if (!file) return;
-                      if (file.size > 2 * 1024 * 1024) { showToast("Image must be under 2 MB.", "warning"); return; }
-                      const reader = new FileReader();
-                      reader.onload = (ev) => setForm(prev => ({ ...prev, profilePicture: ev.target.result }));
-                      reader.readAsDataURL(file);
+                      if (file.size > 8 * 1024 * 1024) { showToast("Image must be under 8 MB.", "warning"); return; }
+                      processProfileImage(file)
+                        .then(dataUrl => setForm(prev => ({ ...prev, profilePicture: dataUrl })))
+                        .catch(() => showToast("Could not process image.", "error"));
                     }}
                   />
                   {form.profilePicture && (

@@ -82,7 +82,7 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
     school_year: DEFAULT_SY, student_number: "", classification: "",
     last_name: "", first_name: "", middle_name: "", religion: "",
     gender: "Male", status: "", citizenship: "Filipino", acr_no: "",
-    barangay: "", municipality: "ALANGALANG", province: "LEYTE", zip_code: "",
+    barangay: "", municipality: "Alangalang", province: "Leyte", zip_code: "",
     email: "", mobile: "", birthdate: "", place_of_birth: "",
     father_last: "", father_first: "", father_middle: "", father_occupation: "",
     mother_last: "", mother_first: "", mother_middle: "", mother_occupation: "",
@@ -1415,7 +1415,7 @@ export default function Registrar({ user = {} }) {
                       padding: 25px 48px 0 !important;
                       break-after: page !important;
                       page-break-after: always !important;
-                      min-height: 1056px !important;
+                      min-height: 12.9in !important;
                     }
                     [id^="tor-mp-gp"] {
                       position: relative !important;
@@ -1426,6 +1426,7 @@ export default function Registrar({ user = {} }) {
                       padding: 38px 48px !important;
                       break-before: page !important;
                       page-break-before: always !important;
+                      min-height: 12.9in !important;
                     }
                     #tor-mp-p1 textarea::placeholder,
                     [id^="tor-mp-gp"] textarea::placeholder,
@@ -1465,20 +1466,16 @@ export default function Registrar({ user = {} }) {
                   {/* HEADER */}
                   <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:"2px", tableLayout:"fixed" }}>
                     <tbody><tr>
-                      <td style={{ width:"130px", verticalAlign:"middle", textAlign:"center", paddingRight:"6px" }}>
-                        <div style={{ display:"flex", gap:"4px", alignItems:"center", justifyContent:"center" }}>
-                          <img src={alangalangLogo} alt="" style={{ width:70, height:70, objectFit:"contain" }} />
-                          <img src={ccaLogo}        alt="" style={{ width:80, height:80, objectFit:"contain" }} />
-                        </div>
+                      <td style={{ width:"130px", verticalAlign:"middle", textAlign:"center" }}>
+                        <img src={alangalangLogo} alt="" style={{ width:75, height:75, objectFit:"contain" }} />
                       </td>
                       <td style={{ textAlign:"center", verticalAlign:"middle", userSelect:"none", pointerEvents:"none" }}>
-                        <div style={{ fontSize:"15pt", fontWeight:900, textTransform:"uppercase", letterSpacing:"1px", lineHeight:1.1, fontFamily:'"Times New Roman",Times,serif', marginLeft:"50px" }}>Community College of Alangalang</div>
+                        <div style={{ fontSize:"12pt", fontFamily:'"Times New Roman",Times,serif' }}>Republic of the Philippines</div>
+                        <div style={{ fontSize:"15pt", fontWeight:900, textTransform:"uppercase", letterSpacing:"0.5px", lineHeight:1.1, fontFamily:'"Times New Roman",Times,serif', whiteSpace:"nowrap" }}>Community College of Alangalang</div>
+                        <div style={{ fontSize:"12pt", fontFamily:'"Times New Roman",Times,serif' }}>Alangalang, Leyte</div>
                       </td>
-                      <td style={{ width:"185px", verticalAlign:"top", paddingLeft:"36px", fontSize:"8pt", lineHeight:1.7, fontFamily:'"Times New Roman",Times,serif', userSelect:"none", pointerEvents:"none" }}>
-                        <div style={{ fontWeight:900, fontSize:"8.5pt", textTransform:"uppercase", paddingLeft:"20px" }}>Office of the Registrar</div>
-                        <div style={{ paddingLeft:"20px" }}>Community College of Alangalang</div>
-                        <div style={{ paddingLeft:"20px" }}>Alangalang, Leyte</div>
-                        <div style={{ paddingLeft:"20px" }}>communitycollegeofalangalang@gmail.com</div>
+                      <td style={{ width:"130px", verticalAlign:"middle", textAlign:"center" }}>
+                        <img src={ccaLogo} alt="" style={{ width:80, height:80, objectFit:"contain" }} />
                       </td>
                     </tr>
                     <tr>
@@ -1639,7 +1636,7 @@ export default function Registrar({ user = {} }) {
                     </div>
                   </div>
                   {/* PAGE NUMBER bottom edge */}
-                  <div style={{ position:"absolute", bottom:"12px", left:"48px", fontSize:"8pt", fontFamily:'"Times New Roman",Times,serif', fontStyle:"italic" }}>Page <u>1</u> of <u>{torGrades && torGrades.length > 0 ? (() => {
+                  <div style={{ position:"absolute", bottom:"28px", left:"48px", fontSize:"8pt", fontFamily:'"Times New Roman",Times,serif', fontStyle:"italic" }}>Page <u>1</u> of <u>{torGrades && torGrades.length > 0 ? (() => {
           const ks = new Set();
           torGrades.forEach(g => {
             const sem=String(g.semester||"1").trim();
@@ -1651,6 +1648,7 @@ export default function Registrar({ user = {} }) {
           return 1 + Math.ceil(ks.size / 5);
         })() : 1}</u> pages</div>
 
+                  <TorContactFooter />
                 </div>{/* end white page */}
 
               {/* ── PAGE 2: GRADES ── */}
@@ -1680,20 +1678,16 @@ export default function Registrar({ user = {} }) {
                   <>
                     <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:"2px", tableLayout:"fixed" }}>
                       <tbody><tr>
-                        <td style={{ width:"130px", verticalAlign:"middle", textAlign:"center", paddingRight:"6px" }}>
-                          <div style={{ display:"flex", gap:"4px", alignItems:"center", justifyContent:"center" }}>
-                            <img src={alangalangLogo} alt="" style={{ width:70, height:70, objectFit:"contain" }} />
-                            <img src={ccaLogo}        alt="" style={{ width:80, height:80, objectFit:"contain" }} />
-                          </div>
+                        <td style={{ width:"130px", verticalAlign:"middle", textAlign:"center" }}>
+                          <img src={alangalangLogo} alt="" style={{ width:75, height:75, objectFit:"contain" }} />
                         </td>
                         <td style={{ textAlign:"center", verticalAlign:"middle" }}>
-                          <div style={{ fontSize:"15pt", fontWeight:900, textTransform:"uppercase", letterSpacing:"1px", lineHeight:1.1, fontFamily:'"Times New Roman",Times,serif', marginLeft:"50px" }}>Community College of Alangalang</div>
+                          <div style={{ fontSize:"12pt", fontFamily:'"Times New Roman",Times,serif' }}>Republic of the Philippines</div>
+                          <div style={{ fontSize:"15pt", fontWeight:900, textTransform:"uppercase", letterSpacing:"0.5px", lineHeight:1.1, fontFamily:'"Times New Roman",Times,serif', whiteSpace:"nowrap" }}>Community College of Alangalang</div>
+                          <div style={{ fontSize:"12pt", fontFamily:'"Times New Roman",Times,serif' }}>Alangalang, Leyte</div>
                         </td>
-                        <td style={{ width:"185px", verticalAlign:"top", paddingLeft:"36px", fontSize:"8pt", lineHeight:1.7, fontFamily:'"Times New Roman",Times,serif' }}>
-                          <div style={{ fontWeight:900, fontSize:"8.5pt", textTransform:"uppercase", paddingLeft:"20px" }}>Office of the Registrar</div>
-                          <div style={{ paddingLeft:"20px" }}>Community College of Alangalang</div>
-                          <div style={{ paddingLeft:"20px" }}>Alangalang, Leyte</div>
-                          <div style={{ paddingLeft:"20px" }}>communitycollegeofalangalang@gmail.com</div>
+                        <td style={{ width:"130px", verticalAlign:"middle", textAlign:"center" }}>
+                          <img src={ccaLogo} alt="" style={{ width:80, height:80, objectFit:"contain" }} />
                         </td>
                       </tr>
                       <tr>
@@ -1838,6 +1832,7 @@ export default function Registrar({ user = {} }) {
                       )}
                       {renderPageSignature(chunkIdx + 2)}
                     </div>
+                    <TorContactFooter />
                   </div>
                 ));
               })()}
@@ -2431,16 +2426,17 @@ export default function Registrar({ user = {} }) {
 
             {/* School header — logos left, text truly centered via grid */}
             <div style={{ display: "grid", gridTemplateColumns: "160px 1fr 160px", alignItems: "center", marginBottom: "2px" }}>
-              <div style={{ display: "flex", gap: "3px", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center" }}>
                 <img src={alangalangLogo} alt="Alangalang" style={{ width: "70px", height: "70px", objectFit: "contain" }} />
-                <img src={ccaLogo}        alt="CCA"        style={{ width: "75px", height: "75px", objectFit: "contain" }} />
               </div>
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: "8pt", fontFamily: TNR }}>Republic of the Philippines</div>
                 <div style={{ fontSize: "14pt", fontWeight: 900, fontFamily: TNR, textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1.1 }}>Community College of Alangalang</div>
                 <div style={{ fontSize: "8pt", fontFamily: TNR }}>Alangalang, Leyte</div>
               </div>
-              <div />{/* right spacer keeps text centered */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+                <img src={ccaLogo} alt="CCA" style={{ width: "75px", height: "75px", objectFit: "contain" }} />
+              </div>
             </div>
 
             {/* Title bar */}
@@ -3996,14 +3992,23 @@ function ApplicationForm({ student, onClose }) {
 
       <div id="app-scroll" style={{ flex: 1, overflowY: "auto", background: "#e5e7eb", padding: "24px 16px" }}>
         <style>{`
+          .app-fixed-footer { display: none; }
           @media print {
-            @page { size: 8.5in 13in portrait; margin: 0.35in; }
+            @page { size: 8.5in 13in portrait; margin: 0; }
             html, body { background: #fff !important; height: auto !important; margin: 0 !important; padding: 0 !important; }
             body > * { display: none !important; }
             body > #app-portal-root { display: block !important; position: static !important; height: auto !important; overflow: visible !important; }
             #app-portal-root .no-print { display: none !important; }
             #app-scroll { position: static !important; overflow: visible !important; height: auto !important; background: #fff !important; padding: 0 !important; }
-            #app-form-area { position: static !important; width: 100% !important; min-height: 0 !important; box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
+            #app-form-area { position: static !important; width: 100% !important; min-height: 0 !important; box-shadow: none !important; margin: 0 !important; padding: 0.3in 0.4in 0.5in !important; }
+            .app-fixed-footer {
+              display: flex !important; position: fixed; left: 0.4in; right: 0.4in; bottom: 0.08in;
+              align-items: center; justify-content: center; gap: 16px;
+              font-size: 7.5pt; font-family: 'Times New Roman', Times, serif; color: #333;
+              border-top: 1px solid #999; padding-top: 3px;
+              -webkit-print-color-adjust: exact; print-color-adjust: exact;
+            }
+            .app-fixed-footer .fi { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
             #app-form-area, #app-form-area * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             #app-form-area table { page-break-inside: auto; }
             #app-form-area tr { page-break-inside: avoid !important; }
@@ -4024,15 +4029,22 @@ function ApplicationForm({ student, onClose }) {
             <img src={ccaLogo} alt="" style={{ width: 1000, height: 1000, objectFit: "contain", maxWidth: "none", opacity: 0.10 }} />
           </div>
 
+          {/* Fixed contact footer — repeats at the bottom of every printed page */}
+          <div className="app-fixed-footer">
+            <span className="fi"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>community college of alangalang</span>
+            <span className="fi"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>xxxxxxxxxxx</span>
+            <span className="fi"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>communitycollegealangalang.com</span>
+          </div>
+
           {/* Header (Transcript-of-Records style) */}
           <table style={{ width: "100%", borderCollapse: "collapse" }}><tbody><tr>
             <td style={{ width: 160, textAlign: "center", verticalAlign: "middle" }}>
               <img src={alangalangLogo} alt="" style={{ width: 65, height: 65, objectFit: "contain" }} />
             </td>
             <td style={{ textAlign: "center", verticalAlign: "middle" }}>
-              <div style={{ fontSize: "8pt" }}>Republic of the Philippines</div>
-              <div style={{ fontSize: "14pt", fontWeight: 900, textTransform: "uppercase", letterSpacing: 1, lineHeight: 1.1 }}>Community College of Alangalang</div>
-              <div style={{ fontSize: "8.5pt" }}>Alangalang, Leyte</div>
+              <div style={{ fontSize: "12pt", fontFamily: '"Times New Roman",Times,serif' }}>Republic of the Philippines</div>
+              <div style={{ fontSize: "15pt", fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.5, lineHeight: 1.1, whiteSpace: "nowrap" }}>Community College of Alangalang</div>
+              <div style={{ fontSize: "12pt", fontFamily: '"Times New Roman",Times,serif' }}>Alangalang, Leyte</div>
               <div style={{ fontSize: "11pt", fontWeight: 800, marginTop: 5, letterSpacing: 0.5 }}>APPLICATION FORM FOR ADMISSION</div>
             </td>
             <td style={{ width: 160, textAlign: "center", verticalAlign: "middle" }}>
@@ -4043,9 +4055,9 @@ function ApplicationForm({ student, onClose }) {
 
           {/* ===================== PAGE 1 ===================== */}
           <div style={{ ...BAR, background: "#3d6e01", fontStyle: "italic", fontWeight: 700, fontSize: "7.5pt" }}>For Admission Processor Only</div>
-          <div style={ROW}><span style={LBL}>Application No.:</span><span style={FILL}></span><span style={LBL}>Course Admitted to:</span><span style={FILL}></span></div>
-          <div style={ROW}><span style={LBL}>Course Applied For: 1st Choice</span><span style={FILL}>{val(student.course)}</span><span style={LBL}>Student Type:</span><span style={{ ...FILL, flex: "0 0 120px" }}></span></div>
-          <div style={ROW}><span style={{ ...LBL, marginLeft: 96 }}>2nd Choice</span><span style={FILL}></span><span style={LBL}>LRN:</span><span style={{ ...FILL, flex: "0 0 140px" }}></span></div>
+          <div style={ROW}><span style={LBL}>Course Admitted to:</span><span style={FILL}></span></div>
+          <div style={ROW}><span style={LBL}>Course Applied For: 1st Choice</span><span style={FILL}>{val(student.course)}</span><span style={{ ...LBL, flex: "0 0 82px" }}>Student Type:</span><span style={{ ...FILL, flex: "0 0 140px" }}></span></div>
+          <div style={ROW}><span style={{ ...LBL, marginLeft: 96 }}>2nd Choice</span><span style={FILL}></span><span style={{ ...LBL, flex: "0 0 82px" }}>LRN:</span><span style={{ ...FILL, flex: "0 0 140px" }}></span></div>
 
           <div style={BAR}>Personal Information:</div>
           <div style={{ display: "flex", gap: 28 }}>
@@ -4413,10 +4425,10 @@ function CandidateGradForm({ student, grades, user = {}, onClose }) {
               <img src={alangalangLogo} alt="" style={{ width: 65, height: 65, objectFit: "contain" }} />
             </td>
             <td style={{ textAlign: "center", verticalAlign: "middle" }}>
-              <div style={{ fontSize: "8.5pt" }}>Republic of the Philippines</div>
-              <div style={{ fontSize: "15pt", fontWeight: 900, textTransform: "uppercase", letterSpacing: 1, lineHeight: 1.1 }}>Community College of Alangalang</div>
-              <div style={{ fontSize: "8.5pt" }}>Alangalang, Leyte</div>
-              <div style={{ fontSize: "12pt", fontWeight: 800, marginTop: 6, letterSpacing: 1 }}>RECORDS OF CANDIDATES FOR GRADUATION</div>
+              <div style={{ fontSize: "12pt" }}>Republic of the Philippines</div>
+              <div style={{ fontSize: "15pt", fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.5, lineHeight: 1.1, whiteSpace: "nowrap" }}>Community College of Alangalang</div>
+              <div style={{ fontSize: "12pt" }}>Alangalang, Leyte</div>
+              <div style={{ fontSize: "15pt", fontWeight: 800, marginTop: 6, letterSpacing: 0.5, whiteSpace: "nowrap" }}>RECORDS OF CANDIDATES FOR GRADUATION</div>
               <div style={{ fontSize: "8pt", fontStyle: "italic" }}>College Department</div>
             </td>
             <td style={{ width: 160, textAlign: "center", verticalAlign: "middle" }}>
@@ -4655,11 +4667,11 @@ function StudentEvaluationForm({ students = [], registrarName = "" }) {
           <div style={{ flex: 1, overflowY: "auto", background: "#e5e7eb", padding: "24px 16px" }}>
             <style>{`
               @media print {
-                @page { size: 8.5in 13in portrait; margin: 0.35in; }
+                @page { size: 8.5in 13in portrait; margin: 0; }
                 body * { visibility: hidden !important; }
                 #eval-mp, #eval-mp * { visibility: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                 #eval-mp { position: absolute !important; top: 0 !important; left: 0 !important; width: 816px !important; background: #fff !important; }
-                #eval-mp-page { box-shadow: none !important; margin: 0 !important; width: 816px !important; }
+                #eval-mp-page { box-shadow: none !important; margin: 0 !important; width: 816px !important; min-height: 12.9in !important; padding: 30px 46px !important; box-sizing: border-box !important; }
                 #eval-mp-page table { page-break-inside: auto; }
                 #eval-mp-page tr { page-break-inside: avoid !important; }
                 #eval-mp-page thead { display: table-header-group !important; }
@@ -4676,20 +4688,16 @@ function StudentEvaluationForm({ students = [], registrarName = "" }) {
                 <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "2px", tableLayout: "fixed" }}>
                   <tbody>
                     <tr>
-                      <td style={{ width: "130px", verticalAlign: "middle", textAlign: "center", paddingRight: "6px" }}>
-                        <div style={{ display: "flex", gap: "4px", alignItems: "center", justifyContent: "center" }}>
-                          <img src={alangalangLogo} alt="" style={{ width: 70, height: 70, objectFit: "contain" }} />
-                          <img src={ccaLogo} alt="" style={{ width: 80, height: 80, objectFit: "contain" }} />
-                        </div>
+                      <td style={{ width: "130px", verticalAlign: "middle", textAlign: "center" }}>
+                        <img src={alangalangLogo} alt="" style={{ width: 75, height: 75, objectFit: "contain" }} />
                       </td>
                       <td style={{ textAlign: "center", verticalAlign: "middle" }}>
-                        <div style={{ fontSize: "15pt", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", lineHeight: 1.1, fontFamily: TNR, marginLeft: "50px" }}>Community College of Alangalang</div>
+                        <div style={{ fontSize: "12pt", fontFamily: TNR }}>Republic of the Philippines</div>
+                        <div style={{ fontSize: "15pt", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1.1, fontFamily: TNR, whiteSpace: "nowrap" }}>Community College of Alangalang</div>
+                        <div style={{ fontSize: "12pt", fontFamily: TNR }}>Alangalang, Leyte</div>
                       </td>
-                      <td style={{ width: "185px", verticalAlign: "top", paddingLeft: "36px", fontSize: "8pt", lineHeight: 1.7, fontFamily: TNR }}>
-                        <div style={{ fontWeight: 900, fontSize: "8.5pt", textTransform: "uppercase", paddingLeft: "20px" }}>Office of the Registrar</div>
-                        <div style={{ paddingLeft: "20px" }}>Community College of Alangalang</div>
-                        <div style={{ paddingLeft: "20px" }}>Alangalang, Leyte</div>
-                        <div style={{ paddingLeft: "20px" }}>communitycollegeofalangalang@gmail.com</div>
+                      <td style={{ width: "130px", verticalAlign: "middle", textAlign: "center" }}>
+                        <img src={ccaLogo} alt="" style={{ width: 80, height: 80, objectFit: "contain" }} />
                       </td>
                     </tr>
                     <tr>
@@ -4769,10 +4777,23 @@ function StudentEvaluationForm({ students = [], registrarName = "" }) {
                   </div>
                 </div>
               </div>
+              <TorContactFooter />
             </div>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── TOR page contact footer (pinned to the bottom of every printed page) ──
+function TorContactFooter() {
+  const ic = { display: "inline-flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap" };
+  return (
+    <div style={{ position: "absolute", left: "48px", right: "48px", bottom: "2px", borderTop: "1px solid #999", paddingTop: "3px", display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", fontSize: "7.5pt", fontFamily: '"Times New Roman",Times,serif', color: "#333" }}>
+      <span style={ic}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>community college of alangalang</span>
+      <span style={ic}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>xxxxxxxxxxx</span>
+      <span style={ic}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>communitycollegealangalang.com</span>
     </div>
   );
 }

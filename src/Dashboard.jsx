@@ -11,8 +11,9 @@ import AssignedSubject from "./pages/AssignedSubject";
 import Designation from "./pages/Designation";
 import AccountSettings from "./pages/AccountSettings";
 import SubjectCatalog from "./pages/SubjectCatalog";
-import StudentAttendance from "./pages/StudentAttendance";
-import AttendanceAdmin from "./pages/AttendanceAdmin";
+import FacultyGrades from "./pages/FacultyGrades";
+import StudentPortal from "./pages/StudentPortal";
+import DatesToRemember from "./pages/DatesToRemember";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#3d6e01";
@@ -74,11 +75,12 @@ const ICON_LIBRARY = (
 
 // Main nav items (no User Management, no System Controls here)
 const MAIN_NAV = [
-  { label: "Overview Workspace",  icon: ICON_HOME,     featureKey: "feat_overview",      alwaysFor: ["administrator", "faculty", "registrar_staff", "college_administrator"] },
+  { label: "Overview Workspace",  icon: ICON_HOME,     featureKey: "feat_overview",      alwaysFor: ["administrator", "faculty", "registrar_staff", "college_administrator", "registrar"] },
   { label: "Student List",        icon: ICON_LAYERS,   featureKey: "feat_student_list",  alwaysFor: ["administrator"] },
   { label: "Faculty Hub",         icon: ICON_PERSON,   featureKey: "feat_faculty_mgmt",  alwaysFor: ["administrator"] },
   { label: "Registrar Console",   icon: ICON_DOCUMENT, featureKey: "feat_registrar_mgmt",alwaysFor: ["administrator", "registrar_staff"] },
-  { label: "Student Attendance",  icon: ICON_CLOCK,    featureKey: "feat_student_attendance", alwaysFor: ["faculty", "administrator", "college_administrator"] },
+  { label: "Grade",               icon: ICON_SUBJECT,  featureKey: "feat_grade",             alwaysFor: ["faculty", "administrator"] },
+  { label: "Student User",        icon: ICON_CAP,      featureKey: "feat_student_portal",    alwaysFor: ["student", "administrator"] },
   { label: "Create Announcement", icon: ICON_BELL,     featureKey: "feat_announcements",  alwaysFor: ["administrator"] },
 ];
 
@@ -102,7 +104,6 @@ const ADMIN_SETTINGS_ITEMS = [
 const ROLE_TO_NAV_MAP = {
   studentlist:   { label: "Student List",        icon: ICON_LAYERS },
   student_list:  { label: "Student List",        icon: ICON_LAYERS },
-  student:       { label: "Student List",        icon: ICON_LAYERS },
 };
 
 export default function Dashboard({ user, onLogout, setIsLoading }) {
@@ -111,11 +112,15 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
   // so reloading the tab leaves them on the same page instead of bouncing
   // back to Overview Workspace.
   const [activeView, setActiveView]       = useState(() => {
+    // Students always land on their own portal, never the admin overview.
+    if (String(user?.role || "").toLowerCase() === "student") return "Student User";
     try { return sessionStorage.getItem("cca_dashboard_active_view") || "Overview Workspace"; }
     catch { return "Overview Workspace"; }
   });
   const [sidebarOpen, setSidebarOpen]     = useState(true);
   const [adminOpen, setAdminOpen]         = useState(false);
+  const [studentPortalOpen, setStudentPortalOpen] = useState(false);
+  const [myProfileOpen, setMyProfileOpen] = useState(true);
   const [metrics, setMetrics]             = useState({ students: 0, faculty: 0, announcements: 0, systemAccounts: 0 });
   const [features, setFeatures]           = useState({ feat_overview: 1, feat_student_list: 1, feat_faculty_mgmt: 1, feat_registrar_mgmt: 1, feat_announcements: 1 });
   const [loading, setLoading]             = useState(true);
@@ -127,6 +132,9 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef(null);
   const [myProfilePic, setMyProfilePic] = useState(null);
+  const [studentProfile, setStudentProfile] = useState(null);
+  const [studentMenuOpen, setStudentMenuOpen] = useState(false);
+  const studentMenuRef = useRef(null);
   const [todayEvents, setTodayEvents] = useState([]);
   const [notifOpen, setNotifOpen]     = useState(false);
   // seenCount persists across refreshes via sessionStorage.
@@ -181,10 +189,11 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
     if (!accountMenuOpen) return;
     const handler = (e) => {
       if (accountMenuRef.current && !accountMenuRef.current.contains(e.target)) setAccountMenuOpen(false);
+      if (studentMenuRef.current && !studentMenuRef.current.contains(e.target)) setStudentMenuOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [accountMenuOpen]);
+  }, [accountMenuOpen, studentMenuOpen]);
 
   // ── Fetch current user's full role list ──────────────────────────────────
   useEffect(() => {
@@ -199,6 +208,16 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
       })
       .catch(() => { if (user.role) setUserRoles([user.role.toLowerCase()]); });
   }, [user?.id]);
+
+  // ── Students: load avatar from their student record (not in erd_users) ──────
+  useEffect(() => {
+    const sid = user?.student_id;
+    if (!sid) return;
+    fetch(`${import.meta.env.VITE_API_URL}/api/erd/student/profile/${sid}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) { setStudentProfile(data); if (data.profile_picture) setMyProfilePic(data.profile_picture); } })
+      .catch(() => {});
+  }, [user?.student_id]);
 
   // ── PRESENCE HEARTBEAT ─────────────────────────────────────────────────────
   // Pings the backend every ~20s (and immediately on mount) while this user
@@ -370,7 +389,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
     background: activeView === label ? DARK_GREEN : "transparent",
     border: "none", borderRadius: "8px",
     color: activeView === label ? WHITE : DARK_GREEN,
-    fontSize: "12px", fontWeight: activeView === label ? 700 : 500,
+    fontSize: "12px", fontWeight: 400,
     textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "nowrap"
   });
 
@@ -508,7 +527,8 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
           )}
         </div>
 
-        {/* Account avatar + dropdown */}
+        {/* Account avatar + dropdown — hidden for students (they use the sidebar chip) */}
+        {_roleLc !== "student" && (
         <div ref={accountMenuRef} style={{ position: "relative" }}>
           <button
             onClick={() => setAccountMenuOpen(o => !o)}
@@ -550,6 +570,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
             </div>
           )}
         </div>
+        )}
         </div>{/* end right-side bell+avatar group */}
       </div>
 
@@ -558,8 +579,8 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
 
       {/* ── SIDEBAR ── */}
       <div className="app-sidebar" style={{
-        width: sidebarOpen ? "230px" : "64px",
-        minWidth: sidebarOpen ? "230px" : "64px",
+        width: sidebarOpen ? (_roleLc === "student" ? "234px" : "230px") : "64px",
+        minWidth: sidebarOpen ? (_roleLc === "student" ? "234px" : "230px") : "64px",
         background: "#ffffff",
         display: "flex", flexDirection: "column",
         borderRight: `1px solid #ffffff`,
@@ -584,6 +605,8 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
 
           {/* Main nav items — icon-only, centered, when collapsed */}
           {visibleNav.map(link => (
+            /* Admins access "Student User" via the Student Portal dropdown below */
+            (link.label === "Student User" && _roleLc !== "student") ? null :
             <button
               key={link.label}
               onClick={() => setActiveView(link.label)}
@@ -597,9 +620,84 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
               className="nav-interactive-btn"
             >
               <span style={{ fontSize: "13px" }}>{link.icon}</span>
-              {sidebarOpen && <span>{link.label}</span>}
+              {sidebarOpen && <span>{link.label === "Student User" && _roleLc === "student" ? "Dashboard" : link.label}</span>}
             </button>
           ))}
+
+          {/* My Profile accordion — only for students */}
+          {_roleLc === "student" && (
+            <div style={{ marginTop: "4px" }}>
+              <button
+                onClick={() => {
+                  if (!sidebarOpen) { setSidebarOpen(true); setMyProfileOpen(true); return; }
+                  setMyProfileOpen(o => !o);
+                }}
+                title={!sidebarOpen ? "My Profile" : undefined}
+                style={{
+                  display: "flex", alignItems: "center", gap: sidebarOpen ? "8px" : 0, width: "100%",
+                  justifyContent: sidebarOpen ? "flex-start" : "center",
+                  padding: sidebarOpen ? "8px 12px" : "10px 0",
+                  background: ["Personal Information", "Educational Background", "Family Background"].includes(activeView) ? DARK_GREEN : "transparent",
+                  border: "none", borderRadius: "8px",
+                  color: ["Personal Information", "Educational Background", "Family Background"].includes(activeView) ? WHITE : DARK_GREEN,
+                  fontSize: "12px", fontWeight: 400,
+                  textAlign: "left", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap"
+                }}
+                className="nav-interactive-btn"
+              >
+                <span style={{ fontSize: "13px", display: "flex" }}>{ICON_ACCOUNT}</span>
+                {sidebarOpen && <span style={{ flex: 1 }}>My Profile</span>}
+                {sidebarOpen && (
+                  <span style={{ fontSize: "11px", transition: "transform 0.2s", display: "inline-block", transform: myProfileOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+                )}
+              </button>
+
+              {sidebarOpen && myProfileOpen && (
+                <div style={{ marginTop: "2px", marginLeft: "12px", display: "flex", flexDirection: "column", gap: "2px" }}>
+                  {["Personal Information", "Educational Background", "Family Background"].map(label => (
+                    <button
+                      key={label}
+                      onClick={() => setActiveView(label)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "7px 12px",
+                        background: activeView === label ? DARK_GREEN : "transparent",
+                        border: "none",
+                        borderLeft: `2px solid ${activeView === label ? DARK_GREEN : "rgba(61,110,1,0.3)"}`,
+                        borderRadius: "0 8px 8px 0",
+                        color: activeView === label ? WHITE : DARK_GREEN, fontSize: "11px",
+                        fontWeight: activeView === label ? 700 : 400,
+                        textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "nowrap"
+                      }}
+                      className="subnav-interactive-btn"
+                    >
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Grades — standalone item for students */}
+          {_roleLc === "student" && (
+            <button
+              onClick={() => setActiveView("My Grades")}
+              title={!sidebarOpen ? "Grades" : undefined}
+              style={{
+                display: "flex", alignItems: "center", gap: sidebarOpen ? "8px" : 0, width: "100%", marginTop: "4px",
+                justifyContent: sidebarOpen ? "flex-start" : "center",
+                padding: sidebarOpen ? "8px 12px" : "10px 0",
+                background: activeView === "My Grades" ? DARK_GREEN : "transparent",
+                border: "none", borderRadius: "8px",
+                color: activeView === "My Grades" ? WHITE : DARK_GREEN,
+                fontSize: "12px", fontWeight: 400, textAlign: "left", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap"
+              }}
+              className="nav-interactive-btn"
+            >
+              <span style={{ fontSize: "13px", display: "flex" }}>{ICON_SUBJECT}</span>
+              {sidebarOpen && <span>Grades</span>}
+            </button>
+          )}
 
           {/* Admin Settings accordion — only for administrator */}
           {isAdmin && (
@@ -664,7 +762,130 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
               )}
             </div>
           )}
+
+          {/* Student Portal accordion — administrator only (same icon as Admin Settings) */}
+          {isAdmin && (
+            <div style={{ marginTop: "4px" }}>
+              <button
+                onClick={() => {
+                  if (!sidebarOpen) { setSidebarOpen(true); setStudentPortalOpen(true); return; }
+                  setStudentPortalOpen(o => !o);
+                }}
+                title={!sidebarOpen ? "Student Portal" : undefined}
+                style={{
+                  display: "flex", alignItems: "center", gap: sidebarOpen ? "8px" : 0, width: "100%",
+                  justifyContent: sidebarOpen ? "flex-start" : "center",
+                  padding: sidebarOpen ? "8px 12px" : "10px 0",
+                  background: activeView === "Student User" ? DARK_GREEN : "transparent",
+                  border: "none", borderRadius: "8px",
+                  color: activeView === "Student User" ? WHITE : DARK_GREEN,
+                  fontSize: "12px", fontWeight: 400,
+                  textAlign: "left", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap"
+                }}
+                className="nav-interactive-btn"
+              >
+                <span style={{ fontSize: "13px", display: "flex" }}>{ICON_GEAR}</span>
+                {sidebarOpen && <span style={{ flex: 1 }}>Student Portal</span>}
+                {sidebarOpen && (
+                  <span style={{ fontSize: "11px", transition: "transform 0.2s", display: "inline-block", transform: studentPortalOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+                )}
+              </button>
+
+              {sidebarOpen && studentPortalOpen && (
+                <div style={{ marginTop: "2px", marginLeft: "12px", display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <button
+                    onClick={() => setActiveView("Student User")}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "8px", width: "100%",
+                      padding: "7px 12px",
+                      background: activeView === "Student User" ? DARK_GREEN : "transparent",
+                      border: "none",
+                      borderLeft: `2px solid ${activeView === "Student User" ? DARK_GREEN : "rgba(61,110,1,0.3)"}`,
+                      borderRadius: "0 8px 8px 0",
+                      color: activeView === "Student User" ? WHITE : DARK_GREEN, fontSize: "11px",
+                      fontWeight: activeView === "Student User" ? 700 : 400,
+                      textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "nowrap"
+                    }}
+                    className="subnav-interactive-btn"
+                  >
+                    <span>{ICON_CAP}</span>
+                    <span>Student User</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveView("Dates to Remember")}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "8px", width: "100%",
+                      padding: "7px 12px",
+                      background: activeView === "Dates to Remember" ? DARK_GREEN : "transparent",
+                      border: "none",
+                      borderLeft: `2px solid ${activeView === "Dates to Remember" ? DARK_GREEN : "rgba(61,110,1,0.3)"}`,
+                      borderRadius: "0 8px 8px 0",
+                      color: activeView === "Dates to Remember" ? WHITE : DARK_GREEN, fontSize: "11px",
+                      fontWeight: activeView === "Dates to Remember" ? 700 : 400,
+                      textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "nowrap"
+                    }}
+                    className="subnav-interactive-btn"
+                  >
+                    <span>📅</span>
+                    <span>Dates to Remember</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* ── Student profile chip pinned to the bottom of the sidebar ── */}
+        {_roleLc === "student" && (
+          <div ref={studentMenuRef} style={{ position: "relative", zIndex: 3, padding: "8px", borderTop: `1px solid ${BORDER}`, background: "#ffffff" }}>
+            {studentMenuOpen && (
+              <div style={{ position: "absolute", bottom: "calc(100% - 2px)", left: 8, right: 8, background: WHITE, borderRadius: "12px", border: `1px solid ${BORDER}`, boxShadow: "0 -10px 28px rgba(0,0,0,0.16)", overflow: "hidden", zIndex: 30, animation: "mainWorkspaceFadeIn 0.16s ease" }}>
+                <div style={{ padding: "9px 14px", borderBottom: `1px solid ${BORDER}`, fontSize: "10px", fontWeight: 700, color: GRAY, textTransform: "uppercase", letterSpacing: "0.5px" }}>Account</div>
+                <button
+                  onClick={() => { setActiveView("Account Settings"); setStudentMenuOpen(false); }}
+                  className="subnav-interactive-btn"
+                  style={{ width: "100%", display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", background: "none", border: "none", textAlign: "left", fontSize: "13px", fontWeight: 600, color: DARK_GREEN, cursor: "pointer" }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  Settings
+                </button>
+                <button
+                  onClick={() => { setStudentMenuOpen(false); onLogout(); }}
+                  style={{ width: "100%", display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", background: "none", border: "none", borderTop: `1px solid ${BORDER}`, textAlign: "left", fontSize: "13px", fontWeight: 600, color: "#DC2626", cursor: "pointer" }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  Log out
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => { if (!sidebarOpen) { setSidebarOpen(true); setStudentMenuOpen(true); return; } setStudentMenuOpen(o => !o); }}
+              title={!sidebarOpen ? "Account" : undefined}
+              style={{
+                display: "flex", alignItems: "center", gap: sidebarOpen ? "10px" : 0, width: "100%",
+                justifyContent: sidebarOpen ? "flex-start" : "center",
+                padding: sidebarOpen ? "8px 10px" : "8px 0",
+                background: studentMenuOpen ? "#F3F4F6" : "#ffffff",
+                border: `1px solid ${BORDER}`, borderRadius: "12px", cursor: "pointer", transition: "background 0.15s",
+              }}
+            >
+              <span style={{ width: "32px", height: "32px", borderRadius: "50%", overflow: "hidden", background: DARK_GREEN, color: WHITE, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "12px", fontWeight: 700 }}>
+                {myProfilePic
+                  ? <img src={myProfilePic} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : `${(studentProfile?.first_name || "?").charAt(0)}${(studentProfile?.last_name || "").charAt(0)}`}
+              </span>
+              {sidebarOpen && (
+                <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 800, color: "#1f2937", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.1px" }}>
+                    {[studentProfile?.first_name || user?.first_name, studentProfile?.last_name || user?.last_name].filter(Boolean).join(" ") || user?.username || "Student"}
+                  </div>
+                  <div style={{ fontSize: "10px", color: GRAY }}>{studentProfile?.student_number || user?.student_number || ""}</div>
+                </div>
+              )}
+              {sidebarOpen && <span style={{ color: GRAY, fontSize: "15px", lineHeight: 1, flexShrink: 0 }}>›</span>}
+            </button>
+          </div>
+        )}
 
       </div>
 
@@ -672,8 +893,13 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
       <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
         <div style={{ padding: "12px" }} className="animated-content-wrapper">
 
+          {/* Students landing on the home view see their own portal, not the admin overview */}
+          {activeView === "Overview Workspace" && _roleLc === "student" && (
+            <StudentPortal user={user} onNavigate={setActiveView} />
+          )}
+
           {/* ── OVERVIEW WORKSPACE (no card wrapper, fits full width) ── */}
-          {activeView === "Overview Workspace" && !loading && (
+          {activeView === "Overview Workspace" && !loading && _roleLc !== "student" && (
             <>
               {/* Metric cards */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "12px", marginBottom: "16px" }}>
@@ -704,11 +930,13 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   {activeView === "Student List"        && <AddStudents user={user} />}
                   {activeView === "Faculty Hub"         && <Faculty />}
                   {activeView === "Registrar Console"   && <Registrar user={user} />}
-                  {activeView === "Student Attendance"  && (
-                    (isAdmin || String(user?.role || "").toLowerCase() === "college_administrator")
-                      ? <AttendanceAdmin />
-                      : <StudentAttendance user={user} />
-                  )}
+                  {activeView === "Grade"               && <FacultyGrades user={user} />}
+                  {activeView === "Student User"        && <StudentPortal user={user} onNavigate={setActiveView} />}
+                  {activeView === "Dates to Remember"  && <DatesToRemember />}
+                  {activeView === "Personal Information"   && <StudentPortal user={user} section="personal" />}
+                  {activeView === "Educational Background" && <StudentPortal user={user} section="education" />}
+                  {activeView === "Family Background"      && <StudentPortal user={user} section="family" />}
+                  {activeView === "My Grades"             && <StudentPortal user={user} section="grades" />}
                   {activeView === "Create Announcement" && (
                     <Announcements user={user} onPosted={() => {
                       fetchPortalData();

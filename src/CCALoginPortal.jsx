@@ -1,25 +1,19 @@
-import { useState, useEffect, useRef } from "react";
-import ccaLogo   from "./assets/cca_logo.svg";
-import alangSeal from "./assets/Alangalang.png";
+import { useState } from "react";
+import ccaFullLogo from "./assets/cca_logo_t.png";
+import alangSeal from "./assets/alangalang_seal.png";
 
 const GREEN      = "#3d6e01";
-const DARK_GREEN = "#3d6e01";
+const DARK_GREEN = "#2c4a1e";
 const GOLD       = "#F5A800";
 const WHITE      = "#FFFFFF";
 const GRAY       = "#6B7280";
-const BORDER     = "#D1D5DB";
-
-/* ── Animated floating orbs for the left panel ─────────── */
-const ORBS = [
-  { w:220, h:220, top:"8%",   left:"10%",  dur:"7s",  del:"0s",   op:0.07 },
-  { w:140, h:140, top:"65%",  left:"5%",   dur:"9s",  del:"1.5s", op:0.06 },
-  { w:180, h:180, top:"45%",  left:"68%",  dur:"8s",  del:"0.8s", op:0.05 },
-  { w:90,  h:90,  top:"80%",  left:"55%",  dur:"6s",  del:"2s",   op:0.09 },
-  { w:60,  h:60,  top:"15%",  left:"75%",  dur:"5s",  del:"1s",   op:0.10 },
-  { w:110, h:110, top:"30%",  left:"2%",   dur:"10s", del:"0.3s", op:0.06 },
-];
+const LIGHT_GRAY = "#9CA3AF";
+const BORDER     = "#E5E7EB";
+const LINK       = "#2563EB";
 
 export default function CCALoginPortal({ onLogin }) {
+  const [view,     setView]     = useState("choose");   // "choose" | "login" | "reset"
+  const [userType, setUserType] = useState("Employee"); // "Student" | "Employee"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPw,   setShowPw]   = useState(false);
@@ -27,23 +21,38 @@ export default function CCALoginPortal({ onLogin }) {
   const [error,    setError]    = useState("");
   const [focusU,   setFocusU]   = useState(false);
   const [focusP,   setFocusP]   = useState(false);
-  // Show "Back to Time Attendance" only when the user actually arrived here FROM
-  // the Time Attendance system; otherwise show "Go to Time Attendance". Uses the
-  // document referrer so it works even though the two systems are different origins.
-  const TA_URL = import.meta.env.VITE_TIME_ATTENDANCE_URL;
-  const cameFromTA = (() => {
-    try {
-      if (!TA_URL || !document.referrer) return false;
-      return new URL(document.referrer).host === new URL(TA_URL).host;
-    } catch { return false; }
-  })();
+  const [dark,     setDark]     = useState(() => {
+    try { return localStorage.getItem("cca_dark") === "1"; } catch { return false; }
+  });
+
+  const toggleDark = () => setDark(d => {
+    const next = !d;
+    try { localStorage.setItem("cca_dark", next ? "1" : "0"); } catch {}
+    return next;
+  });
+
+  // Theme palette — switches with dark mode
+  const t = dark ? {
+    pageBg: "radial-gradient(1200px 600px at 50% -10%, #0b1220 0%, #0f172a 45%, #111827 100%)",
+    card: "#1e293b", border: "#374151", text: "#F1F5F9", muted: "#94A3B8",
+    label: "#CBD5E1", inputBg: "#0f172a", footerPage: "#94A3B8",
+  } : {
+    pageBg: "radial-gradient(1200px 600px at 50% -10%, #eef6df 0%, #f6faf0 45%, #ffffff 100%)",
+    card: WHITE, border: BORDER, text: "#1f2937", muted: LIGHT_GRAY,
+    label: "#374151", inputBg: WHITE, footerPage: "#9CA3AF",
+  };
+
+  const pick = (type) => { setUserType(type); setError(""); setView("login"); };
+  const back = () => { setView("choose"); setError(""); setUsername(""); setPassword(""); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) { setError("Please fill in both fields."); return; }
     setLoading(true); setError("");
     try {
-      const res  = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/auth/login`, {
+      // Students authenticate against erd_student_user; employees against erd_users.
+      const endpoint = userType === "Student" ? "/api/erd/auth/student-login" : "/api/erd/auth/login";
+      const res  = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
@@ -55,300 +64,260 @@ export default function CCALoginPortal({ onLogin }) {
     finally { setLoading(false); }
   };
 
-  const inputStyle = (focused) => ({
-    width: "100%", padding: "11px 42px 11px 40px",
-    border: `1.5px solid ${focused ? GREEN : BORDER}`,
-    borderRadius: 8, fontSize: 13, color: "#111827",
-    background: focused ? "#f2f9e8" : WHITE,
-    outline: "none", boxSizing: "border-box",
-    boxShadow: focused ? `0 0 0 3px rgba(46,125,50,0.13)` : "none",
-    fontFamily: "inherit", transition: "border-color 0.2s, box-shadow 0.2s, background 0.2s",
-  });
-
   return (
     <>
     <style>{`
-      /* ── entrance ── */
-      @keyframes slideInLeft  { from{opacity:0;transform:translateX(-40px)} to{opacity:1;transform:translateX(0)} }
-      @keyframes slideInRight { from{opacity:0;transform:translateX(40px)}  to{opacity:1;transform:translateX(0)} }
-      @keyframes fadeUp       { from{opacity:0;transform:translateY(20px)}  to{opacity:1;transform:translateY(0)} }
-      /* ── continuous ── */
-      @keyframes orbFloat     { 0%,100%{transform:translateY(0px) scale(1)} 50%{transform:translateY(-18px) scale(1.04)} }
-      @keyframes shimmer      { 0%{background-position:-200% center} 100%{background-position:200% center} }
-      @keyframes spin         { to{transform:rotate(360deg)} }
-      @keyframes errorShake   { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
-      @keyframes pulseDot     { 0%,100%{opacity:0.6;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
-      @keyframes lineGrow     { from{width:0} to{width:500px} }
-      /* ── classes ── */
-      .cca-left    { animation: slideInLeft  0.7s cubic-bezier(0.22,1,0.36,1) both; }
-      .cca-right   { animation: slideInRight 0.7s 0.12s cubic-bezier(0.22,1,0.36,1) both; }
-      .cca-tag     { animation: fadeUp 0.6s 0.5s both; }
-      .cca-name1   { animation: fadeUp 0.6s 0.3s both; }
-      .cca-name2   { animation: fadeUp 0.6s 0.4s both; }
-      .cca-line    { animation: lineGrow 0.8s 0.6s cubic-bezier(0.22,1,0.36,1) both; }
-      .form-field  { animation: fadeUp 0.5s both; }
-      .login-btn:hover:not(:disabled){ background:${DARK_GREEN}!important; box-shadow:0 8px 24px rgba(27,94,32,0.42)!important; transform:translateY(-2px)!important; }
-      .login-btn:active:not(:disabled){ transform:translateY(0)!important; }
-      .pw-eye:hover{ color:${GREEN}!important; }
-      .shimmer-bar {
-        background: linear-gradient(90deg, ${GOLD} 0%, #ffe066 40%, ${GOLD} 60%, #c47f00 100%);
-        background-size: 200% auto;
-        animation: shimmer 2.4s linear infinite;
+      @keyframes fadeUp   { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+      @keyframes spin     { to{transform:rotate(360deg)} }
+      @keyframes errShake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+      .cca-card    { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+      /* Moving light that travels along the card's border (all four edges) */
+      @keyframes cardGlowSpin { to { transform: translate(-50%,-50%) rotate(360deg); } }
+      .card-shell { position: relative; width: 100%; max-width: 354px; border-radius: 18px; }
+      /* the border-ring frame: only a thin stroke shows, on every edge */
+      .card-light {
+        position: absolute; inset: 0; border-radius: 18px; z-index: 3; pointer-events: none;
+        padding: 2.5px; overflow: hidden;
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+                mask-composite: exclude;
       }
+      .card-light-halo { z-index: 2; padding: 3.5px; }
+      .card-light-halo .card-light-inner { filter: blur(4px); }
+      /* the spinning gradient underneath the mask; the lit arc = travelling light */
+      .card-light-inner {
+        position: absolute; top: 50%; left: 50%;
+        width: 620px; height: 620px; transform: translate(-50%,-50%);
+        background: conic-gradient(
+          transparent 0deg, transparent 210deg,
+          ${GREEN} 250deg, ${GOLD} 300deg, #fff8c4 322deg, ${GOLD} 342deg,
+          ${GREEN} 356deg, transparent 360deg);
+        animation: cardGlowSpin 4s linear infinite;
+        will-change: transform;
+      }
+      .role-btn    { transition: border-color 0.18s, box-shadow 0.18s, transform 0.12s, background 0.18s; }
+      .role-btn:hover  { border-color:${GREEN}!important; box-shadow:0 6px 18px rgba(61,110,1,0.14); transform:translateY(-2px); background:#f7fbef; }
+      .role-btn:active { transform:translateY(0); }
+      .role-btn:hover .role-ico { color:${GREEN}; }
+      .link-btn:hover  { text-decoration:underline; }
+      .signin-btn:hover:not(:disabled){ box-shadow:0 8px 22px rgba(27,94,32,0.32); transform:translateY(-2px); }
+      .signin-btn:active:not(:disabled){ transform:translateY(0); }
+      .pw-eye:hover{ color:${GREEN}!important; }
     `}</style>
 
-    <div style={{ display:"flex", height:"100vh", overflow:"hidden", fontFamily:"system-ui,-apple-system,sans-serif" }}>
-
-      {/* ════════════ LEFT PANEL ════════════ */}
-      <div className="cca-left" style={{
-        flex: "0 0 65%",
-        background: WHITE,
-        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-        position:"relative", overflow:"hidden", padding:"40px 60px",
-      }}>
-
-        {/* Animated orbs */}
-        {ORBS.map((o,i) => (
-          <div key={i} style={{
-            position:"absolute", top:o.top, left:o.left,
-            width:o.w, height:o.h, borderRadius:"50%",
-            background:"rgba(46,125,50,0.07)",
-            animation:`orbFloat ${o.dur} ${o.del} ease-in-out infinite`,
-            pointerEvents:"none",
-          }} />
-        ))}
-
-        {/* Dot grid */}
-        <DotPattern />
-
-        {/* ── Main brand block ── */}
-        <div style={{ display:"flex",flexDirection:"column",alignItems:"center",position:"relative",zIndex:2,marginTop:"-230px" }}>
-          <img src={ccaLogo} alt="CCA" style={{ width:220,height:220,objectFit:"contain",filter:"drop-shadow(0 8px 24px rgba(0,0,0,0.12))" }} />
-          <div style={{ marginTop:-20,textAlign:"center" }}>
-            <div className="cca-name1" style={{ fontSize:38,letterSpacing:10,textTransform:"uppercase",color:GRAY,fontWeight:700,marginBottom:12 }}>Community College of</div>
-            <div className="cca-name2" style={{ fontSize:112,fontWeight:900,color:GOLD,letterSpacing:4,textTransform:"uppercase",textShadow:"0 2px 12px rgba(0,0,0,0.10)",lineHeight:1 }}>Alangalang</div>
-            <div className="cca-line shimmer-bar" style={{ height:4,width:500,borderRadius:2,margin:"18px auto 0" }} />
-
-            {/* Core values */}
-            <div style={{ marginTop:64, display:"inline-flex", alignItems:"center", gap:0 }}>
-              {["Innovation","Integrity","Inclusivity","Excellence"].map((val, i, arr) => (
-                <span key={val} style={{ display:"flex", alignItems:"center" }}>
-                  <span style={{
-                    fontSize:13, fontWeight:700, color:DARK_GREEN,
-                    letterSpacing:2, textTransform:"uppercase",
-                    padding:"0 20px",
-                  }}
-                  onMouseOver={e => e.currentTarget.style.color = GOLD}
-                  onMouseOut={e  => e.currentTarget.style.color = DARK_GREEN}
-                  >{val}</span>
-                  {i < arr.length - 1 && (
-                    <span style={{ width:1, height:18, background:GOLD, opacity:0.7, display:"inline-block" }} />
-                  )}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ════════════ RIGHT PANEL ════════════ */}
-      <div className="cca-right" style={{
-        flex: 1,
-        background: `linear-gradient(160deg, #eaf2d9 0%, #f1f8e9 50%, #ffffff 100%)`,
+    <div style={{
+      position:"relative",
+      height:"100vh", width:"100vw", overflow:"hidden",
+      display:"flex", alignItems:"center", justifyContent:"center",
+      background: t.pageBg,
+      fontFamily:"system-ui,-apple-system,'Segoe UI',sans-serif",
+      padding:"24px", boxSizing:"border-box",
+      transition:"background 0.3s ease",
+    }}>
+      {/* ── Centered card (with animated glow border) ── */}
+      <div className="card-shell">
+      <div className="card-light card-light-halo" aria-hidden="true"><div className="card-light-inner" /></div>
+      <div className="card-light" aria-hidden="true"><div className="card-light-inner" /></div>
+      <div className="cca-card" style={{
+        position:"relative", zIndex:1, boxSizing:"border-box",
+        width:"100%", maxWidth:354, height: view === "choose" ? 464 : 514,
+        background: t.card,
+        borderRadius:18,
+        border:`1px solid ${t.border}`,
+        boxShadow: dark ? "0 20px 60px rgba(0,0,0,0.5)" : "0 20px 60px rgba(17,24,39,0.10), 0 2px 8px rgba(17,24,39,0.04)",
+        padding:"20px 22px 94px",
+        overflow:"hidden",
         display:"flex", flexDirection:"column",
-        alignItems:"stretch", justifyContent:"stretch",
-        position:"relative", minWidth:0, overflow:"hidden",
+        transition:"background 0.3s ease, border-color 0.3s ease",
       }}>
 
-        {/* Decorative blobs */}
-        <div style={{ position:"absolute",top:"-40px",right:"-40px",width:180,height:180,borderRadius:"50%",background:"rgba(46,125,50,0.06)",pointerEvents:"none" }} />
-        <div style={{ position:"absolute",bottom:"-60px",left:"-30px",width:200,height:200,borderRadius:"50%",background:"rgba(245,168,0,0.05)",pointerEvents:"none" }} />
+        {/* College logo */}
+        <div style={{ display:"flex", justifyContent:"center", marginBottom:8, marginTop:0 }}>
+          <img src={ccaFullLogo} alt="Community College of Alangalang" style={{ width:"100%", maxWidth:280, height:"auto", objectFit:"contain" }} />
+        </div>
 
-        {/* Dot pattern */}
-        <div style={{ position:"absolute",inset:0,backgroundImage:`radial-gradient(circle, rgba(46,125,50,0.07) 1.2px, transparent 1.2px)`,backgroundSize:"22px 22px",pointerEvents:"none" }} />
+        {view === "choose" && (
+          <>
+            <h1 style={{ textAlign:"center", fontSize:40, fontWeight:800, color:t.text, margin:"18px 0 4px", fontFamily:'"Times New Roman", Times, serif' }}>Account Login</h1>
+            <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"10px 0 16px" }}>Login to manage your CCA-PORTAL Account</p>
 
-        {/* Full-height glassmorphism card */}
-        <div style={{
-          flex:1,
-          background:"rgba(255,255,255,0.75)",
-          backdropFilter:"blur(18px)",
-          WebkitBackdropFilter:"blur(18px)",
-          border:"none",
-          borderLeft:"1px solid rgba(255,255,255,0.90)",
-          boxShadow:"-4px 0 24px rgba(27,94,32,0.07)",
-          padding:"0 32px",
-          position:"relative", zIndex:1,
-          display:"flex", flexDirection:"column", justifyContent:"center",
-        }}>
-
-          {/* Top shimmer accent */}
-          <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${GOLD},${GREEN},${GOLD})`,backgroundSize:"200% auto",animation:"shimmer 2.4s linear infinite" }} />
-
-          {/* Heading */}
-          <div style={{ textAlign:"center",marginBottom:20 }}>
-            <div style={{ fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:GREEN,marginBottom:5,whiteSpace:"nowrap" }}>Education Management Information System</div>
-            <div style={{ fontSize:20,fontWeight:900,color:DARK_GREEN,marginBottom:3,letterSpacing:0.3 }}>Welcome Back 👋</div>
-            <div style={{ fontSize:11,color:GRAY }}>Sign in to continue to your account</div>
-          </div>
-
-          <form onSubmit={handleSubmit} style={{ display:"flex",flexDirection:"column",gap:0,width:"100%",maxWidth:280,margin:"0 auto" }}>
-
-            {error && (
-              <div style={{ marginBottom:12,padding:"8px 12px",background:"#FEF2F2",border:"1px solid #FCA5A5",borderRadius:7,color:"#991B1B",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:7,animation:"errorShake 0.38s ease" }}>
-                <span>⚠️</span><span>{error}</span>
-              </div>
-            )}
-
-            {/* Username — floating label box */}
-            <div style={{ marginBottom:20, position:"relative" }}>
-              <div style={{
-                position:"relative",
-                border:`1.8px solid ${focusU ? GREEN : username ? DARK_GREEN : BORDER}`,
-                borderRadius:10,
-                background: WHITE,
-                transition:"border-color 0.2s, box-shadow 0.2s",
-                boxShadow: focusU ? `0 0 0 3px rgba(46,125,50,0.13)` : "none",
-              }}>
-                {/* Floating label */}
-                <label style={{
-                  position:"absolute", left:36, top:"50%",
-                  transform: (focusU || username) ? "translateY(-50%) scale(0.82)" : "translateY(-50%)",
-                  top: (focusU || username) ? 0 : "50%",
-                  transformOrigin:"left center",
-                  fontSize:13, fontWeight:600,
-                  color: focusU ? GREEN : username ? DARK_GREEN : "#9CA3AF",
-                  pointerEvents:"none", transition:"all 0.18s ease",
-                  background: WHITE, padding:"0 4px", lineHeight:1,
-                  whiteSpace:"nowrap",
-                }}>Username</label>
-                {/* Icon */}
-                <span style={{ position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",color:focusU?GREEN:"#9CA3AF",transition:"color 0.2s" }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                </span>
-                <input type="text" autoComplete="username" value={username}
-                  onChange={e=>{setUsername(e.target.value);setError("");}}
-                  onFocus={()=>setFocusU(true)} onBlur={()=>setFocusU(false)}
-                  style={{ width:"100%", padding:"14px 40px 6px 36px", border:"none", borderRadius:10, fontSize:13, color:"#111827", background:"transparent", outline:"none", boxSizing:"border-box", fontFamily:"inherit" }}
-                  disabled={loading} />
-              </div>
-            </div>
-
-            {/* Password — floating label box */}
-            <div style={{ marginBottom:22, position:"relative" }}>
-              <div style={{
-                position:"relative",
-                border:`1.8px solid ${focusP ? GREEN : password ? DARK_GREEN : BORDER}`,
-                borderRadius:10,
-                background: WHITE,
-                transition:"border-color 0.2s, box-shadow 0.2s",
-                boxShadow: focusP ? `0 0 0 3px rgba(46,125,50,0.13)` : "none",
-              }}>
-                {/* Floating label */}
-                <label style={{
-                  position:"absolute", left:36, top:"50%",
-                  transform: (focusP || password) ? "translateY(-50%) scale(0.82)" : "translateY(-50%)",
-                  top: (focusP || password) ? 0 : "50%",
-                  transformOrigin:"left center",
-                  fontSize:13, fontWeight:600,
-                  color: focusP ? GREEN : password ? DARK_GREEN : "#9CA3AF",
-                  pointerEvents:"none", transition:"all 0.18s ease",
-                  background: WHITE, padding:"0 4px", lineHeight:1,
-                  whiteSpace:"nowrap",
-                }}>Password</label>
-                {/* Lock icon */}
-                <span style={{ position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",color:focusP?GREEN:"#9CA3AF",transition:"color 0.2s" }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-                </span>
-                <input type={showPw?"text":"password"} autoComplete="current-password" value={password}
-                  onChange={e=>{setPassword(e.target.value);setError("");}}
-                  onFocus={()=>setFocusP(true)} onBlur={()=>setFocusP(false)}
-                  style={{ width:"100%", padding:"14px 40px 6px 36px", border:"none", borderRadius:10, fontSize:13, color:"#111827", background:"transparent", outline:"none", boxSizing:"border-box", fontFamily:"inherit" }}
-                  disabled={loading} />
-                {/* Eye toggle */}
-                <button type="button" className="pw-eye" onClick={()=>setShowPw(p=>!p)} tabIndex={-1}
-                  style={{ position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:"#9CA3AF",padding:"2px 4px",lineHeight:1,transition:"color 0.15s" }}>
-                  {showPw
-                    ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                    : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  }
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" className="login-btn" disabled={loading} style={{
-              width:"100%", padding:"11px",
-              background: loading ? "#9CA3AF" : `linear-gradient(135deg,${DARK_GREEN},${GREEN})`,
-              color:WHITE, border:"none", borderRadius:9,
-              fontSize:13, fontWeight:800, letterSpacing:1,
-              cursor: loading?"not-allowed":"pointer",
-              boxShadow: loading?"none":"0 5px 18px rgba(27,94,32,0.32)",
-              transition:"all 0.2s ease",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-            }}>
-              {loading
-                ? <><span style={{ width:13,height:13,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.35)",borderTopColor:WHITE,display:"inline-block",animation:"spin 0.75s linear infinite" }} />Signing in...</>
-                : "Sign In →"
-              }
+            <button className="role-btn" onClick={()=>pick("Student")} style={{ ...roleBtnStyle, marginTop:10, background:t.card, border:`1.5px solid ${t.border}`, color:t.text }}>
+              <GradCapIcon />
+              <span style={roleLabel}>Login as Student</span>
             </button>
 
-            {/* Go to / Back to Time Attendance System — URL via VITE_TIME_ATTENDANCE_URL */}
-            {TA_URL && (
-              <div style={{ display:"flex", justifyContent:"flex-end", width:"100%", marginTop:10 }}>
-                <a href={TA_URL} style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:12, fontWeight:700, color:DARK_GREEN, textDecoration:"none", letterSpacing:0.3 }}>
-                  {cameFromTA ? "← Back to Time Attendance" : "Go to Time Attendance"}
-                  {!cameFromTA && (
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                  )}
-                </a>
-              </div>
-            )}
+            <button className="role-btn" onClick={()=>pick("Employee")} style={{ ...roleBtnStyle, marginTop:11, background:t.card, border:`1.5px solid ${t.border}`, color:t.text }}>
+              <BriefcaseIcon />
+              <span style={roleLabel}>Login as Employee</span>
+            </button>
 
-            {/* Developed by */}
-            <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:8,marginTop:65,paddingTop:20,borderTop:`1px solid ${BORDER}` }}>
-              <span style={{ fontSize:10,fontWeight:700,color:GRAY,letterSpacing:2,textTransform:"uppercase" }}>Developed by</span>
-              <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-                <img src={alangSeal} alt="Alangalang Seal" style={{ width:48,height:48,borderRadius:"50%",objectFit:"cover",border:`2px solid ${BORDER}` }} />
-                <div>
-                  <div style={{ fontSize:15,fontWeight:800,color:DARK_GREEN,lineHeight:1.3 }}>Municipality of Alangalang</div>
-                  <div style={{ fontSize:12,fontStyle:"italic",color:GRAY,lineHeight:1.3 }}>Leyte, Philippines</div>
+          </>
+        )}
+
+        {view === "login" && (
+          <>
+            <h1 style={{ textAlign:"center", fontSize:40, fontWeight:800, color:t.text, margin:"20px 0 4px", fontFamily:'"Times New Roman", Times, serif' }}>Account Login</h1>
+            <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"10px 0 10px" }}>Login to manage your CCA-PORTAL Account</p>
+
+            <form onSubmit={handleSubmit} style={{ display:"flex", flexDirection:"column", marginTop:-5 }}>
+              {error && (
+                <div style={{ marginBottom:14, padding:"9px 12px", background:"#FEF2F2", border:"1px solid #FCA5A5", borderRadius:9, color:"#991B1B", fontSize:12, fontWeight:600, display:"flex", alignItems:"center", gap:7, animation:"errShake 0.38s ease" }}>
+                  <span>⚠️</span><span>{error}</span>
+                </div>
+              )}
+
+              {/* ID Number */}
+              <div style={{ marginBottom:8 }}>
+                <label style={{ ...labelStyle, color:t.label }}>{userType} ID Number <span style={{ color:"#EF4444" }}>*</span></label>
+                <input type="text" autoComplete="username" placeholder={`${userType} ID`} value={username}
+                  onChange={e=>{setUsername(e.target.value);setError("");}}
+                  onFocus={()=>setFocusU(true)} onBlur={()=>setFocusU(false)}
+                  style={{ ...cleanInput(focusU), background:t.inputBg, color:t.text, border:`1.5px solid ${focusU ? GREEN : t.border}` }} disabled={loading} />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label style={{ ...labelStyle, color:t.label }}>Password <span style={{ color:"#EF4444" }}>*</span></label>
+                <div style={{ position:"relative" }}>
+                  <input type={showPw?"text":"password"} autoComplete="current-password" placeholder="Your password" value={password}
+                    onChange={e=>{setPassword(e.target.value);setError("");}}
+                    onFocus={()=>setFocusP(true)} onBlur={()=>setFocusP(false)}
+                    style={{ ...cleanInput(focusP), paddingRight:42, background:t.inputBg, color:t.text, border:`1.5px solid ${focusP ? GREEN : t.border}` }} disabled={loading} />
+                  <button type="button" className="pw-eye" onClick={()=>setShowPw(p=>!p)} tabIndex={-1}
+                    style={{ position:"absolute", right:13, top:"50%", transform:"translateY(-50%)", border:"none", background:"none", cursor:"pointer", color:LIGHT_GRAY, padding:"2px 4px", lineHeight:1 }}>
+                    {showPw
+                      ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                  </button>
                 </div>
               </div>
+
+              <button type="submit" className="signin-btn" disabled={loading} style={{
+                marginTop:10, width:"100%", padding:"8px",
+                background: loading ? LIGHT_GRAY : `linear-gradient(135deg,${DARK_GREEN},${GREEN})`,
+                color:WHITE, border:"none", borderRadius:9,
+                fontSize:12, fontWeight:800, letterSpacing:0.3,
+                cursor: loading?"not-allowed":"pointer",
+                boxShadow: loading?"none":"0 4px 12px rgba(27,94,32,0.26)",
+                transition:"all 0.2s ease",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+              }}>
+                {loading
+                  ? <><span style={{ width:13,height:13,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.35)",borderTopColor:WHITE,display:"inline-block",animation:"spin 0.75s linear infinite" }} />Signing in...</>
+                  : `Login as ${userType} →`
+                }
+              </button>
+            </form>
+
+            <div style={{ textAlign:"center", marginTop:8 }}>
+              <button className="link-btn" onClick={back} style={{ ...linkStyle, color:GRAY }}>← Back</button>
             </div>
-          </form>
+          </>
+        )}
 
-          {/* Footer */}
-          <div style={{ position:"absolute",bottom:14,left:0,right:0,textAlign:"center",fontSize:9,color:"#9CA3AF" }}>
-            © {new Date().getFullYear()} Community College of Alangalang — All rights reserved
-          </div>
+        {view === "reset" && (
+          <>
+            <h1 style={{ textAlign:"center", fontSize:23, fontWeight:800, color:t.text, margin:"0 0 6px" }}>Reset Password</h1>
+            <p style={{ textAlign:"center", fontSize:13, color:t.muted, lineHeight:1.6, margin:"0 0 24px" }}>
+              To reset your account password, please contact the Registrar / IT Support Office.
+              Bring a valid ID for verification.
+            </p>
+            <div style={{ textAlign:"center" }}>
+              <button className="link-btn" onClick={()=>setView("choose")} style={linkStyle}>← Back to login</button>
+            </div>
+          </>
+        )}
 
-          {/* Bottom shimmer accent */}
-          <div style={{ position:"absolute",bottom:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${GREEN},${GOLD},${GREEN})`,backgroundSize:"200% auto",animation:"shimmer 2.4s linear infinite reverse" }} />
+        {/* Footer — Developed by (fixed to card bottom) */}
+        <div style={{ position:"absolute", left:22, right:22, bottom:14, paddingTop:12, borderTop:`1px solid ${t.border}`, display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+          <img src={alangSeal} alt="Alangalang Seal" style={{ width:52, height:52, objectFit:"contain" }} />
+          <span style={{ fontSize:10, color:t.muted }}>Developed by IT Support Office</span>
         </div>
       </div>
+      </div>
 
+      {/* ── Page footer ── */}
+      <div style={{ position:"absolute", bottom:16, left:0, right:0, textAlign:"center", color:t.footerPage, fontSize:10, lineHeight:1.7, pointerEvents:"none" }}>
+        <div>CCA SYSTEM &nbsp;|&nbsp; Data Privacy Statement</div>
+        <div>CCA PORTAL v1 — Copyright © 2026 Community College of Alangalang. All Rights Reserved.</div>
+      </div>
+
+      {/* ── Dark-mode toggle (bottom-right) ── */}
+      <button onClick={toggleDark} title={dark ? "Switch to light mode" : "Switch to dark mode"}
+        style={{
+          position:"absolute", bottom:16, right:20, width:30, height:30, borderRadius:"50%",
+          border:`1px solid ${t.border}`, background:t.card, color:t.text, cursor:"pointer",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          boxShadow:"0 4px 12px rgba(0,0,0,0.15)", transition:"all 0.2s ease",
+        }}>
+        {dark
+          ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        }
+      </button>
     </div>
     </>
   );
 }
 
-/* ── Dot grid ───────────────────────────────────────────── */
-function DotGrid({ side }) {
-  const dots = [];
-  const cols = 16, rows = 24, gap = 26;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const cx = c - cols / 2, cy = r - rows / 2;
-      const dist = Math.sqrt(cx * cx * 0.5 + cy * cy);
-      if (dist > 9) continue;
-      const opacity = Math.max(0.02, 0.14 - dist * 0.014);
-      dots.push(<circle key={`${r}-${c}`} cx={c * gap} cy={r * gap} r={2.2} fill={GREEN} opacity={opacity} />);
-    }
-  }
-  const w = cols * gap, h = rows * gap;
+/* ── Shared styles ── */
+const roleBtnStyle = {
+  width:"100%", padding:"10px 16px",
+  display:"flex", alignItems:"center", justifyContent:"center", gap:9,
+  background:WHITE, border:`1.5px solid ${BORDER}`, borderRadius:10,
+  cursor:"pointer", color:"#1f2937",
+};
+const roleLabel = { fontSize:13, fontWeight:700, letterSpacing:0.2 };
+const linkStyle = {
+  border:"none", background:"none", cursor:"pointer",
+  color:LINK, fontSize:12.5, fontWeight:700, fontFamily:"inherit", padding:0,
+};
+const inputStyle = {
+  width:"100%", padding:"10px 12px 10px 38px", border:"none",
+  borderRadius:10, fontSize:13, color:"#111827", background:"transparent",
+  outline:"none", boxSizing:"border-box", fontFamily:"inherit",
+};
+const labelStyle = {
+  display:"block", fontSize:11, fontWeight:600, color:"#374151",
+  marginBottom:4, marginLeft:2,
+};
+const cleanInput = (focused) => ({
+  width:"100%", padding:"7px 13px", borderRadius:18,
+  border:`1.5px solid ${focused ? GREEN : BORDER}`,
+  fontSize:12, color:"#111827", background:WHITE,
+  outline:"none", boxSizing:"border-box", fontFamily:"inherit",
+  boxShadow: focused ? `0 0 0 3px rgba(61,110,1,0.12)` : "none",
+  transition:"border-color 0.2s, box-shadow 0.2s",
+});
+const fieldWrap = (focused, val) => ({
+  position:"relative",
+  border:`1.6px solid ${focused ? GREEN : val ? DARK_GREEN : BORDER}`,
+  borderRadius:11, background:WHITE,
+  boxShadow: focused ? `0 0 0 3px rgba(61,110,1,0.12)` : "none",
+  transition:"border-color 0.2s, box-shadow 0.2s",
+});
+const fieldIcon = (focused) => ({
+  position:"absolute", left:13, top:"50%", transform:"translateY(-50%)",
+  pointerEvents:"none", color: focused ? GREEN : LIGHT_GRAY, transition:"color 0.2s",
+});
+
+/* ── Icons ── */
+function GradCapIcon() {
   return (
-    <svg style={{ position:"absolute",[side]:0,top:"50%",transform:"translateY(-50%)",width:430,height:640,zIndex:1,pointerEvents:"none" }} viewBox={`0 0 ${w} ${h}`}>
-      {dots}
-    </svg>
+    <span className="role-ico" style={{ color:GREEN, display:"flex", transition:"color 0.18s" }}>
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 2.5 2.5 6 2.5s6-1.5 6-2.5v-5"/>
+      </svg>
+    </span>
   );
 }
-function DotPattern() { return <><DotGrid side="left" /><DotGrid side="right" /></>; }
+function BriefcaseIcon() {
+  return (
+    <span className="role-ico" style={{ color:GREEN, display:"flex", transition:"color 0.18s" }}>
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+      </svg>
+    </span>
+  );
+}

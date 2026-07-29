@@ -7,16 +7,13 @@ const app = express();
 app.use(
   cors({
     origin: (origin, callback) => {
-      const allowedOrigins = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://192.168.0.118:5173",
-      ];
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS: origin not allowed: ${origin}`));
-      }
+      // Allow same-origin/tools (no Origin header), plus localhost and any
+      // private-LAN address (192.168.x, 10.x, 172.16–31.x) on ANY port. This
+      // means the app works from any machine on the network without editing
+      // this list each time an IP or port changes.
+      if (!origin) return callback(null, true);
+      const ok = /^https?:\/\/(localhost|127\.0\.0\.1|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})(?::\d+)?$/i.test(origin);
+      return ok ? callback(null, true) : callback(new Error(`CORS: origin not allowed: ${origin}`));
     },
     credentials: true,
   })
@@ -225,6 +222,77 @@ app.get("/api/erd/attendance", async (req, res) => {
   } catch (err) {
     console.error("GET /api/erd/attendance failed:", err);
     res.status(500).json({ message: "Failed to fetch attendance." });
+  }
+});
+
+// ─── GRADE LOCK ──────────────────────────────────────────────────────────────
+// When a faculty submits, the grades for that course+section+year are LOCKED
+// (faculty can no longer edit). Only an administrator can unlock.
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_grade_lock (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        course     VARCHAR(255) NULL,
+        section    VARCHAR(50)  NULL,
+        year_level VARCHAR(50)  NULL,
+        locked     TINYINT(1) NOT NULL DEFAULT 1,
+        locked_by  INT NULL,
+        locked_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_lock (course, section, year_level)
+      )
+    `);
+  } catch (err) { console.error("erd_grade_lock table init error:", err); }
+})();
+
+// Status for one selection, or (no query) all active locks for the admin view.
+app.get("/api/erd/grade-lock", async (req, res) => {
+  const { course, section, year_level } = req.query;
+  try {
+    if (course || section || year_level) {
+      const [rows] = await pool.query(
+        "SELECT locked FROM erd_grade_lock WHERE course <=> ? AND section <=> ? AND year_level <=> ? LIMIT 1",
+        [course || null, section || null, year_level || null]
+      );
+      return res.json({ locked: rows.length ? (rows[0].locked ? 1 : 0) : 0 });
+    }
+    const [rows] = await pool.query("SELECT * FROM erd_grade_lock WHERE locked = 1 ORDER BY locked_at DESC");
+    res.json(rows);
+  } catch (err) {
+    console.error("GET /api/erd/grade-lock failed:", err);
+    res.status(500).json({ locked: 0 });
+  }
+});
+
+// Faculty submits → lock.
+app.post("/api/erd/grade-lock", async (req, res) => {
+  const { course, section, year_level, faculty_id } = req.body || {};
+  try {
+    await pool.query(
+      `INSERT INTO erd_grade_lock (course, section, year_level, locked, locked_by)
+       VALUES (?, ?, ?, 1, ?)
+       ON DUPLICATE KEY UPDATE locked = 1, locked_by = VALUES(locked_by), locked_at = CURRENT_TIMESTAMP`,
+      [course || null, section || null, year_level || null, faculty_id ?? null]
+    );
+    res.json({ locked: 1 });
+  } catch (err) {
+    console.error("POST /api/erd/grade-lock failed:", err);
+    res.status(500).json({ message: "Failed to lock grades." });
+  }
+});
+
+// Administrator unlocks.
+app.post("/api/erd/grade-lock/unlock", async (req, res) => {
+  const { course, section, year_level } = req.body || {};
+  try {
+    await pool.query(
+      "UPDATE erd_grade_lock SET locked = 0 WHERE course <=> ? AND section <=> ? AND year_level <=> ?",
+      [course || null, section || null, year_level || null]
+    );
+    res.json({ locked: 0 });
+  } catch (err) {
+    console.error("POST /api/erd/grade-lock/unlock failed:", err);
+    res.status(500).json({ message: "Failed to unlock grades." });
   }
 });
 
@@ -987,6 +1055,73 @@ app.delete("/api/erd/rooms/:id", async (req, res) => {
   }
 });
 
+// ─── DATES TO REMEMBER (reflected on the student dashboard) ───────────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_dates_remember (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        title      VARCHAR(150) NOT NULL,
+        date_text  VARCHAR(120) NOT NULL DEFAULT '',
+        sort_order INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (err) { console.error("erd_dates_remember table init error:", err); }
+})();
+
+app.get("/api/erd/dates-to-remember", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, title, date_text, sort_order FROM erd_dates_remember ORDER BY sort_order ASC, id ASC"
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch dates to remember." });
+  }
+});
+
+app.post("/api/erd/dates-to-remember", async (req, res) => {
+  const { title, date_text, sort_order } = req.body;
+  if (!title || !title.trim()) return res.status(400).json({ message: "Title is required." });
+  try {
+    const [result] = await pool.query(
+      "INSERT INTO erd_dates_remember (title, date_text, sort_order) VALUES (?,?,?)",
+      [title.trim(), (date_text || "").trim(), Number(sort_order) || 0]
+    );
+    res.status(201).json({ id: result.insertId, title: title.trim(), date_text: (date_text || "").trim(), sort_order: Number(sort_order) || 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to add date." });
+  }
+});
+
+app.put("/api/erd/dates-to-remember/:id", async (req, res) => {
+  const { title, date_text, sort_order } = req.body;
+  if (!title || !title.trim()) return res.status(400).json({ message: "Title is required." });
+  try {
+    await pool.query(
+      "UPDATE erd_dates_remember SET title=?, date_text=?, sort_order=? WHERE id=?",
+      [title.trim(), (date_text || "").trim(), Number(sort_order) || 0, req.params.id]
+    );
+    res.json({ id: Number(req.params.id), title: title.trim(), date_text: (date_text || "").trim(), sort_order: Number(sort_order) || 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to update date." });
+  }
+});
+
+app.delete("/api/erd/dates-to-remember/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_dates_remember WHERE id=?", [req.params.id]);
+    res.json({ message: "Date deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete date." });
+  }
+});
+
 // ─── SCHOOL YEAR ─────────────────────────────────────────────────────────────
 (async () => {
   try {
@@ -1212,6 +1347,260 @@ app.get("/api/erd/students", async (req, res) => {
   }
 });
 
+// GET a single student record linked to a logged-in user account (erd_users.id).
+// Used by the student-facing portal so a signed-in student can load their own
+// profile, course, year level and section.
+app.get("/api/erd/student/by-user/:usersId", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT s.id, s.student_number, s.year_level, s.section, s.year_enrolled, s.users_id,
+              s.graduation_status,
+              COALESCE(s.first_name,  u.first_name)  AS first_name,
+              COALESCE(s.middle_name, u.middle_name) AS middle_name,
+              COALESCE(s.last_name,   u.last_name)   AS last_name,
+              COALESCE(s.gender,      u.gender)      AS gender,
+              COALESCE(s.profile_picture, u.profile_picture) AS profile_picture,
+              c.course,
+              s.email, s.mobile, s.birthdate, s.place_of_birth,
+              s.barangay, s.municipality, s.province, s.zip_code,
+              s.religion, s.citizenship, s.status, s.classification
+       FROM erd_student s
+       LEFT JOIN erd_users u ON s.users_id = u.id
+       LEFT JOIN erd_course c ON s.course_id = c.id
+       WHERE s.users_id = ?
+       LIMIT 1`,
+      [req.params.usersId]
+    );
+    if (!rows.length) return res.status(404).json({ message: "No student profile is linked to this account." });
+    const r = rows[0];
+    res.json({
+      id: r.id,
+      users_id: r.users_id,
+      student_number: r.student_number,
+      first_name: r.first_name,
+      middle_name: r.middle_name,
+      last_name: r.last_name,
+      gender: r.gender || null,
+      profile_picture: r.profile_picture || null,
+      course: r.course || null,
+      year_level: r.year_level || null,
+      section: r.section || null,
+      year_enrolled: r.year_enrolled || null,
+      graduation_status: r.graduation_status || null,
+      email: r.email || null,
+      mobile: r.mobile || null,
+      birthdate: r.birthdate ? r.birthdate.toISOString().split("T")[0] : null,
+      place_of_birth: r.place_of_birth || null,
+      barangay: r.barangay || null,
+      municipality: r.municipality || null,
+      province: r.province || null,
+      zip_code: r.zip_code || null,
+      religion: r.religion || null,
+      citizenship: r.citizenship || null,
+      status: r.status || null,
+      classification: r.classification || null,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load the student profile for this account." });
+  }
+});
+
+// Link (or unlink) a login account (erd_users.id) to a student record.
+// Body: { users_id }  — pass null/empty to unlink. Each account maps to at most
+// one student, so any student already holding that users_id is cleared first.
+app.post("/api/erd/student/:id/link-user", async (req, res) => {
+  const studentId = req.params.id;
+  const usersId = req.body.users_id ? parseInt(req.body.users_id, 10) : null;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    if (usersId) {
+      // clear this account from any other student first (one account = one student)
+      await conn.query("UPDATE erd_student SET users_id = NULL WHERE users_id = ? AND id <> ?", [usersId, studentId]);
+    }
+    await conn.query("UPDATE erd_student SET users_id = ? WHERE id = ?", [usersId, studentId]);
+    await conn.commit();
+    res.json({ message: usersId ? "Account linked to student." : "Account unlinked from student." });
+  } catch (err) {
+    await conn.rollback();
+    console.error(err);
+    res.status(500).json({ message: "Failed to update the account-student link." });
+  } finally {
+    conn.release();
+  }
+});
+
+// ─── STUDENT LOGIN ACCOUNTS (separate table: erd_student_user) ────────────────
+// Employees live in erd_users; students live here. Auto-create the table.
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_student_user (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        student_id INT NOT NULL,
+        username VARCHAR(100) NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        is_active TINYINT NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_student (student_id),
+        UNIQUE KEY uniq_username (username),
+        FOREIGN KEY (student_id) REFERENCES erd_student(id) ON DELETE CASCADE
+      )
+    `);
+    console.log("[INIT] erd_student_user table ensured.");
+  } catch (err) {
+    console.error("[INIT] erd_student_user table creation failed:", err.message);
+  }
+})();
+
+// Student login — checks erd_student_user (NOT erd_users).
+app.post("/api/erd/auth/student-login", async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const [rows] = await pool.query(
+      `SELECT su.id, su.username, su.student_id, su.is_active,
+              s.first_name, s.middle_name, s.last_name, s.student_number
+       FROM erd_student_user su
+       JOIN erd_student s ON su.student_id = s.id
+       WHERE su.username = ? AND su.password = ?`,
+      [username, password]
+    );
+    if (rows.length === 0) return res.status(401).json({ message: "Invalid student number or password." });
+    if (!rows[0].is_active) return res.status(403).json({ message: "This student account is currently suspended." });
+    const r = rows[0];
+    res.json({
+      id: r.id, role: "student", student_id: r.student_id,
+      username: r.username, student_number: r.student_number,
+      first_name: r.first_name || "", middle_name: r.middle_name || "", last_name: r.last_name || "",
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Student authentication gateway error." });
+  }
+});
+
+// List all student login accounts (for the admin linking table).
+app.get("/api/erd/student-users", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, student_id, username, is_active FROM erd_student_user"
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to list student accounts." });
+  }
+});
+
+// Student profile by erd_student.id — used by the logged-in student's portal.
+app.get("/api/erd/student/profile/:studentId", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT s.id, s.student_number, s.year_level, s.section, s.year_enrolled, s.graduation_status,
+              COALESCE(s.first_name, u.first_name)  AS first_name,
+              COALESCE(s.middle_name, u.middle_name) AS middle_name,
+              COALESCE(s.last_name, u.last_name)    AS last_name,
+              COALESCE(s.gender, u.gender)          AS gender,
+              COALESCE(s.profile_picture, u.profile_picture) AS profile_picture,
+              c.course, s.status,
+              s.email, s.mobile, s.birthdate, s.place_of_birth,
+              s.barangay, s.municipality, s.province, s.zip_code,
+              s.religion, s.citizenship, s.acr_no, s.classification,
+              s.father_last, s.father_first, s.father_middle, s.father_occupation,
+              s.mother_last, s.mother_first, s.mother_middle, s.mother_occupation,
+              s.parents_address, s.parents_mobile,
+              s.guardian_name, s.guardian_relationship, s.guardian_address, s.guardian_mobile,
+              s.spouse_name, s.spouse_occupation, s.spouse_address, s.spouse_mobile,
+              s.elem_school, s.elem_address, s.elem_year, s.elem_honors,
+              s.hs_school, s.hs_address, s.hs_year, s.hs_honors,
+              s.col_school, s.col_address, s.col_year, s.col_honors
+       FROM erd_student s
+       LEFT JOIN erd_users u ON s.users_id = u.id
+       LEFT JOIN erd_course c ON s.course_id = c.id
+       WHERE s.id = ? LIMIT 1`,
+      [req.params.studentId]
+    );
+    if (!rows.length) return res.status(404).json({ message: "Student not found." });
+    const r = rows[0];
+    res.json({
+      id: r.id, student_number: r.student_number,
+      first_name: r.first_name, middle_name: r.middle_name, last_name: r.last_name,
+      gender: r.gender || null, profile_picture: r.profile_picture || null,
+      course: r.course || null, year_level: r.year_level || null, section: r.section || null,
+      year_enrolled: r.year_enrolled || null, graduation_status: r.graduation_status || null,
+      status: r.status || null,
+      email: r.email || null, mobile: r.mobile || null,
+      birthdate: r.birthdate ? r.birthdate.toISOString().split("T")[0] : null,
+      place_of_birth: r.place_of_birth || null,
+      barangay: r.barangay || null, municipality: r.municipality || null,
+      province: r.province || null, zip_code: r.zip_code || null,
+      religion: r.religion || null, citizenship: r.citizenship || null,
+      acr_no: r.acr_no || null, classification: r.classification || null,
+      father_last: r.father_last || null, father_first: r.father_first || null,
+      father_middle: r.father_middle || null, father_occupation: r.father_occupation || null,
+      mother_last: r.mother_last || null, mother_first: r.mother_first || null,
+      mother_middle: r.mother_middle || null, mother_occupation: r.mother_occupation || null,
+      parents_address: r.parents_address || null, parents_mobile: r.parents_mobile || null,
+      guardian_name: r.guardian_name || null, guardian_relationship: r.guardian_relationship || null,
+      guardian_address: r.guardian_address || null, guardian_mobile: r.guardian_mobile || null,
+      spouse_name: r.spouse_name || null, spouse_occupation: r.spouse_occupation || null,
+      spouse_address: r.spouse_address || null, spouse_mobile: r.spouse_mobile || null,
+      elem_school: r.elem_school || null, elem_address: r.elem_address || null,
+      elem_year: r.elem_year || null, elem_honors: r.elem_honors || null,
+      hs_school: r.hs_school || null, hs_address: r.hs_address || null,
+      hs_year: r.hs_year || null, hs_honors: r.hs_honors || null,
+      col_school: r.col_school || null, col_address: r.col_address || null,
+      col_year: r.col_year || null, col_honors: r.col_honors || null,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load the student profile." });
+  }
+});
+
+// Create (or update the password of) a STUDENT login account and link it.
+// Username is ALWAYS the student's student_number. Body: { password }.
+// Stored in erd_student_user (employees are untouched in erd_users).
+app.post("/api/erd/student/:id/create-account", async (req, res) => {
+  const studentId = req.params.id;
+  const password = (req.body.password || "").trim();
+  if (!password) return res.status(400).json({ message: "A password is required." });
+  try {
+    const [[student]] = await pool.query(
+      "SELECT id, student_number FROM erd_student WHERE id = ?", [studentId]
+    );
+    if (!student) return res.status(404).json({ message: "Student not found." });
+    const username = (student.student_number || "").trim();
+    if (!username) return res.status(400).json({ message: "This student has no Student Number yet — set one in the Student List first." });
+
+    await pool.query(
+      `INSERT INTO erd_student_user (student_id, username, password, is_active)
+       VALUES (?, ?, ?, 1)
+       ON DUPLICATE KEY UPDATE username = VALUES(username), password = VALUES(password), is_active = 1`,
+      [studentId, username, password]
+    );
+    res.json({ message: "Student account saved and linked.", username });
+  } catch (err) {
+    console.error(err);
+    if (err.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ message: "That student number is already used by another account." });
+    }
+    res.status(500).json({ message: "Failed to create the student account." });
+  }
+});
+
+// Unlink — delete the student's login account (erd_student_user) by student id.
+app.delete("/api/erd/student/:id/account", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_student_user WHERE student_id = ?", [req.params.id]);
+    res.json({ message: "Student account unlinked." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to unlink the student account." });
+  }
+});
+
 app.post("/api/erd/students", async (req, res) => {
   const {
     first_name, middle_name, last_name, course, student_number, profile_picture,
@@ -1255,7 +1644,7 @@ app.post("/api/erd/students", async (req, res) => {
           hs_school, hs_address, hs_year, hs_honors,
           col_school, col_address, col_year, col_honors,
           scholastic_notes)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         first_name, middle_name||null, last_name, gender||null, profile_picture||null,
         student_number, courseId, year_level||null, section||null,
@@ -1798,6 +2187,34 @@ app.get("/api/erd/tor-subjects/:studentId", async (req, res) => {
   }
 });
 
+// ─── erd_grades de-dupe + unique key ─────────────────────────────────────────
+// Without a unique key, every grade-sheet "save" INSERTs new rows, so the same
+// subject piles up (e.g. PE1 under S.Y. 2026 AND 2029). This removes existing
+// duplicates (keeping the newest) and adds a UNIQUE key so future saves UPDATE.
+(async () => {
+  try {
+    await pool.query(`
+      DELETE g1 FROM erd_grades g1
+      JOIN erd_grades g2
+        ON g1.student_id = g2.student_id
+       AND g1.subject_id = g2.subject_id
+       AND IFNULL(g1.semester,1)   = IFNULL(g2.semester,1)
+       AND IFNULL(g1.year_start,0) = IFNULL(g2.year_start,0)
+       AND g1.id < g2.id
+    `);
+    const [idx] = await pool.query(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.STATISTICS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'erd_grades' AND INDEX_NAME = 'uniq_grade'`
+    );
+    if (!idx[0].c) {
+      await pool.query(`ALTER TABLE erd_grades ADD UNIQUE KEY uniq_grade (student_id, subject_id, semester, year_start)`);
+      console.log("[INIT] erd_grades duplicates removed and uniq_grade key added.");
+    }
+  } catch (err) {
+    console.error("[INIT] erd_grades dedupe/unique failed:", err.message);
+  }
+})();
+
 app.get("/api/erd/grades/:studentId", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -1844,6 +2261,29 @@ app.post("/api/erd/grades/bulk", async (req, res) => {
       );
     }
     await conn.commit();
+
+    // Bind graded terms to an enrollment record so the registrar's Enrollment
+    // Records reflects the grade sheet. Best-effort — never fails the save.
+    try {
+      const [[stu]] = await pool.query("SELECT year_level FROM erd_student WHERE id = ?", [student_id]);
+      const yl = stu?.year_level || "1st Year";
+      const semStr = (n) => n === 2 ? "2nd Semester" : n === 3 ? "Summer" : "1st Semester";
+      const terms = new Map();
+      for (const g of grades) {
+        const yr = g.year_start ? parseInt(g.year_start, 10) : null;
+        if (!yr) continue;
+        terms.set(`${yr}-${g.semester || 1}`, { yr, sem: g.semester ? parseInt(g.semester, 10) : 1 });
+      }
+      for (const { yr, sem } of terms.values()) {
+        await pool.query(
+          `INSERT INTO erd_enrollment (student_id, year_enrolled, year_level, semester)
+           SELECT ?, ?, ?, ? FROM DUAL
+           WHERE NOT EXISTS (SELECT 1 FROM erd_enrollment WHERE student_id=? AND year_enrolled=? AND semester=?)`,
+          [student_id, yr, yl, semStr(sem), student_id, yr, semStr(sem)]
+        );
+      }
+    } catch (e) { console.error("[bulk] enrollment bind skipped:", e.message); }
+
     res.json({ message: `${grades.length} historical grade parameter entries committed successfully.` });
   } catch (err) {
     await conn.rollback();
@@ -2190,7 +2630,20 @@ pool.query(`
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES erd_student(id) ON DELETE CASCADE
   )
-`).catch(err => console.error("erd_enrollment table init error:", err));
+`).then(() => pool.query(`
+  INSERT INTO erd_enrollment (student_id, year_enrolled, year_level, semester)
+  SELECT DISTINCT g.student_id, g.year_start, COALESCE(s.year_level, '1st Year'),
+    CASE g.semester WHEN 2 THEN '2nd Semester' WHEN 3 THEN 'Summer' ELSE '1st Semester' END
+  FROM erd_grades g
+  JOIN erd_student s ON s.id = g.student_id
+  WHERE g.year_start IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM erd_enrollment e
+      WHERE e.student_id = g.student_id AND e.year_enrolled = g.year_start
+        AND e.semester = CASE g.semester WHEN 2 THEN '2nd Semester' WHEN 3 THEN 'Summer' ELSE '1st Semester' END
+    )
+`)).then(() => console.log("[INIT] Enrollment records backfilled from graded terms."))
+  .catch(err => console.error("erd_enrollment table init error:", err));
 
 // Faculty subject-load / teaching-assignment table. Created defensively here
 // since older deployments of this schema may not have it yet — without it,
@@ -2358,12 +2811,31 @@ app.post("/api/erd/enrollments", async (req, res) => {
 });
 
 app.delete("/api/erd/enrollments/:id", async (req, res) => {
+  const conn = await pool.getConnection();
   try {
-    await pool.query("DELETE FROM erd_enrollment WHERE id = ?", [req.params.id]);
-    res.json({ message: "Enrollment record deleted." });
+    await conn.beginTransaction();
+    // Cascade: deleting an enrollment record also removes that term's grades,
+    // so it disappears from the student's My Grades view.
+    const [[enr]] = await conn.query(
+      "SELECT student_id, year_enrolled, semester FROM erd_enrollment WHERE id = ?",
+      [req.params.id]
+    );
+    if (enr) {
+      const semNum = /2nd/i.test(enr.semester) ? 2 : /summer/i.test(enr.semester) ? 3 : 1;
+      await conn.query(
+        "DELETE FROM erd_grades WHERE student_id = ? AND year_start = ? AND semester = ?",
+        [enr.student_id, enr.year_enrolled, semNum]
+      );
+    }
+    await conn.query("DELETE FROM erd_enrollment WHERE id = ?", [req.params.id]);
+    await conn.commit();
+    res.json({ message: "Enrollment record and its grades deleted." });
   } catch (err) {
+    await conn.rollback();
     console.error(err);
     res.status(500).json({ message: "Failed to delete enrollment record." });
+  } finally {
+    conn.release();
   }
 });
 // --- STARTUP DATA INTEGRITY MIGRATIONS ---

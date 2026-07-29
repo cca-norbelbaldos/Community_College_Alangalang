@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from "react";
+import { showToast } from "../components/Toast";
+import { processProfileImage } from "../utils/image";
 
 const GREEN      = "#3d6e01";
 const DARK_GREEN = "#3d6e01";
@@ -53,25 +55,23 @@ export default function AccountSettings({ user }) {
   const handlePicChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !form.id) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const dataUrl = ev.target.result;
-      setProfilePic(dataUrl);
-      setPicSaving(true);
-      try {
-        await fetch(`${import.meta.env.VITE_API_URL}/api/erd/users/${form.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username: form.username, first_name: form.first_name, middle_name: form.middle_name,
-            last_name: form.last_name, suffix: form.suffix, email: form.email,
-            gender: form.gender, id_no: form.id_no, designation: form.designation,
-            status: form.status, roles: form.roles, profile_picture: dataUrl,
-          }),
-        });
-      } catch {} finally { setPicSaving(false); }
-    };
-    reader.readAsDataURL(file);
+    let dataUrl;
+    try { dataUrl = await processProfileImage(file); } // crisp HD square
+    catch { showToast("Could not process image.", "error"); return; }
+    setProfilePic(dataUrl);
+    setPicSaving(true);
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/erd/users/${form.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: form.username, first_name: form.first_name, middle_name: form.middle_name,
+          last_name: form.last_name, suffix: form.suffix, email: form.email,
+          gender: form.gender, id_no: form.id_no, designation: form.designation,
+          status: form.status, roles: form.roles, profile_picture: dataUrl,
+        }),
+      });
+    } catch {} finally { setPicSaving(false); }
   };
 
   const handleSaveProfile = async (e) => {

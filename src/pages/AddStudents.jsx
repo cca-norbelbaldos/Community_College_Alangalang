@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { processProfileImage } from "../utils/image";
 import QRCode from "qrcode";
 import { showToast, showConfirm } from "../components/Toast";
 import ccaLogo        from "../assets/cca_logo.jpg";
@@ -982,8 +983,10 @@ body{
 
                   {/* School header — logos absolute left, text truly centered full-width */}
                   <div style={{ position: "relative", minHeight: "60px", display: "flex", alignItems: "center", marginBottom: "2px" }}>
-                    <div style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", display: "flex", gap: "3px", alignItems: "center" }}>
+                    <div style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", display: "flex", alignItems: "center" }}>
                       <img src={alangalangLogo} alt="Alangalang" style={{ width: "70px", height: "70px", objectFit: "contain", marginTop: "-15px" }} />
+                    </div>
+                    <div style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", display: "flex", alignItems: "center" }}>
                       <img src={ccaLogo} alt="CCA" style={{ width: "75px", height: "75px", objectFit: "contain", marginTop: "-18px" }} />
                     </div>
                     <div style={{ width: "100%", textAlign: "center" }}>
@@ -1292,24 +1295,20 @@ export default function AddStudents({ user = {} }) {
     if (!file || !viewStudent) return;
     setUploadingPhoto(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target.result;
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/students/${viewStudent.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...viewStudent, profile_picture: base64 }),
-        });
-        if (res.ok) {
-          const updated = { ...viewStudent, profile_picture: base64 };
-          setViewStudent(updated);
-          setStudents(prev => prev.map(s => s.id === viewStudent.id ? updated : s));
-          showToast("Profile photo updated!", "success");
-        } else { showToast("Failed to upload photo.", "error"); }
-        setUploadingPhoto(false);
-      };
-      reader.readAsDataURL(file);
-    } catch { showToast("Network error.", "error"); setUploadingPhoto(false); }
+      const base64 = await processProfileImage(file); // crisp HD square
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/students/${viewStudent.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...viewStudent, profile_picture: base64 }),
+      });
+      if (res.ok) {
+        const updated = { ...viewStudent, profile_picture: base64 };
+        setViewStudent(updated);
+        setStudents(prev => prev.map(s => s.id === viewStudent.id ? updated : s));
+        showToast("Profile photo updated!", "success");
+      } else { showToast("Failed to upload photo.", "error"); }
+    } catch { showToast("Could not process image.", "error"); }
+    setUploadingPhoto(false);
   };
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
 
