@@ -103,6 +103,7 @@ export default function CCALoginPortal({ onLogin }) {
       .signin-btn:hover:not(:disabled){ box-shadow:0 8px 22px rgba(27,94,32,0.32); transform:translateY(-2px); }
       .signin-btn:active:not(:disabled){ transform:translateY(0); }
       .pw-eye:hover{ color:${GREEN}!important; }
+      .login-title { line-height: 1.4 !important; height: auto !important; min-height: 0 !important; margin: 15px 0 6px !important; padding: 0 !important; transform: none !important; white-space: normal !important; }
     `}</style>
 
     <div style={{
@@ -156,7 +157,7 @@ export default function CCALoginPortal({ onLogin }) {
 
         {view === "login" && (
           <>
-            <h1 style={{ textAlign:"center", fontSize:40, fontWeight:800, color:t.text, margin:"15px 0 6px", lineHeight:1.2, fontFamily:'"Times New Roman", Times, serif' }}>Account Login</h1>
+            <h1 className="login-title" style={{ textAlign:"center", fontSize:40, fontWeight:800, color:t.text, fontFamily:'"Times New Roman", Times, serif' }}>Account Login</h1>
             <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"10px 0 10px" }}>Login to manage your CCA-PORTAL Account</p>
 
             <form onSubmit={handleSubmit} style={{ display:"flex", flexDirection:"column", marginTop:-5 }}>
