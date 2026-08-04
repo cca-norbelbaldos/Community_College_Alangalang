@@ -304,7 +304,10 @@ function EnrollmentStats({ user }) {
   const [schoolYear, setSchoolYear]   = useState("all"); // will be updated to latest after fetch
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/erd/enrollments`)
+    // Count ALL registered students (matches the "Enrollment by Gender" donut),
+    // bucketed by year level / school year. Students have no per-semester record,
+    // so a registered student is counted in the selected semester.
+    fetch(`${import.meta.env.VITE_API_URL}/api/erd/students`)
       .then(r => r.ok ? r.json() : [])
       .then(data => { setEnrollments(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
@@ -328,10 +331,11 @@ function EnrollmentStats({ user }) {
     ? enrollments
     : enrollments.filter(e => toSY(e.year_enrolled) === schoolYear);
 
-  const sem1Count = bySchoolYear.filter(e => e.semester === "1st Semester").length;
-  const sem2Count = bySchoolYear.filter(e => e.semester === "2nd Semester").length;
+  // Students carry no semester, so both semester views reflect all registered students.
+  const sem1Count = bySchoolYear.length;
+  const sem2Count = bySchoolYear.length;
 
-  const filtered = bySchoolYear.filter(e => e.semester === activeSem);
+  const filtered = bySchoolYear;
   const male        = filtered.filter(isMale).length;
   const female      = filtered.filter(isFemale).length;
   const lgbt        = filtered.filter(isLgbt).length;
@@ -364,7 +368,7 @@ function EnrollmentStats({ user }) {
   return (
     <div style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden", height: "100%", boxSizing: "border-box" }}>
       {/* Header */}
-      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, background: "#f5f3ea", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, background: LIGHT_GRAY, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
         <div>
           <div style={{ fontSize: "13px", fontWeight: 700, color: DARK_GREEN }}>Enrollment Statistics</div>
           <div style={{ fontSize: "10px", color: GRAY, marginTop: "1px" }}>
@@ -767,7 +771,6 @@ export default function Overview({ user }) {
 
   return (
     <div style={{ fontFamily: "system-ui", minWidth: 0 }}>
-      {isAdmin && <MaintenanceToggle />}
       <style>{`
         .ov-note-card { transition: box-shadow 0.15s ease; }
         .ov-note-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; }
@@ -816,7 +819,7 @@ export default function Overview({ user }) {
                       )}
                       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", padding: "6px 12px", background: "#f2f9e8", borderBottom: `1px solid ${BORDER}`, flexWrap: "nowrap" }}>
-                          <span style={{ fontSize: "10px", fontWeight: 800, color: GREEN, background: "#DCFCE7", padding: "2px 8px", borderRadius: "20px", textTransform: "uppercase", letterSpacing: "0.3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "65%" }}>🏫 {note.department || "General"}</span>
+                          <span style={{ fontSize: "10px", fontWeight: 700, color: GREEN, textTransform: "uppercase", letterSpacing: "0.3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "65%" }}>{note.department || "General"}</span>
                           <span style={{ fontSize: "10px", color: GRAY, whiteSpace: "nowrap", flexShrink: 0 }}>📅 {dateStr}</span>
                         </div>
                         <div style={{ padding: "8px 12px 0 12px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "6px" }}>

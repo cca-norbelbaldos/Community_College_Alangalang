@@ -102,6 +102,14 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
   const [showBdCal, setShowBdCal] = useState(false);
   const [calBdYear, setCalBdYear] = useState(new Date().getFullYear());
   const [calBdMonth, setCalBdMonth] = useState(new Date().getMonth());
+  // Configurable scholastic-requirements checklist (managed in System).
+  const [reqOptions, setReqOptions] = useState([]);
+  useEffect(() => {
+    fetch(`${API}/api/erd/scholastic-requirements?t=${Date.now()}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setReqOptions(Array.isArray(d) ? d.map(x => x.name) : []))
+      .catch(() => setReqOptions([]));
+  }, []);
 
   const fetchNextId = async (syear) => {
     const yr = (syear || "").split("-")[0].trim();
@@ -498,14 +506,26 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
           <div style={{ background: "#F3F4F6", color: "#000", padding: "5px 12px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", textAlign: "center", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}`, fontFamily: TNR, letterSpacing: "0.04em" }}>
             Scholastic Requirements
           </div>
-          <div style={{ padding: "8px 10px" }}>
-            <textarea
-              rows={3}
-              placeholder="List submitted requirements (e.g. Form 138, Birth Certificate, Good Moral Certificate, Medical Certificate...)"
-              value={f("scholastic_notes")}
-              onChange={e => sf("scholastic_notes", e.target.value)}
-              style={{ width: "100%", padding: "6px 8px", border: `1px solid ${BORDER}`, borderRadius: "4px", fontSize: "12px", boxSizing: "border-box", resize: "vertical", outline: "none", height: "58px", fontFamily: TNR, color: "#000" }}
-            />
+          <div style={{ padding: "10px 12px" }}>
+            {reqOptions.length === 0 && (
+              <div style={{ fontSize: "11px", color: GRAY, fontFamily: TNR }}>No requirements configured. Add them in Admin Settings → System → Scholastic Requirements.</div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px 18px" }}>
+              {reqOptions.map(item => {
+                const list = (f("scholastic_notes") || "").split(",").map(s => s.trim()).filter(Boolean);
+                const checked = list.includes(item);
+                return (
+                  <label key={item} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "12px", fontFamily: TNR, color: "#000", cursor: "pointer" }}>
+                    <input type="checkbox" checked={checked} onChange={() => {
+                      const set = new Set(list);
+                      if (checked) set.delete(item); else set.add(item);
+                      sf("scholastic_notes", Array.from(set).join(", "));
+                    }} style={{ width: 15, height: 15, cursor: "pointer", accentColor: DARK_GREEN }} />
+                    {item}
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           {/* ── Footer ── */}
@@ -554,8 +574,11 @@ export default function Registrar({ user = {} }) {
   const [savingGrades, setSavingGrades] = useState(false);
   const [searchStudent, setSearchStudent] = useState("");
 
-  const [activeTab, setActiveTab]       = useState("manage_students");
-  const [transactionSubTab, setTransactionSubTab] = useState("student_info");
+  // Remember the Registrar tab/sub-tab across refreshes (per session).
+  const [activeTab, setActiveTab]       = useState(() => { try { return sessionStorage.getItem("cca_reg_tab") || "manage_students"; } catch { return "manage_students"; } });
+  const [transactionSubTab, setTransactionSubTab] = useState(() => { try { return sessionStorage.getItem("cca_reg_subtab") || "application_form"; } catch { return "application_form"; } });
+  useEffect(() => { try { sessionStorage.setItem("cca_reg_tab", activeTab); } catch {} }, [activeTab]);
+  useEffect(() => { try { sessionStorage.setItem("cca_reg_subtab", transactionSubTab); } catch {} }, [transactionSubTab]);
   const [reportsSubTab, setReportsSubTab] = useState("student_record");
   const [studentRecordSubTab, setStudentRecordSubTab] = useState("transcript_of_records"); // always starts at leftmost
   const [slcCourse, setSlcCourse] = useState(""); // Student List by Course — course filter ("" = all)
@@ -569,6 +592,7 @@ export default function Registrar({ user = {} }) {
   const [candFormMode, setCandFormMode]     = useState(false); // legacy flag, unused by the dedicated form
   const [candSearch, setCandSearch]         = useState("");
   const [candFormStudent, setCandFormStudent] = useState(null); // opens the dedicated Records of Candidates for Graduation form
+  const [candPreview, setCandPreview]       = useState(null);   // student selected in the left panel (two-panel layout)
   const [candGrades, setCandGrades]         = useState([]);
   const [appFormStudent, setAppFormStudent] = useState(null); // opens the Free Higher Education application form
   const [appSearch, setAppSearch]           = useState("");
@@ -1115,7 +1139,6 @@ export default function Registrar({ user = {} }) {
             { key: "application_form",     label: "Application Form" },
             { key: "student_info",         label: "Student Information" },
             { key: "student_registration", label: "Student Registration" },
-            { key: "class_assignment",     label: "Class Assignment" },
             { key: "grades",               label: "Grades" },
             { key: "assessment",           label: "Assessment" },
           ].map((sub, i) => (
@@ -2121,11 +2144,10 @@ export default function Registrar({ user = {} }) {
       )}
 
       {/* ── STUDENT INFORMATION FORM ── */}
-      {/* ── APPLICATION FORM (Free Higher Education) PRINT PORTAL ── */}
-      {/* Opens immediately when the tab is active: pre-filled if a student is selected, blank otherwise. */}
-      <ApplicationForm
-        student={activeTab === "manage_students" && transactionSubTab === "application_form" ? (selectedEnrollStudent || {}) : null}
-        onClose={() => setTransactionSubTab("student_info")} />
+      {/* ── APPLICATION FORM (Free Higher Education) — inline below the tabs ── */}
+      {activeTab === "manage_students" && transactionSubTab === "application_form" && (
+        <ApplicationForm student={selectedEnrollStudent || {}} inline />
+      )}
 
       {activeTab === "manage_students" && transactionSubTab === "student_info" && (
         <StudentInfoPanel courses={courses} API={import.meta.env.VITE_API_URL} onRefresh={fetchBaselineDirectory} activeSchoolYear={activeSchoolYear} />
@@ -2140,15 +2162,6 @@ export default function Registrar({ user = {} }) {
             {/* Header */}
             <div style={{ padding: "7px 10px", background: DARK_GREEN, color: WHITE, fontSize: "10px", fontWeight: 800, textAlign: "center", letterSpacing: "0.06em", textTransform: "uppercase" }}>
               Masterlist of Students
-            </div>
-            {/* ALL / BLOCK tabs */}
-            <div style={{ display: "flex", borderBottom: `1px solid ${BORDER}` }}>
-              {["all", "block"].map(tab => (
-                <button key={tab} type="button" onClick={() => setEnrollMasterFilter(tab)}
-                  style={{ flex: 1, padding: "5px 0", fontSize: "10px", fontWeight: 700, border: "none", cursor: "pointer", textTransform: "uppercase", background: enrollMasterFilter === tab ? DARK_GREEN : "#F3F4F6", color: enrollMasterFilter === tab ? WHITE : GRAY, borderBottom: enrollMasterFilter === tab ? `2px solid ${GOLD}` : "2px solid transparent" }}>
-                  {tab === "all" ? "All" : "Block"}
-                </button>
-              ))}
             </div>
             {/* Search bar */}
             <div style={{ padding: "5px 6px", borderBottom: `1px solid ${BORDER}`, background: WHITE }}>
@@ -2393,9 +2406,6 @@ export default function Registrar({ user = {} }) {
       )}
 
       {/* ── CLASS ASSIGNMENT TAB ── */}
-      {activeTab === "manage_students" && transactionSubTab === "class_assignment" && (
-        <ClassSchedule isAdmin={true} user={user} />
-      )}
 
       {/* ── CERTIFICATE OF REGISTRATION (full-screen portal, same as AddStudents) ── */}
       {activeTab === "manage_students" && corPrintOnly && (() => {
@@ -2421,9 +2431,6 @@ export default function Registrar({ user = {} }) {
               opacity: 0.1, pointerEvents: "none", zIndex: 0,
               WebkitPrintColorAdjust: "exact", printColorAdjust: "exact",
             }} />
-            {/* Copy label */}
-            <div style={{ position: "absolute", top: label === "School's Copy" ? "43px" : "-6px", right: "14px", fontSize: "6.5pt", color: "#555", fontStyle: "italic", zIndex: 2 }}>{label}</div>
-
             {/* School header — logos left, text truly centered via grid */}
             <div style={{ display: "grid", gridTemplateColumns: "160px 1fr 160px", alignItems: "center", marginBottom: "2px" }}>
               <div style={{ display: "flex", alignItems: "center" }}>
@@ -2434,8 +2441,9 @@ export default function Registrar({ user = {} }) {
                 <div style={{ fontSize: "14pt", fontWeight: 900, fontFamily: TNR, textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1.1 }}>Community College of Alangalang</div>
                 <div style={{ fontSize: "8pt", fontFamily: TNR }}>Alangalang, Leyte</div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", justifyContent: "center" }}>
                 <img src={ccaLogo} alt="CCA" style={{ width: "75px", height: "75px", objectFit: "contain" }} />
+                <div style={{ fontSize: "6.5pt", color: "#555", fontStyle: "italic", marginTop: "1px" }}>{label}</div>
               </div>
             </div>
 
@@ -2510,7 +2518,8 @@ export default function Registrar({ user = {} }) {
             <div style={{ marginBottom: "4px" }}>
               <div style={{ fontSize: "7pt", fontWeight: 700, fontFamily: TNR, marginBottom: "1px", color: "#111" }}>Student's Pledge</div>
               <div style={{ fontSize: "6.5pt", fontFamily: TNR, lineHeight: "1.3", textAlign: "justify", color: "#111" }}>
-                I hereby acknowledge that I read the rules and regulations of Community College of Alangalang. I promise that I will abide with the rules and regulation promulgated, enacted by the school. Granted the FREE EDUCATION per RA 10931, I bind myself for the completion of the program/course which I enrolled in this school.
+                I hereby acknowledge that I have read and understood the Rules and Regulations of the Community College of Alangalang. I promise to abide by and uphold all the rules, regulations, policies, and guidelines promulgated and enacted by the College.
+                I understand that compliance with these rules is essential to maintaining discipline, academic integrity, and a safe and respectful learning environment. I accept full responsibility for my actions and understand that any violation of these rules and regulations may result in appropriate disciplinary action in accordance with the policies of the College.
               </div>
             </div>
 
@@ -2698,7 +2707,7 @@ export default function Registrar({ user = {} }) {
               <span style={{ fontSize: "11px", color: GRAY, marginLeft: "auto", marginTop: "10px" }}>{filtered.length} record(s)</span>
               <button type="button" onClick={() => setEnrPrintOpen(true)} disabled={filtered.length === 0}
                 style={{ padding: "6px 14px", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: 700, background: filtered.length === 0 ? "#9CA3AF" : DARK_GREEN, color: WHITE, cursor: filtered.length === 0 ? "default" : "pointer", marginTop: "10px" }}>
-                🖨 Print (8.5×13)
+                🖨 Print
               </button>
             </div>
 
@@ -2750,7 +2759,7 @@ export default function Registrar({ user = {} }) {
                       <span style={{ fontWeight: 800, fontSize: 13, color: WHITE }}>Enrollment List — {filtered.length} record(s)</span>
                       <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                         <button type="button" onClick={() => setEnrPrintOpen(false)} style={{ padding: "7px 16px", background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.4)", borderRadius: 6, fontSize: 12, fontWeight: 600, color: WHITE, cursor: "pointer" }}>← Back</button>
-                        <button type="button" onClick={() => window.print()} style={{ padding: "7px 20px", background: WHITE, color: DARK_GREEN, border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🖨 Print (8.5×13)</button>
+                        <button type="button" onClick={() => window.print()} style={{ padding: "7px 20px", background: WHITE, color: DARK_GREEN, border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🖨 Print </button>
                       </div>
                     </div>
 
@@ -2961,7 +2970,7 @@ export default function Registrar({ user = {} }) {
               <span style={{ fontSize: "11px", color: GRAY, marginLeft: "auto", marginTop: "10px" }}>{filtered.length} student(s)</span>
               <button type="button" onClick={() => setGradPrintOpen(true)} disabled={filtered.length === 0}
                 style={{ padding: "6px 14px", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: 700, background: filtered.length === 0 ? "#9CA3AF" : DARK_GREEN, color: WHITE, cursor: filtered.length === 0 ? "default" : "pointer", marginTop: "10px" }}>
-                🖨 Print (8.5×13)
+                🖨 Print 
               </button>
             </div>
 
@@ -3035,7 +3044,7 @@ export default function Registrar({ user = {} }) {
                       <span style={{ fontWeight: 800, fontSize: 13, color: WHITE }}>Graduate Students — {filtered.length} student(s)</span>
                       <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                         <button type="button" onClick={() => setGradPrintOpen(false)} style={{ padding: "7px 16px", background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.4)", borderRadius: 6, fontSize: 12, fontWeight: 600, color: WHITE, cursor: "pointer" }}>← Back</button>
-                        <button type="button" onClick={() => window.print()} style={{ padding: "7px 20px", background: WHITE, color: DARK_GREEN, border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🖨 Print (8.5×13)</button>
+                        <button type="button" onClick={() => window.print()} style={{ padding: "7px 20px", background: WHITE, color: DARK_GREEN, border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🖨 Print </button>
                       </div>
                     </div>
 
@@ -3155,36 +3164,74 @@ export default function Registrar({ user = {} }) {
             if (gRes.ok) setCandGrades(await gRes.json());
           } catch(_) {}
         };
+        // Clicking a name shows the form inline in the right panel (like the TOR).
+        const selectPreview = async (s) => {
+          setCandPreview(s);
+          setCandGrades([]);
+          try {
+            const gRes = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/tor-subjects/${s.id}`);
+            if (gRes.ok) setCandGrades(await gRes.json());
+          } catch(_) {}
+        };
+        const list = (students || [])
+          .filter(s => s.graduation_status !== "graduated")
+          .filter(s => {
+            if (!q) return true;
+            return `${s.first_name || ""} ${s.last_name || ""} ${s.middle_name || ""} ${s.student_number || ""}`.toLowerCase().includes(q);
+          });
         return (
-          <div style={{ marginTop: "12px", maxWidth: "540px" }}>
-            <div style={{ fontSize: "13px", fontWeight: 800, color: DARK_GREEN, marginBottom: "4px" }}>Candidates for Graduation</div>
-            <div style={{ fontSize: "12px", color: GRAY, marginBottom: "10px" }}>Search a student, then click their name to open the Records of Candidates for Graduation form.</div>
-            <input
-              type="text"
-              value={candSearch}
-              onChange={e => setCandSearch(e.target.value)}
-              placeholder="Search by name or ID number..."
-              autoFocus
-              style={{ width: "100%", padding: "9px 14px", border: `1px solid ${BORDER}`, borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
-            />
-            {q && (
-              <div style={{ border: `1px solid ${BORDER}`, borderRadius: "8px", overflow: "hidden", marginTop: "8px" }}>
-                {results.length === 0 ? (
-                  <div style={{ padding: "20px", textAlign: "center", color: GRAY, fontSize: "13px" }}>No students found.</div>
-                ) : results.map((s, i) => (
-                  <button key={s.id} type="button" onClick={() => openForm(s)}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left", padding: "9px 14px", border: "none", borderTop: i > 0 ? `1px solid ${BORDER}` : "none", background: WHITE, cursor: "pointer" }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#f2f9e8"}
-                    onMouseLeave={e => e.currentTarget.style.background = WHITE}
-                  >
-                    <span style={{ fontFamily: "monospace", fontSize: "11px", color: DARK_GREEN, minWidth: "80px" }}>{s.student_number || "—"}</span>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#111827", flex: 1 }}>{s.last_name}, {s.first_name} {s.middle_name || ""}</span>
-                    <span style={{ fontSize: "11px", color: GRAY, whiteSpace: "nowrap" }}>{s.year_level || "—"}{s.section ? ` · ${s.section}` : ""}</span>
-                    <span style={{ fontSize: "11px", color: "#1D4ED8", fontWeight: 700, whiteSpace: "nowrap" }}>Open ›</span>
-                  </button>
-                ))}
+          <div style={{ marginTop: "12px", display: "flex", gap: "12px", minHeight: "520px" }}>
+            {/* Left: student picker */}
+            <div style={{ width: "260px", flexShrink: 0, border: `1px solid ${BORDER}`, borderRadius: "10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div style={{ padding: "8px 12px", background: DARK_GREEN, color: WHITE, fontSize: "11px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Select Student
               </div>
-            )}
+              <div style={{ padding: "6px 8px", borderBottom: `1px solid ${BORDER}` }}>
+                <input type="text" value={candSearch} onChange={e => setCandSearch(e.target.value)}
+                  placeholder="🔍 Search name or ID…"
+                  style={{ width: "100%", padding: "5px 8px", fontSize: "10px", border: `1px solid ${BORDER}`, borderRadius: "5px", outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div style={{ flex: 1, overflowY: "auto" }}>
+                {list.map(s => {
+                  const sel = candPreview?.id === s.id;
+                  return (
+                    <div key={s.id} onClick={() => selectPreview(s)}
+                      style={{ padding: "7px 10px", borderBottom: `1px solid #F3F4F6`, cursor: "pointer", background: sel ? "#eaf2d9" : "transparent", display: "flex", flexDirection: "column", gap: "1px" }}
+                      onMouseEnter={e => { if (!sel) e.currentTarget.style.background = LIGHT_GRAY; }}
+                      onMouseLeave={e => { if (!sel) e.currentTarget.style.background = "transparent"; }}>
+                      <span style={{ fontSize: "9px", fontWeight: 700, color: BLUE, fontFamily: "monospace", letterSpacing: "0.03em" }}>{s.student_number || "—"}</span>
+                      <span style={{ fontSize: "11px", fontWeight: sel ? 800 : 500, color: "#111827" }}>{s.last_name}, {s.first_name} {s.middle_name || ""}</span>
+                    </div>
+                  );
+                })}
+                {list.length === 0 && (
+                  <div style={{ padding: "20px", textAlign: "center", color: GRAY, fontSize: "11px" }}>No students found.</div>
+                )}
+              </div>
+            </div>
+
+            {/* Right: candidate form preview / action */}
+            <div style={{ flex: 1, border: `1px solid ${BORDER}`, borderRadius: "10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div style={{ padding: "8px 14px", background: DARK_GREEN, color: WHITE, fontSize: "11px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span>Records of Candidates for Graduation</span>
+                {candPreview && (
+                  <button type="button" onClick={() => openForm(candPreview)}
+                    style={{ padding: "5px 14px", background: WHITE, color: DARK_GREEN, border: "none", borderRadius: "5px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>
+                    🖨 Print 
+                  </button>
+                )}
+              </div>
+              {!candPreview ? (
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "10px", color: GRAY }}>
+                  <span style={{ fontSize: "36px" }}>🎓</span>
+                  <span style={{ fontSize: "13px" }}>Select a student to generate the form</span>
+                </div>
+              ) : (
+                <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+                  <CandidateGradForm student={candPreview} grades={candGrades} user={user} inline />
+                </div>
+              )}
+            </div>
           </div>
         );
       })()}
@@ -3343,7 +3390,7 @@ export default function Registrar({ user = {} }) {
                   window.print();
                 }, 350);
               }}
-                style={{ padding:"7px 20px", background:WHITE, color:DARK_GREEN, border:"none", borderRadius:"6px", fontSize:"12px", fontWeight:700, cursor:"pointer" }}>🖨 Print (8.5×13)</button>
+                style={{ padding:"7px 20px", background:WHITE, color:DARK_GREEN, border:"none", borderRadius:"6px", fontSize:"12px", fontWeight:700, cursor:"pointer" }}>🖨 Print </button>
             </div>
           </div>
 
@@ -3959,7 +4006,7 @@ const CAND_LEGEND = [
 ];
 
 // ── Free Higher Education & Voluntary Contribution Form (Application Form) ──
-function ApplicationForm({ student, onClose }) {
+function ApplicationForm({ student, onClose, inline = false }) {
   if (!student) return null;
   const full = (a, b, c) => [a, b, c].filter(Boolean).join(" ");
   const val = () => "" || " ";
@@ -3980,13 +4027,26 @@ function ApplicationForm({ student, onClose }) {
   const yl = student.year_level || "";       // used by hidden legacy markup
   const g = (student.gender || "").toLowerCase();
 
-  return createPortal(
-    <div id="app-portal-root" style={{ position: "fixed", inset: 0, background: WHITE, zIndex: 2147483646, display: "flex", flexDirection: "column" }}>
+  const inner = (
+    <div id="app-portal-root" style={inline
+      ? { position: "relative", background: WHITE, display: "flex", flexDirection: "column", border: `1px solid ${BORDER}`, borderRadius: 10, overflow: "hidden", marginTop: 12 }
+      : { position: "fixed", inset: 0, background: WHITE, zIndex: 2147483646, display: "flex", flexDirection: "column" }}>
       <div className="no-print" style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: DARK_GREEN, flexShrink: 0 }}>
         <span style={{ fontWeight: 800, fontSize: 13, color: WHITE }}>{student.last_name ? `${student.last_name}, ${student.first_name} — ` : ""}Application Form</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <button type="button" onClick={onClose} style={{ padding: "7px 16px", background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.4)", borderRadius: 6, fontSize: 12, fontWeight: 600, color: WHITE, cursor: "pointer" }}>← Back</button>
-          <button type="button" onClick={() => window.print()} style={{ padding: "7px 20px", background: WHITE, color: DARK_GREEN, border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🖨 Print (8.5×13)</button>
+          {!inline && <button type="button" onClick={onClose} style={{ padding: "7px 16px", background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.4)", borderRadius: 6, fontSize: 12, fontWeight: 600, color: WHITE, cursor: "pointer" }}>← Back</button>}
+          <button type="button" onClick={() => {
+            // Full-screen: #app-portal-root is already a body child → print directly.
+            // Inline: it's nested, so clone it to <body> first (print CSS targets body > #app-portal-root).
+            if (!inline) { window.print(); return; }
+            const src = document.getElementById("app-portal-root");
+            if (!src) { window.print(); return; }
+            const clone = src.cloneNode(true);
+            document.body.appendChild(clone);
+            const cleanup = () => { if (document.body.contains(clone)) document.body.removeChild(clone); window.removeEventListener("afterprint", cleanup); };
+            window.addEventListener("afterprint", cleanup);
+            setTimeout(() => window.print(), 60);
+          }} style={{ padding: "7px 20px", background: WHITE, color: DARK_GREEN, border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🖨 Print </button>
         </div>
       </div>
 
@@ -4031,7 +4091,7 @@ function ApplicationForm({ student, onClose }) {
 
           {/* Fixed contact footer — repeats at the bottom of every printed page */}
           <div className="app-fixed-footer">
-            <span className="fi"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>community college of alangalang</span>
+            <span className="fi"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>communitycollegeofalangalang@gmail.com</span>
             <span className="fi"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>xxxxxxxxxxx</span>
             <span className="fi"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>communitycollegealangalang.com</span>
           </div>
@@ -4261,14 +4321,14 @@ function ApplicationForm({ student, onClose }) {
           </div>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
+  return inline ? inner : createPortal(inner, document.body);
 }
 
 const FOLIO_PAGE_PX = 1181; // printable height of an 8.5x13 page (13in - 0.7in margins @96dpi)
 
-function CandidateGradForm({ student, grades, user = {}, onClose }) {
+function CandidateGradForm({ student, grades, user = {}, onClose, inline = false }) {
   const areaRef = useRef(null);
   const [pageCount, setPageCount] = useState(1);
   useEffect(() => {
@@ -4365,16 +4425,20 @@ function CandidateGradForm({ student, grades, user = {}, onClose }) {
     </span>
   );
 
-  return createPortal(
-    <div id="cand-portal-root" style={{ position: "fixed", inset: 0, background: WHITE, zIndex: 2147483646, display: "flex", flexDirection: "column" }}>
-      {/* Toolbar */}
+  const inner = (
+    <div id="cand-portal-root" style={inline
+      ? { position: "relative", flex: 1, minHeight: 0, background: WHITE, display: "flex", flexDirection: "column" }
+      : { position: "fixed", inset: 0, background: WHITE, zIndex: 2147483646, display: "flex", flexDirection: "column" }}>
+      {/* Toolbar (full-screen only) */}
+      {!inline && (
       <div className="no-print" style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: DARK_GREEN, flexShrink: 0 }}>
         <span style={{ fontWeight: 800, fontSize: 13, color: WHITE }}>{student.last_name}, {student.first_name} — Records of Candidates for Graduation</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           <button type="button" onClick={onClose} style={{ padding: "7px 16px", background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.4)", borderRadius: 6, fontSize: 12, fontWeight: 600, color: WHITE, cursor: "pointer" }}>← Back</button>
-          <button type="button" onClick={() => window.print()} style={{ padding: "7px 20px", background: WHITE, color: DARK_GREEN, border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🖨 Print (8.5×13)</button>
+          <button type="button" onClick={() => window.print()} style={{ padding: "7px 20px", background: WHITE, color: DARK_GREEN, border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🖨 Print </button>
         </div>
       </div>
+      )}
 
       <div id="cand-scroll" style={{ flex: 1, overflowY: "auto", background: "#e5e7eb", padding: "24px 16px" }}>
         <style>{`
@@ -4560,9 +4624,9 @@ function CandidateGradForm({ student, grades, user = {}, onClose }) {
           </div>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
+  return inline ? inner : createPortal(inner, document.body);
 }
 
 // ── STUDENT EVALUATION FORM (curriculum checklist w/ grades + GWA per sem) ──
@@ -4655,7 +4719,7 @@ function StudentEvaluationForm({ students = [], registrarName = "" }) {
       <div style={{ flex: 1, border: `1px solid ${BORDER}`, borderRadius: "10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
         <div style={{ padding: "8px 14px", background: DARK_GREEN, color: WHITE, fontSize: "11px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span>Student Evaluation Form</span>
-          {sel && <button type="button" onClick={doPrint} style={{ padding: "5px 14px", background: WHITE, color: DARK_GREEN, border: "none", borderRadius: "5px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>🖨 Print (8.5×13)</button>}
+          {sel && <button type="button" onClick={doPrint} style={{ padding: "5px 14px", background: WHITE, color: DARK_GREEN, border: "none", borderRadius: "5px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>🖨 Print </button>}
         </div>
 
         {!sel ? (
@@ -4791,7 +4855,7 @@ function TorContactFooter() {
   const ic = { display: "inline-flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap" };
   return (
     <div style={{ position: "absolute", left: "48px", right: "48px", bottom: "2px", borderTop: "1px solid #999", paddingTop: "3px", display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", fontSize: "7.5pt", fontFamily: '"Times New Roman",Times,serif', color: "#333" }}>
-      <span style={ic}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>community college of alangalang</span>
+      <span style={ic}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>communitycollegeofalangalang@gmail.com</span>
       <span style={ic}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>xxxxxxxxxxx</span>
       <span style={ic}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>communitycollegealangalang.com</span>
     </div>

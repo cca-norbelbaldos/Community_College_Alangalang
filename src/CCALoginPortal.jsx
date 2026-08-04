@@ -156,7 +156,7 @@ export default function CCALoginPortal({ onLogin }) {
 
         {view === "login" && (
           <>
-            <h1 style={{ textAlign:"center", fontSize:40, fontWeight:800, color:t.text, margin:"20px 0 4px", fontFamily:'"Times New Roman", Times, serif' }}>Account Login</h1>
+            <h1 style={{ textAlign:"center", fontSize:40, fontWeight:800, color:t.text, margin:"15px 0 4px", fontFamily:'"Times New Roman", Times, serif' }}>Account Login</h1>
             <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"10px 0 10px" }}>Login to manage your CCA-PORTAL Account</p>
 
             <form onSubmit={handleSubmit} style={{ display:"flex", flexDirection:"column", marginTop:-5 }}>
@@ -168,8 +168,8 @@ export default function CCALoginPortal({ onLogin }) {
 
               {/* ID Number */}
               <div style={{ marginBottom:8 }}>
-                <label style={{ ...labelStyle, color:t.label }}>{userType} ID Number <span style={{ color:"#EF4444" }}>*</span></label>
-                <input type="text" autoComplete="username" placeholder={`${userType} ID`} value={username}
+                <label style={{ ...labelStyle, color:t.label }}>{userType === "Employee" ? "Username" : `${userType} ID Number`} <span style={{ color:"#EF4444" }}>*</span></label>
+                <input type="text" autoComplete="username" placeholder={userType === "Employee" ? "Username" : `${userType} ID`} value={username}
                   onChange={e=>{setUsername(e.target.value);setError("");}}
                   onFocus={()=>setFocusU(true)} onBlur={()=>setFocusU(false)}
                   style={{ ...cleanInput(focusU), background:t.inputBg, color:t.text, border:`1.5px solid ${focusU ? GREEN : t.border}` }} disabled={loading} />

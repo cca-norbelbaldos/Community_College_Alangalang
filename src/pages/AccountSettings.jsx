@@ -50,6 +50,27 @@ export default function AccountSettings({ user }) {
       .finally(() => setLoading(false));
   }, [user?.id]);
 
+  // Students aren't in erd_users — pull their photo/info from their student record.
+  useEffect(() => {
+    const sid = user?.student_id;
+    if (!sid) return;
+    fetch(`${import.meta.env.VITE_API_URL}/api/erd/student/profile/${sid}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(s => {
+        if (!s) return;
+        if (s.profile_picture) setProfilePic(s.profile_picture);
+        setForm(f => ({
+          ...f,
+          first_name:  f.first_name  || s.first_name  || "",
+          middle_name: f.middle_name || s.middle_name || "",
+          last_name:   f.last_name   || s.last_name   || "",
+          username:    f.username    || s.student_number || "",
+          email:       f.email       || s.email || "",
+        }));
+      })
+      .catch(() => {});
+  }, [user?.student_id]);
+
   const handleChange = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
 
   const handlePicChange = async (e) => {

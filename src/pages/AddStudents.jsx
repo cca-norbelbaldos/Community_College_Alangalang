@@ -978,16 +978,14 @@ body{
                       printColorAdjust: "exact",
                     }}
                   />
-                  {/* Copy label — absolute so it doesn't shift content */}
-                  <div style={{ position: "absolute", top: label === "School's Copy" ? "68px" : "-6px", right: "14px", fontSize: "6.5pt", color: "#555", fontStyle: "italic", zIndex: 2 }}>{label}</div>
-
                   {/* School header — logos absolute left, text truly centered full-width */}
                   <div style={{ position: "relative", minHeight: "60px", display: "flex", alignItems: "center", marginBottom: "2px" }}>
                     <div style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", display: "flex", alignItems: "center" }}>
                       <img src={alangalangLogo} alt="Alangalang" style={{ width: "70px", height: "70px", objectFit: "contain", marginTop: "-15px" }} />
                     </div>
-                    <div style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", display: "flex", alignItems: "center" }}>
+                    <div style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", alignItems: "center" }}>
                       <img src={ccaLogo} alt="CCA" style={{ width: "75px", height: "75px", objectFit: "contain", marginTop: "-18px" }} />
+                      <div style={{ fontSize: "6.5pt", color: "#555", fontStyle: "italic", marginTop: "-2px" }}>{label}</div>
                     </div>
                     <div style={{ width: "100%", textAlign: "center" }}>
                       <div style={{ fontSize: "8pt", fontFamily: TNR }}>Republic of the Philippines</div>

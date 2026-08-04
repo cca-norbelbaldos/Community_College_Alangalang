@@ -1122,6 +1122,127 @@ app.delete("/api/erd/dates-to-remember/:id", async (req, res) => {
   }
 });
 
+// ─── STUDENT ANNOUNCEMENTS (shown on every student dashboard) ─────────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_student_announcements (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        title      VARCHAR(150) NOT NULL,
+        body       TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (err) { console.error("erd_student_announcements table init error:", err); }
+})();
+
+app.get("/api/erd/student-announcements", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, title, body, DATE_FORMAT(created_at, '%Y-%m-%d') AS posted_date FROM erd_student_announcements ORDER BY created_at DESC, id DESC"
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch announcements." });
+  }
+});
+
+app.post("/api/erd/student-announcements", async (req, res) => {
+  const { title, body } = req.body;
+  if (!title || !title.trim()) return res.status(400).json({ message: "Title is required." });
+  try {
+    const [result] = await pool.query(
+      "INSERT INTO erd_student_announcements (title, body) VALUES (?,?)",
+      [title.trim(), (body || "").trim() || null]
+    );
+    res.status(201).json({ id: result.insertId, title: title.trim(), body: (body || "").trim() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to post announcement." });
+  }
+});
+
+app.delete("/api/erd/student-announcements/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_student_announcements WHERE id=?", [req.params.id]);
+    res.json({ message: "Announcement deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete announcement." });
+  }
+});
+
+// ─── SCHOLASTIC REQUIREMENTS (configurable checklist for Student Information) ──
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_scholastic_requirements (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        name       VARCHAR(150) NOT NULL UNIQUE,
+        sort_order INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // Seed defaults on first run only (table empty).
+    const [[{ c }]] = await pool.query("SELECT COUNT(*) AS c FROM erd_scholastic_requirements");
+    if (c === 0) {
+      const defaults = ["Form 138", "Birth Certificate (PSA)", "Good Moral Certificate", "Medical Certificate", "Honorable Dismissal / Transfer Credential", "2x2 ID Photos"];
+      for (let i = 0; i < defaults.length; i++) {
+        await pool.query("INSERT IGNORE INTO erd_scholastic_requirements (name, sort_order) VALUES (?,?)", [defaults[i], i]);
+      }
+    }
+  } catch (err) { console.error("erd_scholastic_requirements table init error:", err); }
+})();
+
+app.get("/api/erd/scholastic-requirements", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, name, sort_order FROM erd_scholastic_requirements ORDER BY sort_order ASC, id ASC");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch requirements." });
+  }
+});
+
+app.post("/api/erd/scholastic-requirements", async (req, res) => {
+  const { name, sort_order } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ message: "Name is required." });
+  try {
+    const [ex] = await pool.query("SELECT id FROM erd_scholastic_requirements WHERE name=?", [name.trim()]);
+    if (ex.length > 0) return res.status(400).json({ message: "That requirement already exists." });
+    const [result] = await pool.query("INSERT INTO erd_scholastic_requirements (name, sort_order) VALUES (?,?)", [name.trim(), Number(sort_order) || 0]);
+    res.status(201).json({ id: result.insertId, name: name.trim(), sort_order: Number(sort_order) || 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to add requirement." });
+  }
+});
+
+app.put("/api/erd/scholastic-requirements/:id", async (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ message: "Name is required." });
+  try {
+    const [ex] = await pool.query("SELECT id FROM erd_scholastic_requirements WHERE name=? AND id!=?", [name.trim(), req.params.id]);
+    if (ex.length > 0) return res.status(400).json({ message: "That requirement already exists." });
+    await pool.query("UPDATE erd_scholastic_requirements SET name=? WHERE id=?", [name.trim(), req.params.id]);
+    res.json({ id: Number(req.params.id), name: name.trim() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to update requirement." });
+  }
+});
+
+app.delete("/api/erd/scholastic-requirements/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_scholastic_requirements WHERE id=?", [req.params.id]);
+    res.json({ message: "Requirement deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete requirement." });
+  }
+});
+
 // ─── SCHOOL YEAR ─────────────────────────────────────────────────────────────
 (async () => {
   try {
@@ -1675,6 +1796,23 @@ app.post("/api/erd/students", async (req, res) => {
   }
 });
 
+// Ensure the student photo column can hold a data-URL.
+(async () => {
+  try { await pool.query("ALTER TABLE erd_student MODIFY COLUMN profile_picture LONGTEXT NULL"); } catch (e) {}
+})();
+
+// Lightweight: update ONLY the student's photo (used by the student self-service portal).
+app.put("/api/erd/student/:id/photo", async (req, res) => {
+  const { profile_picture } = req.body;
+  try {
+    await pool.query("UPDATE erd_student SET profile_picture = ? WHERE id = ?", [profile_picture || null, req.params.id]);
+    res.json({ message: "Photo updated.", profile_picture: profile_picture || null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to update photo." });
+  }
+});
+
 app.put("/api/erd/students/:id", async (req, res) => {
   const { id } = req.params;
   const {
@@ -2219,7 +2357,14 @@ app.get("/api/erd/grades/:studentId", async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT eg.*, sub.subject AS subject_title, sub.credits AS units,
-              sub.subject_code, sub.year_level AS sub_year_level
+              sub.subject_code, sub.year_level AS sub_year_level,
+              (SELECT TRIM(CONCAT(IFNULL(u.first_name,''),' ',IFNULL(u.last_name,'')))
+                 FROM class_schedule cs
+                 JOIN erd_users u ON u.id = cs.faculty_id
+                WHERE cs.subject_id = eg.subject_id
+                  AND (cs.semester = eg.semester OR cs.semester IS NULL)
+                ORDER BY (cs.semester = eg.semester) DESC, cs.id DESC
+                LIMIT 1) AS instructor
        FROM erd_grades eg
        JOIN erd_subjects sub ON eg.subject_id = sub.id
        WHERE eg.student_id = ? ORDER BY eg.year_start ASC, eg.semester ASC, sub.subject ASC`,

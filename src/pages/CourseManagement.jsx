@@ -288,17 +288,43 @@ export default function CourseManagement() {
   const [sections,    setSections]    = useState([]);
   const [rooms,       setRooms]       = useState([]);
   const [schoolYears, setSchoolYears] = useState([]);
+  const [reqs,        setReqs]        = useState([]);
   const [addingC,  setAddingC]  = useState(false);
   const [addingS,  setAddingS]  = useState(false);
   const [addingR,  setAddingR]  = useState(false);
   const [addingSY, setAddingSY] = useState(false);
+  const [addingReq, setAddingReq] = useState(false);
 
   const fetchCourses     = async () => { const r = await fetch(`${API}/api/erd/courses`);      if (r.ok) setCourses(await r.json()); };
   const fetchSections    = async () => { const r = await fetch(`${API}/api/erd/sections`);     if (r.ok) setSections(await r.json()); };
   const fetchRooms       = async () => { const r = await fetch(`${API}/api/erd/rooms`);        if (r.ok) setRooms(await r.json()); };
   const fetchSchoolYears = async () => { const r = await fetch(`${API}/api/erd/school-years`); if (r.ok) setSchoolYears(await r.json()); };
+  const fetchReqs        = async () => { const r = await fetch(`${API}/api/erd/scholastic-requirements`); if (r.ok) setReqs(await r.json()); };
 
-  useEffect(() => { fetchCourses(); fetchSections(); fetchRooms(); fetchSchoolYears(); }, []);
+  useEffect(() => { fetchCourses(); fetchSections(); fetchRooms(); fetchSchoolYears(); fetchReqs(); }, []);
+
+  // Scholastic Requirements CRUD
+  const addReq = async (val, reset) => {
+    setAddingReq(true);
+    const res = await fetch(`${API}/api/erd/scholastic-requirements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: val, sort_order: reqs.length }) });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) { showToast("Requirement added!", "success"); reset(); fetchReqs(); }
+    else showToast(data.message || "Failed to add requirement.", "error");
+    setAddingReq(false);
+  };
+  const editReq = async (id, val, done) => {
+    const res = await fetch(`${API}/api/erd/scholastic-requirements/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: val.trim() }) });
+    if (res.ok) { showToast("Requirement updated!", "success"); done(); fetchReqs(); }
+    else showToast("Failed to update requirement.", "error");
+  };
+  const deleteReq = (id, name) => showConfirm({
+    message: `Delete requirement "${name}"?`, confirmLabel: "Delete", icon: "🗑️",
+    onConfirm: async () => {
+      const res = await fetch(`${API}/api/erd/scholastic-requirements/${id}`, { method: "DELETE" });
+      if (res.ok) { showToast("Requirement deleted.", "info"); fetchReqs(); }
+      else showToast("Failed to delete.", "error");
+    },
+  });
 
   // Courses CRUD
   const addCourse = async (val, reset) => {
@@ -437,6 +463,17 @@ export default function CourseManagement() {
         onAdd={addRoom}
         onEdit={editRoom}
         onDelete={deleteRoom}
+      />
+      <div style={{ borderTop: `1px solid ${BORDER}` }} />
+      <ManagePanel
+        title="Scholastic Requirements"
+        items={reqs}
+        itemKey="name"
+        addPlaceholder="e.g. Form 138"
+        adding={addingReq}
+        onAdd={addReq}
+        onEdit={editReq}
+        onDelete={deleteReq}
       />
     </div>
   );

@@ -14,6 +14,7 @@ import SubjectCatalog from "./pages/SubjectCatalog";
 import FacultyGrades from "./pages/FacultyGrades";
 import StudentPortal from "./pages/StudentPortal";
 import DatesToRemember from "./pages/DatesToRemember";
+import ClassSchedule from "./pages/ClassSchedule";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#3d6e01";
@@ -25,7 +26,7 @@ const BORDER     = "#E5E7EB";
 const PURPLE     = "#6366F1";
 const LIGHT_PURPLE = "rgba(99,102,241,0.12)";
 
-import ccaLogo from "./assets/cca_logo.jpg";
+import ccaLogo from "./assets/cca_logo_t.png";
 import ccaLogoSvg from "./assets/cca_logo.svg";
 
 // ── Simple flat nav icons (replacing the old emoji set) ──────────────────────
@@ -77,8 +78,8 @@ const ICON_LIBRARY = (
 const MAIN_NAV = [
   { label: "Overview Workspace",  icon: ICON_HOME,     featureKey: "feat_overview",      alwaysFor: ["administrator", "faculty", "registrar_staff", "college_administrator", "registrar"] },
   { label: "Student List",        icon: ICON_LAYERS,   featureKey: "feat_student_list",  alwaysFor: ["administrator"] },
-  { label: "Faculty Hub",         icon: ICON_PERSON,   featureKey: "feat_faculty_mgmt",  alwaysFor: ["administrator"] },
-  { label: "Registrar Console",   icon: ICON_DOCUMENT, featureKey: "feat_registrar_mgmt",alwaysFor: ["administrator", "registrar_staff"] },
+  { label: "Faculty",             icon: ICON_PERSON,   featureKey: "feat_faculty_mgmt",  alwaysFor: ["administrator"] },
+  { label: "Registrar",           icon: ICON_DOCUMENT, featureKey: "feat_registrar_mgmt",alwaysFor: ["administrator", "registrar_staff"] },
   { label: "Grade",               icon: ICON_SUBJECT,  featureKey: "feat_grade",             alwaysFor: ["faculty", "administrator"] },
   { label: "Student User",        icon: ICON_CAP,      featureKey: "feat_student_portal",    alwaysFor: ["student", "administrator"] },
   { label: "Create Announcement", icon: ICON_BELL,     featureKey: "feat_announcements",  alwaysFor: ["administrator"] },
@@ -88,9 +89,10 @@ const MAIN_NAV = [
 const ADMIN_SETTINGS_ITEMS = [
   { label: "Users",       icon: ICON_USERS,   component: "UserManagement" },
   { label: "Roles",       icon: ICON_TAG,     component: "Roles" },
-  { label: "Courses",     icon: ICON_CAP,     component: "Courses" },
+  { label: "System",      icon: ICON_CAP,     component: "Courses" },
   { label: "Designation", icon: ICON_IDCARD,  component: "Designation" },
   { label: "Subjects",    icon: ICON_SUBJECT, component: "Subjects" },
+  { label: "Class Assignment", icon: ICON_SUBJECT, component: "ClassAssignment" },
 ];
 
 // ── ROLE → NAV MAPPING ────────────────────────────────────────────────────────
@@ -117,7 +119,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
     try { return sessionStorage.getItem("cca_dashboard_active_view") || "Overview Workspace"; }
     catch { return "Overview Workspace"; }
   });
-  const [sidebarOpen, setSidebarOpen]     = useState(true);
+  const [sidebarOpen, setSidebarOpen]     = useState(() => (typeof window !== "undefined" ? window.innerWidth > 768 : true));
   const [adminOpen, setAdminOpen]         = useState(false);
   const [studentPortalOpen, setStudentPortalOpen] = useState(false);
   const [myProfileOpen, setMyProfileOpen] = useState(true);
@@ -137,6 +139,21 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
   const studentMenuRef = useRef(null);
   const [todayEvents, setTodayEvents] = useState([]);
   const [notifOpen, setNotifOpen]     = useState(false);
+  const [dark, setDark] = useState(() => { try { return localStorage.getItem("cca_dark") === "1"; } catch { return false; } });
+  useEffect(() => { try { localStorage.setItem("cca_dark", dark ? "1" : "0"); } catch {} }, [dark]);
+  const [maintOn, setMaintOn] = useState(false);
+  const [maintSaving, setMaintSaving] = useState(false);
+  const toggleMaint = async () => {
+    const next = !maintOn;
+    setMaintSaving(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/maintenance`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on: next ? 1 : 0 }),
+      });
+      if (res.ok) setMaintOn(next);
+    } catch {}
+    setMaintSaving(false);
+  };
   // seenCount persists across refreshes via sessionStorage.
   // Red dot + repeating sound active whenever todayEvents.length > seenCount.
   const [seenCount, setSeenCount] = useState(() => {
@@ -208,6 +225,15 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
       })
       .catch(() => { if (user.role) setUserRoles([user.role.toLowerCase()]); });
   }, [user?.id]);
+
+  // ── Maintenance flag (admins) ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch(`${import.meta.env.VITE_API_URL}/api/erd/maintenance`)
+      .then(r => r.ok ? r.json() : { on: 0 })
+      .then(d => setMaintOn(!!d.on))
+      .catch(() => {});
+  }, [isAdmin]);
 
   // ── Students: load avatar from their student record (not in erd_users) ──────
   useEffect(() => {
@@ -373,7 +399,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
   });
 
   // Admin settings sub-views
-  const adminSubViews = ["Users", "Roles", "Courses", "Designation", "Subjects"];
+  const adminSubViews = ["Users", "Roles", "System", "Designation", "Subjects", "Class Assignment"];
 
   const activeLabel = adminSubViews.includes(activeView) ? activeView : activeView;
   const activeIcon  = activeView === "Users" ? ICON_USERS
@@ -394,10 +420,15 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
   });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "#F3F4F6", fontFamily: "system-ui, sans-serif" }}>
-      
+    <div className={(dark && _roleLc === "student") ? "cca-dark-root" : undefined} style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "#F3F4F6", fontFamily: "system-ui, sans-serif" }}>
+
       {/* Dynamic Hover and Keyframe Stylesheet Injection */}
       <style>{`
+        /* Dark mode — softened invert: dark-gray (not pure black) + lower contrast so
+           it's easy on the eyes. Media is re-inverted so photos/logos stay true. */
+        .cca-dark-root { filter: invert(0.95) hue-rotate(180deg) contrast(1.04); background: #16171a !important; }
+        .cca-dark-root img, .cca-dark-root video, .cca-dark-root .no-invert, .cca-dark-root [data-noinvert] { filter: invert(0.95) hue-rotate(180deg) contrast(0.96); }
+
         /* Smooth page component slide-fade entry animation */
         .animated-content-wrapper {
           animation: mainWorkspaceFadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
@@ -463,7 +494,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
 
       {/* ── TOP NAVBAR (full width, fixed above everything; sidebar sits below it) ── */}
       {/* Top navbar with hamburger + account menu */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "10px 18px", background: WHITE, borderBottom: `1px solid ${BORDER}`, flexShrink: 0, zIndex: 100, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", height: "50px", minHeight: "50px", maxHeight: "50px", padding: "0 18px", background: WHITE, borderBottom: `1px solid ${BORDER}`, flexShrink: 0, zIndex: 100, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <button
             onClick={() => setSidebarOpen(o => !o)}
@@ -476,16 +507,27 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
             <span style={{ display: "block", width: "16px", height: "2px", background: DARK_GREEN, borderRadius: "2px" }} />
           </button>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <img src={ccaLogo} alt="CCA" style={{ width: "36px", height: "36px", objectFit: "contain", borderRadius: "4px" }} />
-            <div style={{ lineHeight: 1.15 }}>
-              <div style={{ fontSize: "9px", fontWeight: 600, color: DARK_GREEN, letterSpacing: "0.08em", textTransform: "uppercase" }}>Community College of</div>
-              <div style={{ fontSize: "14px", fontWeight: 900, color: DARK_GREEN, letterSpacing: "0.04em", textTransform: "uppercase" }}>Alangalang</div>
-            </div>
+            <img src={ccaLogo} alt="CCA" style={{ width: "100px", height: "100px", objectFit: "contain", borderRadius: "4px", flexShrink: 0 }} />
           </div>
         </div>
 
-        {/* Right side: bell + avatar grouped together */}
+        {/* Right side: dark toggle + bell + avatar grouped together */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+
+        {/* Dark mode toggle — students only (employees always use light mode) */}
+        {_roleLc === "student" && (
+        <button
+          onClick={() => setDark(d => !d)}
+          title={dark ? "Switch to light mode" : "Switch to dark mode"}
+          style={{ width: "34px", height: "34px", borderRadius: "50%", background: "none", border: "none", outline: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: DARK_GREEN }}
+        >
+          {dark ? (
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          ) : (
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          )}
+        </button>
+        )}
 
         {/* Notification bell */}
         <div ref={notifRef} style={{ position: "relative" }}>
@@ -833,6 +875,31 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
               )}
             </div>
           )}
+
+          {/* Maintenance Mode — administrator only; toggle sits beside the label */}
+          {isAdmin && (
+            <div
+              title={!sidebarOpen ? "Maintenance Mode" : undefined}
+              style={{
+                display: "flex", alignItems: "center", marginTop: "4px",
+                justifyContent: sidebarOpen ? "space-between" : "center",
+                gap: "8px", padding: sidebarOpen ? "8px 12px" : "10px 0",
+                borderRadius: "8px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                <span style={{ fontSize: "13px", display: "flex" }}>🛠</span>
+                {sidebarOpen && <span style={{ fontSize: "12px", color: DARK_GREEN, fontWeight: 400, whiteSpace: "nowrap" }}>Maintenance Mode</span>}
+              </div>
+              {sidebarOpen && (
+                <button onClick={toggleMaint} disabled={maintSaving} title="Toggle maintenance mode"
+                  style={{ position: "relative", width: "46px", height: "22px", borderRadius: "11px", border: "none", cursor: maintSaving ? "default" : "pointer", background: maintOn ? "#DC2626" : "#9CA3AF", flexShrink: 0, transition: "background 0.2s" }}>
+                  <span style={{ position: "absolute", top: 0, bottom: 0, display: "flex", alignItems: "center", fontSize: "7px", fontWeight: 800, color: WHITE, left: maintOn ? "7px" : "auto", right: maintOn ? "auto" : "6px" }}>{maintOn ? "ON" : "OFF"}</span>
+                  <span style={{ position: "absolute", top: "3px", left: maintOn ? "calc(100% - 19px)" : "3px", width: "16px", height: "16px", borderRadius: "50%", background: WHITE, transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.3)" }} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Student profile chip pinned to the bottom of the sidebar ── */}
@@ -928,14 +995,14 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
               ) : (
                 <>
                   {activeView === "Student List"        && <AddStudents user={user} />}
-                  {activeView === "Faculty Hub"         && <Faculty />}
-                  {activeView === "Registrar Console"   && <Registrar user={user} />}
+                  {activeView === "Faculty"             && <Faculty />}
+                  {activeView === "Registrar"           && <Registrar user={user} />}
                   {activeView === "Grade"               && <FacultyGrades user={user} />}
                   {activeView === "Student User"        && <StudentPortal user={user} onNavigate={setActiveView} />}
                   {activeView === "Dates to Remember"  && <DatesToRemember />}
-                  {activeView === "Personal Information"   && <StudentPortal user={user} section="personal" />}
-                  {activeView === "Educational Background" && <StudentPortal user={user} section="education" />}
-                  {activeView === "Family Background"      && <StudentPortal user={user} section="family" />}
+                  {activeView === "Personal Information"   && <StudentPortal user={user} section="personal"  onNavigate={setActiveView} />}
+                  {activeView === "Educational Background" && <StudentPortal user={user} section="education" onNavigate={setActiveView} />}
+                  {activeView === "Family Background"      && <StudentPortal user={user} section="family"    onNavigate={setActiveView} />}
                   {activeView === "My Grades"             && <StudentPortal user={user} section="grades" />}
                   {activeView === "Create Announcement" && (
                     <Announcements user={user} onPosted={() => {
@@ -945,9 +1012,10 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   )}
                   {activeView === "Users"             && <UserManagementModule />}
                   {activeView === "Roles"             && <RolesManagementModule />}
-                  {activeView === "Courses"           && <CourseManagement />}
+                  {activeView === "System"             && <CourseManagement />}
                   {activeView === "Designation"        && <Designation />}
                   {activeView === "Subjects"            && <SubjectCatalog />}
+                  {activeView === "Class Assignment"    && <ClassSchedule isAdmin={true} user={user} />}
                   {activeView === "Account Settings"    && <AccountSettings user={user} />}
                 </>
               )}
@@ -1098,11 +1166,11 @@ function SystemAccountsCard({ count, users, open, onToggle, onClose, cardRef }) 
             </div>
           )}
 
-          {/* User list */}
+          {/* User list — online accounts only */}
           <div style={{ maxHeight: "280px", overflowY: "auto" }}>
-            {users.length === 0 ? (
-              <div style={{ padding: "20px", textAlign: "center", fontSize: "12px", color: GRAY_C }}>No accounts found.</div>
-            ) : users.map((u, i) => {
+            {users.filter(u => active(u)).length === 0 ? (
+              <div style={{ padding: "20px", textAlign: "center", fontSize: "12px", color: GRAY_C }}>No one is online right now.</div>
+            ) : users.filter(u => active(u)).map((u, i) => {
               const roleList = getRoles(u);
               const p = pic(u);
               const isOnline = active(u);

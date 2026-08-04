@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 
 const GREEN      = "#3d6e01";
 const DARK_GREEN = "#2c4a1e";
@@ -17,7 +17,7 @@ export default function StudentPortal({ user, section, onNavigate }) {
   const isAdmin = String(user?.role || "").toLowerCase() === "administrator";
   if (isAdmin) return <LinkConfig />;
   if (section === "grades") return <StudentGradesPage user={user} />;
-  if (section) return <StudentProfilePage user={user} section={section} />;
+  if (section) return <StudentProfilePage user={user} section={section} onNavigate={onNavigate} />;
   return <StudentView user={user} onNavigate={onNavigate} />;
 }
 
@@ -95,11 +95,11 @@ function StudentGradesPage({ user }) {
       </div>
 
       {/* Filters */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search course code or title…"
-          style={{ flex: "1 1 260px", padding: "9px 12px", border: `1.5px solid ${BORDER}`, borderRadius: 9, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+          style={{ width: 240, padding: "6px 10px", border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 12, outline: "none", boxSizing: "border-box" }} />
         <select value={semSel} onChange={e => setSemSel(e.target.value)}
-          style={{ flex: "0 0 200px", padding: "9px 12px", border: `1.5px solid ${BORDER}`, borderRadius: 9, fontSize: 13, background: WHITE, outline: "none" }}>
+          style={{ width: 160, padding: "6px 10px", border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 12, background: WHITE, outline: "none" }}>
           <option value="all">All Semesters</option>
           <option value="1">First Semester</option>
           <option value="2">Second Semester</option>
@@ -113,20 +113,21 @@ function StudentGradesPage({ user }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(440px, 1fr))", gap: 16, alignItems: "start" }}>
           {filtered.map(g => (
             <div key={`${g.year}-${g.sem}`} style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ padding: "14px 16px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+              <div style={{ padding: "10px 12px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: "#1f2937" }}>S.Y. {g.year || "—"}-{g.year ? g.year + 1 : "—"} · {SEM_NAME[g.sem] || "Semester"}</div>
-                  <div style={{ fontSize: 11.5, color: GRAY, marginTop: 2 }}>{profile?.course || "—"}</div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#1f2937" }}>S.Y. {g.year || "—"}-{g.year ? g.year + 1 : "—"} · {SEM_NAME[g.sem] || "Semester"}</div>
+                  <div style={{ fontSize: 10, color: GRAY, marginTop: 1 }}>{profile?.course || "—"}</div>
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 800, color: DARK_GREEN, background: "#ECFDF5", padding: "4px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>SEM GWA: {gwaOf(g.rows)}</span>
+                <span style={{ fontSize: 9.5, fontWeight: 800, color: DARK_GREEN, background: "#ECFDF5", padding: "3px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>SEM GWA: {gwaOf(g.rows)}</span>
               </div>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                 <thead>
                   <tr style={{ background: LIGHT_GRAY }}>
                     <th style={gTh}>Course Code</th>
                     <th style={gTh}>Descriptive Title</th>
                     <th style={{ ...gTh, textAlign: "center" }}>Units</th>
                     <th style={{ ...gTh, textAlign: "center" }}>Final Rating</th>
+                    <th style={gTh}>Instructor</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -138,10 +139,11 @@ function StudentGradesPage({ user }) {
                         <td style={gTd}>{r.subject_title || "—"}</td>
                         <td style={{ ...gTd, textAlign: "center" }}>{r.units != null ? Number(r.units).toFixed(2) : "—"}</td>
                         <td style={{ ...gTd, textAlign: "center" }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 20, color: has ? "#166534" : GRAY, background: has ? "#DCFCE7" : "#F3F4F6" }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 8px", borderRadius: 20, color: has ? "#166534" : GRAY, background: has ? "#DCFCE7" : "#F3F4F6" }}>
                             {has ? parseFloat(r.grade).toFixed(1) : "N/A"}
                           </span>
                         </td>
+                        <td style={{ ...gTd, color: GRAY }}>{r.instructor || "—"}</td>
                       </tr>
                     );
                   })}
@@ -154,8 +156,8 @@ function StudentGradesPage({ user }) {
     </div>
   );
 }
-const gTh = { padding: "9px 14px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: GRAY, borderBottom: `1px solid ${BORDER}` };
-const gTd = { padding: "9px 14px", color: "#1f2937" };
+const gTh = { padding: "6px 10px", textAlign: "left", fontSize: 8.5, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", color: GRAY, borderBottom: `1px solid ${BORDER}` };
+const gTd = { padding: "6px 10px", color: "#1f2937" };
 
 // Maps a dashboard section key to the sidebar page label.
 const SECTION_TO_PAGE = { personal: "Personal Information", education: "Educational Background", family: "Family Background" };
@@ -163,10 +165,33 @@ const SECTION_TO_PAGE = { personal: "Personal Information", education: "Educatio
 /* ═══════════════════════════════════════════════════════════════
    STUDENT PROFILE PAGE — Personal / Educational / Family (full page)
    ═══════════════════════════════════════════════════════════════ */
-function StudentProfilePage({ user, section }) {
+function StudentProfilePage({ user, section, onNavigate }) {
   const [s, setS] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+
+  const onPhotoChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!/^image\//.test(file.type)) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result;
+      setUploading(true);
+      try {
+        const res = await fetch(`${API}/api/erd/student/${user.student_id}/photo`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ profile_picture: dataUrl }),
+        });
+        if (res.ok) setS(prev => ({ ...prev, profile_picture: dataUrl }));
+      } catch { /* ignore */ }
+      setUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -215,8 +240,9 @@ function StudentProfilePage({ user, section }) {
             <div style={{ display: "inline-block", marginTop: 8, fontSize: 12, fontWeight: 700, color: DARK_GREEN, background: "#ECFDF5", padding: "3px 12px", borderRadius: 20 }}>{s.student_number || "—"}</div>
 
             <div style={{ borderTop: `1px solid ${BORDER}`, margin: "18px 0 0", paddingTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-              <button disabled style={simBtn}>⤴ Change Picture</button>
-              <button disabled style={simBtn}>◎ Change Account Password</button>
+              <input ref={fileRef} type="file" accept="image/*" onChange={onPhotoChange} style={{ display: "none" }} />
+              <button onClick={() => fileRef.current && fileRef.current.click()} disabled={uploading} style={{ ...simBtn, cursor: uploading ? "default" : "pointer" }}>{uploading ? "Uploading…" : "⤴ Change Picture"}</button>
+              <button onClick={() => onNavigate && onNavigate("Account Settings")} style={{ ...simBtn, cursor: "pointer" }}>◎ Change Account Password</button>
             </div>
           </div>
           {/* fields card */}
@@ -556,18 +582,24 @@ function StudentView({ user, onNavigate }) {
   const [student,     setStudent]     = useState(null);
   const [grades,      setGrades]      = useState([]);
   const [schedule,    setSchedule]    = useState([]);
+  const [curriculum,  setCurriculum]  = useState([]); // full program curriculum (all yrs/sems) for total units
   const [enrollments, setEnrollments] = useState([]);
   const [dates,       setDates]       = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState("");
   const [modal,       setModal]       = useState(null); // "personal" | "education" | "family"
 
-  // Dates to Remember — posted by admin, reflected here live.
+  // Dates to Remember + Announcements — posted by admin, reflected here live.
   useEffect(() => {
     fetch(`${API}/api/erd/dates-to-remember?t=${Date.now()}`, { cache: "no-store" })
       .then(r => r.ok ? r.json() : [])
       .then(d => setDates(Array.isArray(d) ? d : []))
       .catch(() => setDates([]));
+    fetch(`${API}/api/erd/student-announcements?t=${Date.now()}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setAnnouncements(Array.isArray(d) ? d : []))
+      .catch(() => setAnnouncements([]));
   }, []);
 
   useEffect(() => {
@@ -594,19 +626,41 @@ function StudentView({ user, onNavigate }) {
         if (cancelled) return;
         setStudent(s);
 
-        const [gRes, schRes, enrRes] = await Promise.all([
+        // Grades + enrollments first, so we know which semester the student is in.
+        const [gRes, enrRes] = await Promise.all([
           fetch(`${API}/api/erd/grades/${s.id}?t=${Date.now()}`, { cache: "no-store" }),
-          fetch(`${API}/api/erd/class-schedule?` + new URLSearchParams({
-            ...(s.course      ? { course: s.course }         : {}),
-            ...(s.year_level  ? { year_level: s.year_level } : {}),
-            ...(s.section     ? { section: s.section }       : {}),
-          }), { cache: "no-store" }),
           fetch(`${API}/api/erd/enrollments/${s.id}?t=${Date.now()}`, { cache: "no-store" }),
         ]);
         if (cancelled) return;
-        setGrades(gRes.ok   ? await gRes.json()   : []);
+        const enrs = enrRes.ok ? await enrRes.json() : [];
+        setGrades(gRes.ok ? await gRes.json() : []);
+        setEnrollments(enrs);
+
+        // Current term = latest enrollment (highest year, then semester).
+        const semN = (x) => /2nd/i.test(x) ? 2 : /summer/i.test(x) ? 3 : 1;
+        const latestEnr = enrs.length
+          ? [...enrs].sort((a, b) => (Number(b.year_enrolled) - Number(a.year_enrolled)) || (semN(b.semester) - semN(a.semester)))[0]
+          : null;
+        const curSem = latestEnr ? semN(latestEnr.semester) : null;
+
+        // Schedule scoped to the CURRENT semester so Advised Subjects/Units match the term.
+        const schRes = await fetch(`${API}/api/erd/class-schedule?` + new URLSearchParams({
+          ...(s.course      ? { course: s.course }         : {}),
+          ...(s.year_level  ? { year_level: s.year_level } : {}),
+          ...(s.section     ? { section: s.section }       : {}),
+          ...(curSem        ? { semester: String(curSem) } : {}),
+        }), { cache: "no-store" });
+        if (cancelled) return;
         setSchedule(schRes.ok ? await schRes.json() : []);
-        setEnrollments(enrRes.ok ? await enrRes.json() : []);
+
+        // Full program curriculum (all years & semesters) — for "earned of total" units.
+        if (s.course) {
+          const curRes = await fetch(`${API}/api/erd/class-schedule?` + new URLSearchParams({ course: s.course }), { cache: "no-store" });
+          if (cancelled) return;
+          setCurriculum(curRes.ok ? await curRes.json() : []);
+        } else {
+          setCurriculum([]);
+        }
       } catch {
         if (!cancelled) setError("Unable to reach the server. Check your connection.");
       } finally {
@@ -654,6 +708,11 @@ function StudentView({ user, onNavigate }) {
     ? [...enrollments].sort((a, b) => (Number(b.year_enrolled) - Number(a.year_enrolled)) || (semNum(b.semester) - semNum(a.semester)))[0]
     : null;
   const currentSem = currentEnr ? semNum(currentEnr.semester) : null;
+  const semLabel = (n) => n === 2 ? "Second Semester" : n === 3 ? "Summer" : "First Semester";
+  const currentSemLabel = currentSem ? semLabel(currentSem) : "First Semester";
+  const currentSyLabel = currentEnr && currentEnr.year_enrolled
+    ? `${currentEnr.year_enrolled} - ${Number(currentEnr.year_enrolled) + 1}`
+    : sy;
   // Curriculum subjects for the enrolled term (empty when not enrolled).
   const uniqueSubjects = Array.from(new Map(schedule.map(s => [s.subject_id ?? s.subject_title, s])).values());
   const semSubjects = isEnrolled ? uniqueSubjects.filter(s => Number(s.semester) === currentSem) : [];
@@ -665,6 +724,21 @@ function StudentView({ user, onNavigate }) {
     const passed = g.remarks ? /pass/i.test(g.remarks) : (!isNaN(gr) && gr > 0 && gr <= 3.0);
     return passed ? sum + (parseFloat(g.units) || 0) : sum;
   }, 0);
+  // Units for the semesters the student is ENROLLED in (adds up as she enrolls
+  // each term). Denominator = 1st-sem units, +2nd-sem units once enrolled, etc.
+  const enrolledUnits = (() => {
+    if (!isEnrolled) return 0;
+    const m = new Map();
+    enrollments.forEach(enr => {
+      const eSem = semNum(enr.semester);
+      curriculum.forEach(sub => {
+        if (String(sub.year_level || "") === String(enr.year_level || "") && Number(sub.semester) === eSem) {
+          m.set(sub.subject_id ?? sub.subject_title, parseFloat(sub.units) || 0);
+        }
+      });
+    });
+    return Array.from(m.values()).reduce((a, u) => a + u, 0);
+  })();
 
   const enrollStatus = isEnrolled ? "Enrolled" : "Not Enrolled";
   const enrollSub = isEnrolled
@@ -673,8 +747,18 @@ function StudentView({ user, onNavigate }) {
 
   return (
     <div style={{ fontFamily: "system-ui,-apple-system,sans-serif" }}>
+      <style>{`
+        .sv-main   { display:grid; grid-template-columns: minmax(0,2.1fr) minmax(0,1fr); gap:14px; align-items:start; }
+        .sv-stats  { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; }
+        .sv-two    { display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start; }
+        @media (max-width: 860px) {
+          .sv-main  { grid-template-columns: 1fr; }
+          .sv-two   { grid-template-columns: 1fr; }
+          .sv-stats { grid-template-columns: repeat(2, 1fr); }
+        }
+      `}</style>
       {/* ── Layout: main column (2fr) + right rail (1fr) ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2.1fr) minmax(0,1fr)", gap: 14, alignItems: "start" }}>
+      <div className="sv-main">
 
         {/* ═══════════ MAIN COLUMN ═══════════ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -683,36 +767,32 @@ function StudentView({ user, onNavigate }) {
             <div style={{ position: "relative", zIndex: 1 }}>
               <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: 0.2 }}>Good {greeting}, {firstName}!</div>
               <div style={{ fontSize: 12.5, opacity: 0.95, marginTop: 4 }}>Today is {dateStr}</div>
-              <div style={{ fontSize: 11.5, opacity: 0.85, marginTop: 1 }}>First Semester, S.Y. {sy}</div>
+              <div style={{ fontSize: 11.5, opacity: 0.85, marginTop: 1 }}>{currentSemLabel}, S.Y. {currentSyLabel}</div>
             </div>
             <div style={{ position: "absolute", right: -40, top: -40, width: 160, height: 160, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
             <div style={{ position: "absolute", right: 60, bottom: -50, width: 120, height: 120, borderRadius: "50%", background: "rgba(245,168,0,0.14)" }} />
           </div>
 
           {/* Stat cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 10 }}>
+          <div className="sv-stats">
             <StatCard icon={<IconBook />}   tint="#EFF6FF" iconColor="#2563EB" value={`${advisedSubjects} subject/s`} label="Advised Subjects" sub="This semester" />
             <StatCard icon={<IconTarget />} tint="#FFF7ED" iconColor="#EA580C" value={`${advisedUnits} units`} label="Advised Units" sub="This semester" />
             <StatCard icon={<IconCal />}    tint="#ECFDF5" iconColor="#059669" value={String(totalSems)} label="Total Sems Enrolled" sub="Semesters" />
-            <StatCard icon={<IconCap />}    tint="#F5F3FF" iconColor="#7C3AED" value={`${totalUnits} units`} label="Total Units" sub="Units earned" />
+            <StatCard icon={<IconCap />}    tint="#F5F3FF" iconColor="#7C3AED" value={(isEnrolled && enrolledUnits > 0) ? `${totalUnits} / ${enrolledUnits}` : `${totalUnits}`} label="Total Units" sub={(isEnrolled && enrolledUnits > 0) ? "Units earned of enrolled" : "Units earned"} />
           </div>
 
           {/* Pre-enrollment + Profile status side by side */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, alignItems: "start" }}>
+          <div className="sv-two">
             {/* col A */}
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <Card>
                 <CardTitle>Current Pre-Enrollment Details</CardTitle>
                 <div style={{ padding: "12px 14px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 6 }}>
-                    <span style={{ fontSize: 17, fontWeight: 900, color: DARK_GREEN }}>{student.year_level || "—"}</span>
+                    <span style={{ fontSize: 17, fontWeight: 900, color: DARK_GREEN }}>{isEnrolled ? `${student.year_level || "—"} — ${currentSemLabel}` : "Not Enrolled"}</span>
                     <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: isEnrolled ? GREEN : "#B45309", background: isEnrolled ? "#ECFDF5" : "#FEF3C7", padding: "2px 8px", borderRadius: 20, textTransform: "uppercase" }}>{isEnrolled ? "Enrolled" : "Pending"}</span>
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#1f2937", lineHeight: 1.4 }}>{student.course || "No program assigned"}</div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
-                    <span style={{ fontSize: 12.5, color: GRAY }}>{student.status || "Continuing Student"}</span>
-                    <button onClick={() => go("personal")} style={{ ...viewMore, border: "none", background: "none", cursor: "pointer" }}>View More →</button>
-                  </div>
                 </div>
               </Card>
 
@@ -757,12 +837,27 @@ function StudentView({ user, onNavigate }) {
 
         {/* ═══════════ RIGHT RAIL ═══════════ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Announcements */}
+          {/* Announcements — driven by admin's "Announcements" manager */}
           <Card>
             <CardTitle>Announcements</CardTitle>
-            <div style={{ minHeight: 150, padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ display: "inline-block", padding: "10px 16px", background: "#FEF2F2", color: "#991B1B", borderRadius: 10, fontSize: 12.5, fontWeight: 600 }}>ⓘ No announcements yet</div>
-            </div>
+            {announcements.length === 0 ? (
+              <div style={{ minHeight: 150, padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ display: "inline-block", padding: "10px 16px", background: "#FEF2F2", color: "#991B1B", borderRadius: 10, fontSize: 12.5, fontWeight: 600 }}>ⓘ No announcements yet</div>
+              </div>
+            ) : (
+              <div style={{ padding: "6px 12px 12px" }}>
+                {announcements.map(a => (
+                  <div key={a.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 4px", borderBottom: `1px solid ${BORDER}` }}>
+                    <span style={{ width: 28, height: 28, borderRadius: 8, background: "#FEF2F2", color: "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>📢</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#1f2937" }}>{a.title}</div>
+                      {a.body && <div style={{ fontSize: 11, color: GRAY, marginTop: 2, lineHeight: 1.4 }}>{a.body}</div>}
+                      {a.posted_date && <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>{a.posted_date}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
 
           {/* Dates to remember — driven by admin's "Dates to Remember" manager */}

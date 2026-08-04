@@ -23,6 +23,7 @@ const remarkFor = (grade) => {
 export default function FacultyGrades({ user = {} }) {
   const [classes, setClasses]   = useState([]);
   const [students, setStudents] = useState([]);
+  const [blockSections, setBlockSections] = useState([]); // from Section/Block Management
   const [loading, setLoading]   = useState(true);
   const [course, setCourse]     = useState("");
   const [year, setYear]         = useState("");
@@ -40,18 +41,21 @@ export default function FacultyGrades({ user = {} }) {
     Promise.all([
       fetch(`${API}/api/erd/class-schedule`).then(r => r.ok ? r.json() : []),
       fetch(`${API}/api/erd/students`).then(r => r.ok ? r.json() : []),
-    ]).then(([sched, studs]) => {
+      fetch(`${API}/api/erd/sections`).then(r => r.ok ? r.json() : []),
+    ]).then(([sched, studs, secs]) => {
       const all = (Array.isArray(sched) ? sched : []).filter(r => r.faculty_id);
       // Admin can view/unlock every class; faculty only their own assignments.
       setClasses(isAdmin ? all : all.filter(r => String(r.faculty_id) === String(user.id)));
       setStudents(Array.isArray(studs) ? studs : []);
+      setBlockSections(Array.isArray(secs) ? secs : []);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [user.id]);
 
   const courses  = [...new Set(classes.map(c => c.course).filter(Boolean))].sort();
   const years    = [...new Set(classes.filter(c => !course || c.course === course).map(c => c.year_level).filter(Boolean))].sort();
-  const sections = [...new Set(classes.filter(c => (!course || c.course === course) && (!year || c.year_level === year)).map(c => c.section).filter(Boolean))].sort();
+  // Sections come from Section/Block Management (erd_section), not the class schedule.
+  const sections = [...new Set(blockSections.map(s => s.name).filter(Boolean))].sort();
 
   const roster = useMemo(() => {
     if (!section) return [];
