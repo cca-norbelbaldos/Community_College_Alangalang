@@ -156,7 +156,7 @@ export default function CCALoginPortal({ onLogin }) {
 
         {view === "login" && (
           <>
-            <h1 style={{ textAlign:"center", fontSize:40, fontWeight:800, color:t.text, margin:"15px 0 4px", fontFamily:'"Times New Roman", Times, serif' }}>Account Login</h1>
+            <h1 style={{ textAlign:"center", fontSize:40, fontWeight:800, color:t.text, margin:"15px 0 6px", lineHeight:1.2, fontFamily:'"Times New Roman", Times, serif' }}>Account Login</h1>
             <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"10px 0 10px" }}>Login to manage your CCA-PORTAL Account</p>
 
             <form onSubmit={handleSubmit} style={{ display:"flex", flexDirection:"column", marginTop:-5 }}>
