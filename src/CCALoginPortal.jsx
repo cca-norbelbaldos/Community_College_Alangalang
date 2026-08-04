@@ -134,12 +134,12 @@ export default function CCALoginPortal({ onLogin }) {
       <div className="card-light" aria-hidden="true"><div className="card-light-inner" /></div>
       <div className="cca-card" style={{
         position:"relative", zIndex:1, boxSizing:"border-box",
-        width:"100%", maxWidth:354, height: view === "choose" ? 464 : 514,
+        width:"100%", maxWidth:354, height: view === "choose" ? 464 : 552,
         background: t.card,
         borderRadius:18,
         border:`1px solid ${t.border}`,
         boxShadow: dark ? "0 20px 60px rgba(0,0,0,0.5)" : "0 20px 60px rgba(17,24,39,0.10), 0 2px 8px rgba(17,24,39,0.04)",
-        padding:"20px 22px 94px",
+        padding:"20px 22px 112px",
         overflow:"hidden",
         display:"flex", flexDirection:"column",
         transition:"background 0.3s ease, border-color 0.3s ease",
@@ -224,8 +224,8 @@ export default function CCALoginPortal({ onLogin }) {
               </button>
             </form>
 
-            <div style={{ textAlign:"center", marginTop:8 }}>
-              <button className="link-btn" onClick={back} style={{ ...linkStyle, color:GRAY }}>← Back</button>
+            <div style={{ textAlign:"center", marginTop:16, paddingTop:2 }}>
+              <button className="link-btn" onClick={back} style={{ ...linkStyle, color:GRAY, display:"inline-block", padding:"4px 10px" }}>← Back</button>
             </div>
           </>
         )}
