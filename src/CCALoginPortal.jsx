@@ -152,7 +152,7 @@ export default function CCALoginPortal({ onLogin }) {
 
         {view === "choose" && (
           <>
-            <h1 style={{ textAlign:"center", fontSize:40, fontWeight:800, color:t.text, margin:"18px 0 4px", fontFamily:'"Times New Roman", Times, serif' }}>Account Login</h1>
+            <h1 className="login-title" style={{ color:t.text }}>Account Login</h1>
             <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"10px 0 16px" }}>Login to manage your CCA-PORTAL Account</p>
 
             <button className="role-btn" onClick={()=>pick("Student")} style={{ ...roleBtnStyle, marginTop:10, background:t.card, border:`1.5px solid ${t.border}`, color:t.text }}>
