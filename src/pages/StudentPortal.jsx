@@ -221,13 +221,22 @@ function StudentProfilePage({ user, section, onNavigate }) {
 
   return (
     <div style={{ fontFamily: "system-ui,-apple-system,sans-serif" }}>
+      <style>{`
+        .pp-two  { display:grid; grid-template-columns: 260px 1fr; gap:16px; align-items:start; }
+        .pp-grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:8px 12px; }
+        @media (max-width: 900px) { .pp-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+        @media (max-width: 680px) {
+          .pp-two  { grid-template-columns: 1fr; }
+          .pp-grid { grid-template-columns: 1fr; }
+        }
+      `}</style>
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: "#1f2937" }}>{title}</div>
         <div style={{ fontSize: 13, color: GRAY, marginTop: 2 }}>{subtitle}</div>
       </div>
 
       {section === "personal" && (
-        <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 16, alignItems: "start" }}>
+        <div className="pp-two">
           {/* photo card */}
           <div style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "22px 20px", textAlign: "center" }}>
             <div style={{ width: 120, height: 120, borderRadius: "50%", margin: "0 auto", overflow: "hidden", border: `3px solid ${GOLD}`, background: LIGHT_GRAY, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -339,7 +348,7 @@ function PSection({ title }) {
   return <div style={{ fontSize: 12, fontWeight: 800, color: GREEN, marginTop: 8, marginBottom: 4 }}>{title}</div>;
 }
 function PGrid({ children }) {
-  return <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: "8px 12px" }}>{children}</div>;
+  return <div className="pp-grid">{children}</div>;
 }
 const simBtn = {
   width: "100%", padding: "9px 12px", borderRadius: 8, border: "none",

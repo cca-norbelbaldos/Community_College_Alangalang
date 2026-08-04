@@ -424,6 +424,26 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
 
       {/* Dynamic Hover and Keyframe Stylesheet Injection */}
       <style>{`
+        html, body, #root { max-width: 100%; overflow-x: hidden; }
+        *, *::before, *::after { box-sizing: border-box; }
+
+        /* ── Mobile: sidebar overlays content instead of squishing it ── */
+        @media (max-width: 768px) {
+          .app-sidebar {
+            position: fixed !important;
+            top: 50px; left: 0; bottom: 0;
+            z-index: 300;
+            box-shadow: 6px 0 22px rgba(0,0,0,0.28);
+            transition: transform 0.25s ease !important;
+          }
+          .app-sidebar.app-sidebar-collapsed { transform: translateX(-110%); box-shadow: none; }
+          .cca-mobile-backdrop {
+            position: fixed; inset: 50px 0 0 0; z-index: 250;
+            background: rgba(0,0,0,0.35);
+          }
+        }
+        @media (min-width: 769px) { .cca-mobile-backdrop { display: none; } }
+
         /* Dark mode — softened invert: dark-gray (not pure black) + lower contrast so
            it's easy on the eyes. Media is re-inverted so photos/logos stay true. */
         .cca-dark-root { filter: invert(0.95) hue-rotate(180deg) contrast(1.04); background: #16171a !important; }
@@ -619,8 +639,11 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
       {/* ── BODY ROW: sidebar (below the navbar) + main content ── */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
+      {/* Mobile backdrop — tap to close the sidebar (hidden on desktop via CSS) */}
+      {sidebarOpen && <div className="cca-mobile-backdrop" onClick={() => setSidebarOpen(false)} />}
+
       {/* ── SIDEBAR ── */}
-      <div className="app-sidebar" style={{
+      <div className={"app-sidebar" + (sidebarOpen ? "" : " app-sidebar-collapsed")} style={{
         width: sidebarOpen ? (_roleLc === "student" ? "234px" : "230px") : "64px",
         minWidth: sidebarOpen ? (_roleLc === "student" ? "234px" : "230px") : "64px",
         background: "#ffffff",
