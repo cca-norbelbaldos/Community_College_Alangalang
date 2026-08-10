@@ -1243,6 +1243,379 @@ app.delete("/api/erd/scholastic-requirements/:id", async (req, res) => {
   }
 });
 
+// ─── LIBRARY BOOKS (catalog / acquisition) ───────────────────────────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_library_books (
+        id                   INT AUTO_INCREMENT PRIMARY KEY,
+        accession_no         VARCHAR(50) NULL,
+        isbn                 VARCHAR(50) NULL,
+        copy_no              VARCHAR(20) NULL,
+        title                VARCHAR(255) NULL,
+        author               VARCHAR(255) NULL,
+        edition              VARCHAR(50) NULL,
+        no_of_title          VARCHAR(20) NULL,
+        copyright_year       VARCHAR(20) NULL,
+        publisher            VARCHAR(255) NULL,
+        place_of_publication VARCHAR(150) NULL,
+        mode_of_acquisition  VARCHAR(100) NULL,
+        price                VARCHAR(50) NULL,
+        subject              VARCHAR(150) NULL,
+        status               VARCHAR(50) NULL DEFAULT 'Available',
+        created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // Migrate existing tables that predate the status column.
+    try {
+      const [cols] = await pool.query("SHOW COLUMNS FROM erd_library_books LIKE 'status'");
+      if (!cols.length) await pool.query("ALTER TABLE erd_library_books ADD COLUMN status VARCHAR(50) NULL DEFAULT 'Available'");
+    } catch (e) { console.error("erd_library_books status migrate error:", e); }
+  } catch (err) { console.error("erd_library_books table init error:", err); }
+})();
+
+app.get("/api/erd/library-books", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM erd_library_books ORDER BY id DESC");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch books." });
+  }
+});
+
+app.post("/api/erd/library-books", async (req, res) => {
+  const b = req.body || {};
+  if (!(b.title || "").trim()) return res.status(400).json({ message: "Title is required." });
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO erd_library_books
+        (accession_no, isbn, copy_no, title, author, edition, no_of_title, copyright_year, publisher, place_of_publication, mode_of_acquisition, price, subject, status)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [b.accession_no || null, b.isbn || null, b.copy_no || null, b.title.trim(), b.author || null,
+       b.edition || null, b.no_of_title || null, b.copyright_year || null, b.publisher || null,
+       b.place_of_publication || null, b.mode_of_acquisition || null, b.price || null, b.subject || null,
+       b.status || "Available"]
+    );
+    res.status(201).json({ id: result.insertId, ...b });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to save book." });
+  }
+});
+
+app.delete("/api/erd/library-books/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_library_books WHERE id=?", [req.params.id]);
+    res.json({ message: "Book deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete book." });
+  }
+});
+
+// ─── LIBRARY CIRCULATION (borrow records) ────────────────────────────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_library_circulation (
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        date_borrowed VARCHAR(30) NULL,
+        borrower_type VARCHAR(30) NULL,
+        fullname      VARCHAR(255) NULL,
+        accession_no  VARCHAR(50) NULL,
+        author_title  VARCHAR(255) NULL,
+        copy_no       VARCHAR(20) NULL,
+        no_of_books   VARCHAR(20) NULL,
+        due_date      VARCHAR(30) NULL,
+        created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    try {
+      const [cols] = await pool.query("SHOW COLUMNS FROM erd_library_circulation LIKE 'borrower_type'");
+      if (!cols.length) await pool.query("ALTER TABLE erd_library_circulation ADD COLUMN borrower_type VARCHAR(30) NULL AFTER date_borrowed");
+    } catch (e) { console.error("erd_library_circulation borrower_type migrate error:", e); }
+  } catch (err) { console.error("erd_library_circulation table init error:", err); }
+})();
+
+app.get("/api/erd/circulation", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM erd_library_circulation ORDER BY id DESC");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch circulation records." });
+  }
+});
+
+app.post("/api/erd/circulation", async (req, res) => {
+  const b = req.body || {};
+  if (!(b.fullname || "").trim()) return res.status(400).json({ message: "Fullname is required." });
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO erd_library_circulation
+        (date_borrowed, borrower_type, fullname, accession_no, author_title, copy_no, no_of_books, due_date)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [b.date_borrowed || null, b.borrower_type || null, b.fullname.trim(), b.accession_no || null, b.author_title || null,
+       b.copy_no || null, b.no_of_books || null, b.due_date || null]
+    );
+    res.status(201).json({ id: result.insertId, ...b });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to save borrow record." });
+  }
+});
+
+app.delete("/api/erd/circulation/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_library_circulation WHERE id=?", [req.params.id]);
+    res.json({ message: "Record deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete record." });
+  }
+});
+
+// ─── LIBRARY CHECK IN / CHECK OUT (visitor log) ──────────────────────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_library_checkinout (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        log_date   VARCHAR(30) NULL,
+        role       VARCHAR(50) NULL,
+        fullname   VARCHAR(255) NULL,
+        program    VARCHAR(150) NULL,
+        section    VARCHAR(100) NULL,
+        purpose    VARCHAR(255) NULL,
+        check_in   VARCHAR(30) NULL,
+        check_out  VARCHAR(30) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    try {
+      const [c] = await pool.query("SHOW COLUMNS FROM erd_library_checkinout LIKE 'role'");
+      if (!c.length) await pool.query("ALTER TABLE erd_library_checkinout ADD COLUMN role VARCHAR(50) NULL AFTER log_date");
+    } catch (e) { console.error("erd_library_checkinout role migrate error:", e); }
+  } catch (err) { console.error("erd_library_checkinout table init error:", err); }
+})();
+
+app.get("/api/erd/checkinout", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM erd_library_checkinout ORDER BY id DESC");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch check-in/out log." });
+  }
+});
+
+app.post("/api/erd/checkinout", async (req, res) => {
+  const b = req.body || {};
+  if (!(b.fullname || "").trim()) return res.status(400).json({ message: "Fullname is required." });
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO erd_library_checkinout
+        (log_date, role, fullname, program, section, purpose, check_in, check_out)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [b.log_date || null, b.role || null, b.fullname.trim(), b.program || null, b.section || null,
+       b.purpose || null, b.check_in || null, b.check_out || null]
+    );
+    res.status(201).json({ id: result.insertId, ...b });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to save log entry." });
+  }
+});
+
+app.put("/api/erd/checkinout/:id/checkout", async (req, res) => {
+  try {
+    await pool.query("UPDATE erd_library_checkinout SET check_out=? WHERE id=?", [(req.body || {}).check_out || null, req.params.id]);
+    res.json({ message: "Checked out." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to check out." });
+  }
+});
+
+app.delete("/api/erd/checkinout/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_library_checkinout WHERE id=?", [req.params.id]);
+    res.json({ message: "Log entry deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete log entry." });
+  }
+});
+
+// People picker for the library check-in form (Student / Faculty / Staff).
+// Returns [{ id, fullname, program_designation }] tailored to the role.
+app.get("/api/erd/checkin-people", async (req, res) => {
+  const role = String(req.query.role || "").toLowerCase();
+  const prettyStaff = (t) => {
+    let s = String(t || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()).trim();
+    if (s && !/staff/i.test(s)) s += " Staff";
+    return s || "Staff";
+  };
+  const full = (fn, mn, ln) => [fn, mn, ln].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  try {
+    if (role === "student") {
+      const [rows] = await pool.query(
+        `SELECT s.id, s.section,
+                COALESCE(s.first_name, u.first_name)  AS fn,
+                COALESCE(s.middle_name, u.middle_name) AS mn,
+                COALESCE(s.last_name, u.last_name)     AS ln,
+                c.course
+         FROM erd_student s
+         LEFT JOIN erd_users u ON s.users_id = u.id
+         LEFT JOIN erd_course c ON s.course_id = c.id
+         ORDER BY COALESCE(s.last_name, u.last_name) ASC, COALESCE(s.first_name, u.first_name) ASC`
+      );
+      return res.json(rows.map(r => ({ id: r.id, fullname: full(r.fn, r.mn, r.ln), program_designation: r.course || "", section: r.section || "" })));
+    }
+    if (role === "faculty") {
+      // Everyone who is an employee but NOT a "*_staff" role: faculty, registrar,
+      // librarian, consultant, nurse, college_administrator, etc.
+      const [rows] = await pool.query(
+        `SELECT u.id, u.first_name AS fn, u.middle_name AS mn, u.last_name AS ln, u.designation
+         FROM erd_users u JOIN erd_user_type ut ON u.user_type_id = ut.id
+         WHERE ut.user_type NOT IN ('student', 'administrator', 'admin')
+           AND ut.user_type NOT LIKE '%staff%'
+         ORDER BY u.last_name ASC, u.first_name ASC`
+      );
+      return res.json(rows.map(r => ({ id: r.id, fullname: full(r.fn, r.mn, r.ln), program_designation: (r.designation && r.designation.trim()) ? r.designation.trim() : "Faculty" })));
+    }
+    if (role === "staff") {
+      // Only the "*_staff" roles (library_staff, registrar_staff, …).
+      const [rows] = await pool.query(
+        `SELECT u.id, u.first_name AS fn, u.middle_name AS mn, u.last_name AS ln, u.designation, ut.user_type
+         FROM erd_users u JOIN erd_user_type ut ON u.user_type_id = ut.id
+         WHERE ut.user_type LIKE '%staff%'
+         ORDER BY u.last_name ASC, u.first_name ASC`
+      );
+      return res.json(rows.map(r => ({
+        id: r.id,
+        fullname: full(r.fn, r.mn, r.ln),
+        program_designation: (r.designation && r.designation.trim()) ? r.designation.trim() : prettyStaff(r.user_type),
+      })));
+    }
+    res.json([]);
+  } catch (err) {
+    console.error("GET /api/erd/checkin-people failed:", err);
+    res.status(500).json({ message: "Failed to fetch people." });
+  }
+});
+
+// ─── CLINIC — DENTAL CHECK-UP RECORDS ────────────────────────────────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_clinic_dental (
+        id                INT AUTO_INCREMENT PRIMARY KEY,
+        log_date          VARCHAR(30) NULL,
+        student           VARCHAR(20) NULL,
+        client_name       VARCHAR(255) NULL,
+        age               VARCHAR(10) NULL,
+        sex               VARCHAR(20) NULL,
+        course_section    VARCHAR(150) NULL,
+        chief_complaint   TEXT NULL,
+        oral_findings     TEXT NULL,
+        dental_treatment  TEXT NULL,
+        recommendation    TEXT NULL,
+        next_followup     VARCHAR(30) NULL,
+        dentist_signature VARCHAR(255) NULL,
+        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (err) { console.error("erd_clinic_dental table init error:", err); }
+})();
+
+app.get("/api/erd/clinic/dental", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM erd_clinic_dental ORDER BY id DESC");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch dental records." });
+  }
+});
+
+app.post("/api/erd/clinic/dental", async (req, res) => {
+  const b = req.body || {};
+  if (!(b.client_name || "").trim()) return res.status(400).json({ message: "Client name is required." });
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO erd_clinic_dental
+        (log_date, student, client_name, age, sex, course_section, chief_complaint, oral_findings, dental_treatment, recommendation, next_followup, dentist_signature)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [b.log_date || null, b.student || null, b.client_name.trim(), b.age || null, b.sex || null,
+       b.course_section || null, b.chief_complaint || null, b.oral_findings || null, b.dental_treatment || null,
+       b.recommendation || null, b.next_followup || null, b.dentist_signature || null]
+    );
+    res.status(201).json({ id: result.insertId, ...b });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to save dental record." });
+  }
+});
+
+app.delete("/api/erd/clinic/dental/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_clinic_dental WHERE id=?", [req.params.id]);
+    res.json({ message: "Dental record deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete dental record." });
+  }
+});
+
+// ─── LIBRARY PURPOSES (check-in purpose options) ─────────────────────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_library_purpose (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        name       VARCHAR(150) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (err) { console.error("erd_library_purpose table init error:", err); }
+})();
+
+app.get("/api/erd/library-purposes", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, name FROM erd_library_purpose ORDER BY name ASC");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch purposes." });
+  }
+});
+
+app.post("/api/erd/library-purposes", async (req, res) => {
+  const name = ((req.body || {}).name || "").trim();
+  if (!name) return res.status(400).json({ message: "Purpose is required." });
+  try {
+    const [existing] = await pool.query("SELECT id FROM erd_library_purpose WHERE name = ?", [name]);
+    if (existing.length) return res.status(409).json({ message: "That purpose already exists." });
+    const [result] = await pool.query("INSERT INTO erd_library_purpose (name) VALUES (?)", [name]);
+    res.status(201).json({ id: result.insertId, name });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to save purpose." });
+  }
+});
+
+app.delete("/api/erd/library-purposes/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_library_purpose WHERE id=?", [req.params.id]);
+    res.json({ message: "Purpose deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete purpose." });
+  }
+});
+
 // ─── SCHOOL YEAR ─────────────────────────────────────────────────────────────
 (async () => {
   try {

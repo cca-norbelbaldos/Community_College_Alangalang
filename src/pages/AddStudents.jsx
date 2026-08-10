@@ -989,7 +989,7 @@ body{
                     </div>
                     <div style={{ width: "100%", textAlign: "center" }}>
                       <div style={{ fontSize: "8pt", fontFamily: TNR }}>Republic of the Philippines</div>
-                      <div style={{ fontSize: "14pt", fontWeight: 900, fontFamily: TNR, textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1.1 }}>Community College of Alangalang</div>
+                      <div style={{ fontSize: "14pt", fontWeight: 900, fontFamily: TNR, textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1.1, whiteSpace: "nowrap" }}>Community College of Alangalang</div>
                       <div style={{ fontSize: "8pt", fontFamily: TNR }}>Alangalang, Leyte</div>
                     </div>
                   </div>
@@ -1065,7 +1065,8 @@ body{
                   <div style={{ marginBottom: "4px" }}>
                     <div style={{ fontSize: "7pt", fontWeight: 700, fontFamily: TNR, marginBottom: "1px", color: "#111" }}>Student's Pledge</div>
                     <div style={{ fontSize: "6.5pt", fontFamily: TNR, lineHeight: "1.3", textAlign: "justify", color: "#111" }}>
-                      I hereby acknowledge that I read the rules and regulations of Community College of Alangalang. I promise that I will abide with the rules and regulation promulgated, enacted by the school. Granted the FREE EDUCATION per RA 10931, I bind myself for the completion of the program/course which I enrolled in this school.
+                      I hereby acknowledge that I have read and understood the Rules and Regulations of the Community College of Alangalang. I promise to abide by and uphold all the rules, regulations, policies, and guidelines promulgated and enacted by the College.
+                      I understand that compliance with these rules is essential to maintaining discipline, academic integrity, and a safe and respectful learning environment. I accept full responsibility for my actions and understand that any violation of these rules and regulations may result in appropriate disciplinary action in accordance with the policies of the College.
                     </div>
                   </div>
 

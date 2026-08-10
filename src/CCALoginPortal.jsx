@@ -109,7 +109,7 @@ export default function CCALoginPortal({ onLogin }) {
         font-family: 'Times New Roman', Times, serif;
         font-size: 2rem !important;
         line-height: 1.5 !important;
-        margin: 14px 0 10px !important;
+        margin: 2px 0 8px !important;
         padding: 0 !important;
         position: static !important;
         transform: none !important;
@@ -153,9 +153,9 @@ export default function CCALoginPortal({ onLogin }) {
         {view === "choose" && (
           <>
             <h1 className="login-title" style={{ color:t.text }}>Account Login</h1>
-            <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"10px 0 16px" }}>Login to manage your CCA-PORTAL Account</p>
+            <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"-10px 0 -4px" }}>Login to manage your CCA-PORTAL Account</p>
 
-            <button className="role-btn" onClick={()=>pick("Student")} style={{ ...roleBtnStyle, marginTop:10, background:t.card, border:`1.5px solid ${t.border}`, color:t.text }}>
+            <button className="role-btn" onClick={()=>pick("Student")} style={{ ...roleBtnStyle, marginTop:25, background:t.card, border:`1.5px solid ${t.border}`, color:t.text }}>
               <GradCapIcon />
               <span style={roleLabel}>Login as Student</span>
             </button>
@@ -171,7 +171,7 @@ export default function CCALoginPortal({ onLogin }) {
         {view === "login" && (
           <>
             <h1 className="login-title" style={{ color:t.text }}>Account Login</h1>
-            <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"10px 0 10px" }}>Login to manage your CCA-PORTAL Account</p>
+            <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"-10px 0 10px" }}>Login to manage your CCA-PORTAL Account</p>
 
             <form onSubmit={handleSubmit} style={{ display:"flex", flexDirection:"column", marginTop:-5 }}>
               {error && (

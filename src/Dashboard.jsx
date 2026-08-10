@@ -15,6 +15,8 @@ import FacultyGrades from "./pages/FacultyGrades";
 import StudentPortal from "./pages/StudentPortal";
 import DatesToRemember from "./pages/DatesToRemember";
 import ClassSchedule from "./pages/ClassSchedule";
+import Library, { LibraryPlaceholder, LibrarySearch, Acquisition, Circulation, CheckInOut, LibraryPurposeSettings } from "./pages/Library";
+import { DentalCheckup } from "./pages/Clinic";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#3d6e01";
@@ -95,6 +97,39 @@ const ADMIN_SETTINGS_ITEMS = [
   { label: "Class Assignment", icon: ICON_SUBJECT, component: "ClassAssignment" },
 ];
 
+// ── Library sub-links (shared by the admin dropdown and the librarian sidebar) ──
+const LIBRARY_LINKS = [
+  { view: "Library Dashboard", label: "Dashboard",        icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>) },
+  { view: "Check In/Out",      label: "Check In/Out",     icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>) },
+  { view: "Library Search",    label: "Library Search",   icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>) },
+  { view: "Acquisition",       label: "Acquisition",      icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><line x1="10" y1="12" x2="14" y2="12"/></svg>) },
+  { view: "Circulation",       label: "Circulation",      icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>) },
+];
+// Inventory Report is a nested dropdown with its own sub-items.
+const ICON_INVENTORY = (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>);
+const INVENTORY_LINKS = [
+  { view: "Inventory Print", label: "Print", icon: (<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>) },
+];
+const INVENTORY_VIEWS = ["Inventory Report", ...INVENTORY_LINKS.map(l => l.view)];
+// Library Settings is a nested dropdown with its own sub-items.
+const ICON_LIBRARY_SETTINGS = (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>);
+const LIBRARY_SETTINGS_LINKS = [
+  { view: "Library Purpose", label: "Purpose", icon: (<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>) },
+];
+const LIBRARY_SETTINGS_VIEWS = ["Library Settings", ...LIBRARY_SETTINGS_LINKS.map(l => l.view)];
+const LIBRARY_VIEWS = [...LIBRARY_LINKS.map(l => l.view), ...INVENTORY_VIEWS, ...LIBRARY_SETTINGS_VIEWS];
+
+// Clinic dropdown (same pattern as Library).
+const ICON_CLINIC = (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2h8v4h4v16H4V6h4z"/><line x1="12" y1="10" x2="12" y2="16"/><line x1="9" y1="13" x2="15" y2="13"/></svg>);
+const CLINIC_LINKS = [
+  { view: "Clinic Dashboard",     label: "Dashboard",            icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>) },
+  { view: "Emergency Referral",   label: "Emergency Referral",   icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>) },
+  { view: "First Aid",            label: "First Aid",            icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><line x1="12" y1="10" x2="12" y2="16"/><line x1="9" y1="13" x2="15" y2="13"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>) },
+  { view: "Disease Surveillance", label: "Disease Surveillance", icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/><circle cx="12" cy="12" r="10" opacity="0"/></svg>) },
+  { view: "Dental CheckUp",       label: "Dental CheckUp",       icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5.5c-2-2-5-2-6 0-1.5 3 0 8 1 11 .5 1.5 1.5 1.5 2-.5.3-1.2.6-2 1-2s.7.8 1 2c.5 2 1.5 2 2 .5 1-3 2.5-8 1-11-1-2-4-2-6 0z"/></svg>) },
+];
+const CLINIC_VIEWS = CLINIC_LINKS.map(l => l.view);
+
 // ── ROLE → NAV MAPPING ────────────────────────────────────────────────────────
 // Custom roles can map to existing pages. Add new mappings here as needed.
 // NOTE: "faculty" and "registrar" used to be hardcoded here, which meant they
@@ -114,14 +149,23 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
   // so reloading the tab leaves them on the same page instead of bouncing
   // back to Overview Workspace.
   const [activeView, setActiveView]       = useState(() => {
+    const r = String(user?.role || "").toLowerCase();
     // Students always land on their own portal, never the admin overview.
-    if (String(user?.role || "").toLowerCase() === "student") return "Student User";
+    if (r === "student") return "Student User";
+    // Library staff (library, library_staff, librarian, …) land on the Library Dashboard.
+    if (r.includes("librar")) return "Library Dashboard";
+    // Clinic staff (college_nurse, clinic, …) land on the Clinic Dashboard.
+    if (r.includes("nurse") || r.includes("clinic")) return "Clinic Dashboard";
     try { return sessionStorage.getItem("cca_dashboard_active_view") || "Overview Workspace"; }
     catch { return "Overview Workspace"; }
   });
   const [sidebarOpen, setSidebarOpen]     = useState(() => (typeof window !== "undefined" ? window.innerWidth > 768 : true));
   const [adminOpen, setAdminOpen]         = useState(false);
   const [studentPortalOpen, setStudentPortalOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(() => String(user?.role || "").toLowerCase().includes("librar"));
+  const [librarySettingsOpen, setLibrarySettingsOpen] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [clinicOpen, setClinicOpen] = useState(() => { const r = String(user?.role || "").toLowerCase(); return r.includes("nurse") || r.includes("clinic"); });
   const [myProfileOpen, setMyProfileOpen] = useState(true);
   const [metrics, setMetrics]             = useState({ students: 0, faculty: 0, announcements: 0, systemAccounts: 0 });
   const [features, setFeatures]           = useState({ feat_overview: 1, feat_student_list: 1, feat_faculty_mgmt: 1, feat_registrar_mgmt: 1, feat_announcements: 1 });
@@ -363,6 +407,8 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
   // ── Build visible nav ─────────────────────────────────────────────────────
   // Start with the static MAIN_NAV items this role always sees
   const _roleLc = String(user?.role || "").toLowerCase();
+  const isLibrary = _roleLc.includes("librar");
+  const isClinic = _roleLc.includes("nurse") || _roleLc.includes("clinic");
   const visibleNav = MAIN_NAV.filter(link => link.alwaysFor.some(r => r.toLowerCase() === _roleLc));
 
   // Then add any MAIN_NAV items granted via the Roles Management permissions
@@ -418,6 +464,103 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
     fontSize: "12px", fontWeight: 400,
     textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "nowrap"
   });
+
+  // Generic nested dropdown for library sub-groups (Inventory Report, Library Settings).
+  const renderLibraryGroup = ({ variant, title, icon, groupViews, links, open, setOpen }) => {
+    const active = groupViews.includes(activeView);
+    const parentStyle = variant === "sub"
+      ? { display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "7px 12px",
+          background: active ? DARK_GREEN : "transparent", border: "none",
+          borderLeft: `2px solid ${active ? DARK_GREEN : "rgba(61,110,1,0.3)"}`, borderRadius: "0 8px 8px 0",
+          color: active ? WHITE : DARK_GREEN, fontSize: "11px", fontWeight: active ? 700 : 400,
+          textAlign: "left", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap" }
+      : { ...navBtnStyle(title), background: active ? DARK_GREEN : "transparent", color: active ? WHITE : DARK_GREEN,
+          marginTop: "2px", justifyContent: sidebarOpen ? "flex-start" : "center", gap: sidebarOpen ? "8px" : 0, padding: sidebarOpen ? "8px 12px" : "10px 0" };
+    return (
+      <div style={{ marginTop: variant === "sub" ? 0 : "2px" }}>
+        <button
+          onClick={() => { if (!sidebarOpen) { setSidebarOpen(true); setOpen(true); return; } setOpen(o => !o); }}
+          title={!sidebarOpen ? title : undefined}
+          style={parentStyle}
+          className="nav-interactive-btn"
+        >
+          <span style={{ fontSize: "13px", display: "flex" }}>{icon}</span>
+          {sidebarOpen && <span style={{ flex: 1, textAlign: "left" }}>{title}</span>}
+          {sidebarOpen && <span style={{ fontSize: "10px", display: "inline-block", transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>}
+        </button>
+        {sidebarOpen && open && (
+          <div style={{ marginTop: "2px", marginLeft: "12px", display: "flex", flexDirection: "column", gap: "2px" }}>
+            {links.map(item => (
+              <button
+                key={item.view}
+                onClick={() => setActiveView(item.view)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "7px 12px",
+                  background: activeView === item.view ? DARK_GREEN : "transparent", border: "none",
+                  borderLeft: `2px solid ${activeView === item.view ? DARK_GREEN : "rgba(61,110,1,0.3)"}`, borderRadius: "0 8px 8px 0",
+                  color: activeView === item.view ? WHITE : DARK_GREEN, fontSize: "11px", fontWeight: activeView === item.view ? 700 : 400,
+                  textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "nowrap"
+                }}
+                className="subnav-interactive-btn"
+              >
+                <span style={{ display: "flex" }}>{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+  const renderInventory = (variant) => renderLibraryGroup({ variant, title: "Inventory Report", icon: ICON_INVENTORY, groupViews: INVENTORY_VIEWS, links: INVENTORY_LINKS, open: inventoryOpen, setOpen: setInventoryOpen });
+
+  // Library Settings dropdown (nested). variant "top" for librarian nav, "sub" for admin accordion.
+  const renderLibrarySettings = (variant) => {
+    const active = LIBRARY_SETTINGS_VIEWS.includes(activeView);
+    const parentStyle = variant === "sub"
+      ? { display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "7px 12px",
+          background: active ? DARK_GREEN : "transparent", border: "none",
+          borderLeft: `2px solid ${active ? DARK_GREEN : "rgba(61,110,1,0.3)"}`, borderRadius: "0 8px 8px 0",
+          color: active ? WHITE : DARK_GREEN, fontSize: "11px", fontWeight: active ? 700 : 400,
+          textAlign: "left", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap" }
+      : { ...navBtnStyle("Library Settings"), background: active ? DARK_GREEN : "transparent", color: active ? WHITE : DARK_GREEN,
+          marginTop: "2px", justifyContent: sidebarOpen ? "flex-start" : "center", gap: sidebarOpen ? "8px" : 0, padding: sidebarOpen ? "8px 12px" : "10px 0" };
+    return (
+      <div style={{ marginTop: variant === "sub" ? 0 : "2px" }}>
+        <button
+          onClick={() => { if (!sidebarOpen) { setSidebarOpen(true); setLibrarySettingsOpen(true); return; } setLibrarySettingsOpen(o => !o); }}
+          title={!sidebarOpen ? "Library Settings" : undefined}
+          style={parentStyle}
+          className="nav-interactive-btn"
+        >
+          <span style={{ fontSize: "13px", display: "flex" }}>{ICON_LIBRARY_SETTINGS}</span>
+          {sidebarOpen && <span style={{ flex: 1, textAlign: "left" }}>Library Settings</span>}
+          {sidebarOpen && <span style={{ fontSize: "10px", display: "inline-block", transition: "transform 0.2s", transform: librarySettingsOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>}
+        </button>
+        {sidebarOpen && librarySettingsOpen && (
+          <div style={{ marginTop: "2px", marginLeft: "12px", display: "flex", flexDirection: "column", gap: "2px" }}>
+            {LIBRARY_SETTINGS_LINKS.map(item => (
+              <button
+                key={item.view}
+                onClick={() => setActiveView(item.view)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "7px 12px",
+                  background: activeView === item.view ? DARK_GREEN : "transparent", border: "none",
+                  borderLeft: `2px solid ${activeView === item.view ? DARK_GREEN : "rgba(61,110,1,0.3)"}`, borderRadius: "0 8px 8px 0",
+                  color: activeView === item.view ? WHITE : DARK_GREEN, fontSize: "11px", fontWeight: activeView === item.view ? 700 : 400,
+                  textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "nowrap"
+                }}
+                className="subnav-interactive-btn"
+              >
+                <span style={{ display: "flex" }}>{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className={(dark && _roleLc === "student") ? "cca-dark-root" : undefined} style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "#F3F4F6", fontFamily: "system-ui, sans-serif" }}>
@@ -668,8 +811,8 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
         {/* Nav links */}
         <div style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: "4px", overflowY: "auto", position: "relative", zIndex: 1 }}>
 
-          {/* Main nav items — icon-only, centered, when collapsed */}
-          {visibleNav.map(link => (
+          {/* Main nav items — icon-only, centered, when collapsed. Library staff see only the Library section. */}
+          {!isLibrary && !isClinic && visibleNav.map(link => (
             /* Admins access "Student User" via the Student Portal dropdown below */
             (link.label === "Student User" && _roleLc !== "student") ? null :
             <button
@@ -688,6 +831,112 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
               {sidebarOpen && <span>{link.label === "Student User" && _roleLc === "student" ? "Dashboard" : link.label}</span>}
             </button>
           ))}
+
+          {/* Library staff see the Library sections directly (no dropdown, no overview). */}
+          {isLibrary && LIBRARY_LINKS.map(item => (
+            <button
+              key={item.view}
+              onClick={() => setActiveView(item.view)}
+              title={!sidebarOpen ? item.label : undefined}
+              style={{
+                ...navBtnStyle(item.view),
+                marginTop: "2px",
+                justifyContent: sidebarOpen ? "flex-start" : "center",
+                gap: sidebarOpen ? "8px" : 0,
+                padding: sidebarOpen ? "8px 12px" : "10px 0",
+              }}
+              className="nav-interactive-btn"
+            >
+              <span style={{ fontSize: "13px", display: "flex" }}>{item.icon}</span>
+              {sidebarOpen && <span>{item.label}</span>}
+            </button>
+          ))}
+
+          {isLibrary && renderInventory("top")}
+          {isLibrary && renderLibrarySettings("top")}
+
+          {/* Clinic staff see the Clinic sections directly (no dropdown). */}
+          {isClinic && CLINIC_LINKS.map(item => (
+            <button
+              key={item.view}
+              onClick={() => setActiveView(item.view)}
+              title={!sidebarOpen ? item.label : undefined}
+              style={{
+                ...navBtnStyle(item.view),
+                marginTop: "2px",
+                justifyContent: sidebarOpen ? "flex-start" : "center",
+                gap: sidebarOpen ? "8px" : 0,
+                padding: sidebarOpen ? "8px 12px" : "10px 0",
+              }}
+              className="nav-interactive-btn"
+            >
+              <span style={{ fontSize: "13px", display: "flex" }}>{item.icon}</span>
+              {sidebarOpen && <span>{item.label}</span>}
+            </button>
+          ))}
+
+          {/* Library accordion — administrator only (below Create Announcement) */}
+          {isAdmin && (
+            <div style={{ marginTop: "4px" }}>
+              <button
+                onClick={() => {
+                  if (!sidebarOpen) { setSidebarOpen(true); setLibraryOpen(true); return; }
+                  setLibraryOpen(o => !o);
+                }}
+                title={!sidebarOpen ? "Library" : undefined}
+                style={{
+                  display: "flex", alignItems: "center", gap: sidebarOpen ? "8px" : 0, width: "100%",
+                  justifyContent: sidebarOpen ? "flex-start" : "center",
+                  padding: sidebarOpen ? "8px 12px" : "10px 0",
+                  background: LIBRARY_VIEWS.includes(activeView) ? DARK_GREEN : "transparent",
+                  border: "none", borderRadius: "8px",
+                  color: LIBRARY_VIEWS.includes(activeView) ? WHITE : DARK_GREEN,
+                  fontSize: "12px", fontWeight: 400,
+                  textAlign: "left", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap"
+                }}
+                className="nav-interactive-btn"
+              >
+                <span style={{ fontSize: "13px", display: "flex" }}>{ICON_LIBRARY}</span>
+                {sidebarOpen && <span style={{ flex: 1 }}>Library</span>}
+                {sidebarOpen && (
+                  <span style={{ fontSize: "11px", transition: "transform 0.2s", display: "inline-block", transform: libraryOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+                )}
+              </button>
+
+              {sidebarOpen && libraryOpen && (
+                <div style={{ marginTop: "2px", marginLeft: "12px", display: "flex", flexDirection: "column", gap: "2px" }}>
+                  {LIBRARY_LINKS.map(item => (
+                    <button
+                      key={item.view}
+                      onClick={() => setActiveView(item.view)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "8px", width: "100%",
+                        padding: "7px 12px",
+                        background: activeView === item.view ? DARK_GREEN : "transparent",
+                        border: "none",
+                        borderLeft: `2px solid ${activeView === item.view ? DARK_GREEN : "rgba(61,110,1,0.3)"}`,
+                        borderRadius: "0 8px 8px 0",
+                        color: activeView === item.view ? WHITE : DARK_GREEN, fontSize: "11px",
+                        fontWeight: activeView === item.view ? 700 : 400,
+                        textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "nowrap"
+                      }}
+                      className="subnav-interactive-btn"
+                    >
+                      <span style={{ display: "flex" }}>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                  {renderInventory("sub")}
+                  {renderLibrarySettings("sub")}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Clinic accordion — administrator only (clinic staff see direct items above) */}
+          {isAdmin && (
+            renderLibraryGroup({ variant: "top", title: "Clinic", icon: ICON_CLINIC, groupViews: CLINIC_VIEWS, links: CLINIC_LINKS, open: clinicOpen, setOpen: setClinicOpen })
+          )}
 
           {/* My Profile accordion — only for students */}
           {_roleLc === "student" && (
@@ -761,6 +1010,27 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
             >
               <span style={{ fontSize: "13px", display: "flex" }}>{ICON_SUBJECT}</span>
               {sidebarOpen && <span>Grades</span>}
+            </button>
+          )}
+
+          {/* Class Schedule — standalone item for students */}
+          {_roleLc === "student" && (
+            <button
+              onClick={() => setActiveView("Class Schedule")}
+              title={!sidebarOpen ? "Class Schedule" : undefined}
+              style={{
+                display: "flex", alignItems: "center", gap: sidebarOpen ? "8px" : 0, width: "100%", marginTop: "4px",
+                justifyContent: sidebarOpen ? "flex-start" : "center",
+                padding: sidebarOpen ? "8px 12px" : "10px 0",
+                background: activeView === "Class Schedule" ? DARK_GREEN : "transparent",
+                border: "none", borderRadius: "8px",
+                color: activeView === "Class Schedule" ? WHITE : DARK_GREEN,
+                fontSize: "12px", fontWeight: 400, textAlign: "left", cursor: "pointer", transition: "all 0.2s", whiteSpace: "nowrap"
+              }}
+              className="nav-interactive-btn"
+            >
+              <span style={{ fontSize: "13px", display: "flex" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+              {sidebarOpen && <span>Class Schedule</span>}
             </button>
           )}
 
@@ -1027,6 +1297,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   {activeView === "Educational Background" && <StudentPortal user={user} section="education" onNavigate={setActiveView} />}
                   {activeView === "Family Background"      && <StudentPortal user={user} section="family"    onNavigate={setActiveView} />}
                   {activeView === "My Grades"             && <StudentPortal user={user} section="grades" />}
+                  {activeView === "Class Schedule"        && <StudentPortal user={user} section="schedule" />}
                   {activeView === "Create Announcement" && (
                     <Announcements user={user} onPosted={() => {
                       fetchPortalData();
@@ -1040,6 +1311,20 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   {activeView === "Subjects"            && <SubjectCatalog />}
                   {activeView === "Class Assignment"    && <ClassSchedule isAdmin={true} user={user} />}
                   {activeView === "Account Settings"    && <AccountSettings user={user} />}
+                  {activeView === "Library Dashboard"  && <Library />}
+                  {activeView === "Check In/Out"       && <CheckInOut />}
+                  {activeView === "Library Search"     && <LibrarySearch />}
+                  {activeView === "Acquisition"        && <Acquisition />}
+                  {activeView === "Circulation"        && <Circulation />}
+                  {activeView === "Library Settings"    && <LibraryPlaceholder title="Library Settings" desc="Choose a settings section." icon="⚙️" />}
+                  {activeView === "Library Purpose"     && <LibraryPurposeSettings />}
+                  {activeView === "Inventory Report"   && <LibraryPlaceholder title="Inventory Report" desc="Choose a report section." icon="📊" />}
+                  {activeView === "Inventory Print"    && <LibraryPlaceholder title="Print" desc="Print the library inventory." icon="🖨" />}
+                  {activeView === "Clinic Dashboard"     && <LibraryPlaceholder title="Clinic Dashboard" desc="Clinic overview." icon="🏥" />}
+                  {activeView === "Emergency Referral"   && <LibraryPlaceholder title="Emergency Referral" desc="Emergency referrals." icon="🚑" />}
+                  {activeView === "First Aid"            && <LibraryPlaceholder title="First Aid" desc="First aid records." icon="➕" />}
+                  {activeView === "Disease Surveillance" && <LibraryPlaceholder title="Disease Surveillance" desc="Monitor disease reports." icon="🦠" />}
+                  {activeView === "Dental CheckUp"       && <DentalCheckup />}
                 </>
               )}
             </div>

@@ -17,6 +17,7 @@ export default function StudentPortal({ user, section, onNavigate }) {
   const isAdmin = String(user?.role || "").toLowerCase() === "administrator";
   if (isAdmin) return <LinkConfig />;
   if (section === "grades") return <StudentGradesPage user={user} />;
+  if (section === "schedule") return <StudentSchedulePage user={user} />;
   if (section) return <StudentProfilePage user={user} section={section} onNavigate={onNavigate} />;
   return <StudentView user={user} onNavigate={onNavigate} />;
 }
@@ -266,7 +267,7 @@ function StudentProfilePage({ user, section, onNavigate }) {
               <PField label="Last Name" value={s.last_name} />
               <PField label="Birthday" value={s.birthdate} />
               <PField label="Gender" value={s.gender} />
-              <PField label="Civil Status" value={s.classification} />
+              <PField label="Civil Status" value={s.status} />
               <PField label="Contact Number" value={s.mobile} />
               <PField label="Citizenship" value={s.citizenship} />
               <PField label="Religion" value={s.religion} />
@@ -360,6 +361,107 @@ function PField({ label, value }) {
     <div>
       <div style={{ fontSize: 9.5, fontWeight: 600, color: "#6B7280", marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 11, color: "#1f2937", padding: "4px 8px", border: `1px solid ${BORDER}`, borderRadius: 6, background: WHITE, lineHeight: 1.25 }}>{value || "—"}</div>
+    </div>
+  );
+}
+
+/* ═══════════ STUDENT CLASS SCHEDULE (same subjects as the COR) ═══════════ */
+function StudentSchedulePage({ user }) {
+  const [rows, setRows] = useState([]);
+  const [student, setStudent] = useState(null);
+  const [termLabel, setTermLabel] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true); setError("");
+      try {
+        const id = user?.student_id;
+        if (!id) { setError("No student profile is linked to this account."); setLoading(false); return; }
+        const pRes = await fetch(`${API}/api/erd/student/profile/${id}`, { cache: "no-store" });
+        if (!pRes.ok) { setError("Unable to load your profile."); setLoading(false); return; }
+        const s = await pRes.json();
+        if (cancelled) return;
+        setStudent(s);
+
+        // Which semester is the student currently enrolled in? (latest enrollment record)
+        const enrRes = await fetch(`${API}/api/erd/enrollments/${id}?t=${Date.now()}`, { cache: "no-store" });
+        const enrs = enrRes.ok ? await enrRes.json() : [];
+        if (cancelled) return;
+        const semN = (x) => /2nd/i.test(x) ? 2 : /summer/i.test(x) ? 3 : 1;
+        const latest = (Array.isArray(enrs) && enrs.length)
+          ? [...enrs].sort((a, b) => (Number(b.year_enrolled) - Number(a.year_enrolled)) || (semN(b.semester) - semN(a.semester)))[0]
+          : null;
+        if (!latest) { setRows([]); setTermLabel("Not enrolled"); setLoading(false); return; }
+        const curSem = semN(latest.semester);
+        setTermLabel(`${latest.year_level || s.year_level || ""} · ${SEM_NAME[curSem] || "Semester"} · S.Y. ${latest.year_enrolled}-${Number(latest.year_enrolled) + 1}`.trim());
+
+        // Schedule scoped to the CURRENT enrolled semester (matches the COR for that term).
+        const params = new URLSearchParams({
+          ...(s.course     ? { course: s.course }              : {}),
+          ...(latest.year_level || s.year_level ? { year_level: latest.year_level || s.year_level } : {}),
+          ...(s.section    ? { section: s.section }             : {}),
+          ...(curSem       ? { semester: String(curSem) }       : {}),
+        });
+        const schRes = await fetch(`${API}/api/erd/class-schedule?${params}`, { cache: "no-store" });
+        if (cancelled) return;
+        const data = schRes.ok ? await schRes.json() : [];
+        const uniq = Array.from(new Map((Array.isArray(data) ? data : []).map(r => [r.subject_id ?? r.subject_title, r])).values());
+        setRows(uniq);
+      } catch { if (!cancelled) setError("Unable to reach the server."); }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.student_id]);
+
+  const th = { padding: "8px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", color: WHITE, borderBottom: `1px solid ${DARK_GREEN}`, background: DARK_GREEN };
+  const td = { padding: "7px 10px", fontSize: 12, color: "#1f2937", borderBottom: `1px solid ${BORDER}` };
+
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: GRAY }}>Loading…</div>;
+  if (error)   return <div style={{ padding: 30, textAlign: "center", color: RED, background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 10 }}>{error}</div>;
+
+  return (
+    <div style={{ fontFamily: "system-ui,-apple-system,sans-serif" }}>
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 20, fontWeight: 800, color: "#1f2937" }}>Class Schedule</div>
+        <div style={{ fontSize: 13, color: GRAY, marginTop: 2 }}>
+          {student ? `${student.course || "—"}${student.section ? " · " + student.section : ""}` : "Your enrolled subjects"}
+          {termLabel ? ` — ${termLabel}` : ""}
+        </div>
+      </div>
+
+      <div style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
+          <thead>
+            <tr>
+              <th style={th}>Course Code</th>
+              <th style={th}>Descriptive Title</th>
+              <th style={{ ...th, textAlign: "center" }}>Units</th>
+              <th style={th}>Time</th>
+              <th style={th}>Days</th>
+              <th style={th}>Instructor</th>
+              <th style={th}>Room</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><td colSpan={7} style={{ ...td, textAlign: "center", color: GRAY, padding: 24 }}>No class schedule available yet.</td></tr>
+            ) : rows.map((r, i) => (
+              <tr key={r.subject_id || i}>
+                <td style={{ ...td, fontWeight: 700, color: DARK_GREEN }}>{r.subject_code || "—"}</td>
+                <td style={td}>{r.subject_title || "—"}</td>
+                <td style={{ ...td, textAlign: "center" }}>{r.units != null ? Number(r.units).toFixed(0) : "—"}</td>
+                <td style={td}>{r.time || "—"}</td>
+                <td style={td}>{r.day || "—"}</td>
+                <td style={td}>{r.faculty_name && r.faculty_name.trim() ? r.faculty_name : "—"}</td>
+                <td style={td}>{r.room || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -915,7 +1017,7 @@ function InfoModal({ type, s, onClose }) {
             <IRow label="Gender" value={s.gender} />
             <IRow label="Birthdate" value={s.birthdate} />
             <IRow label="Place of Birth" value={s.place_of_birth} />
-            <IRow label="Civil Status" value={s.classification} />
+            <IRow label="Civil Status" value={s.status} />
             <IRow label="Religion" value={s.religion} />
             <IRow label="Citizenship" value={s.citizenship} />
             <IRow label="Address" value={[s.barangay, s.municipality, s.province, s.zip_code].filter(Boolean).join(", ")} />

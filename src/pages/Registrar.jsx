@@ -2438,7 +2438,7 @@ export default function Registrar({ user = {} }) {
               </div>
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: "8pt", fontFamily: TNR }}>Republic of the Philippines</div>
-                <div style={{ fontSize: "14pt", fontWeight: 900, fontFamily: TNR, textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1.1 }}>Community College of Alangalang</div>
+                <div style={{ fontSize: "14pt", fontWeight: 900, fontFamily: TNR, textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1.1, whiteSpace: "nowrap" }}>Community College of Alangalang</div>
                 <div style={{ fontSize: "8pt", fontFamily: TNR }}>Alangalang, Leyte</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", justifyContent: "center" }}>
@@ -3998,11 +3998,12 @@ export default function Registrar({ user = {} }) {
 }
 
 // ── Records of Candidates for Graduation — printable form (8.5×13) ──
-const CAND_GROUPS = ["Ia", "Ib", "Ic", "II", "III", "IV", "Va", "Vb"];
+const CAND_GROUPS = ["Ia", "Ib", "Ic", "II", "III", "IV", "Va", "Vb", "CMO"];
 const CAND_LEGEND = [
   ["Ia", "General Courses"], ["Ib", "Elective Courses"], ["Ic", "Mandated Courses"],
   ["II", "Additional GE Courses"], ["III", "Physical Education"], ["IV", "ROTC"],
   ["Va", "Professional Courses - Core Courses"], ["Vb", "Professional Courses - Major Courses"],
+  ["CMO", "CHED Memorandum Order Courses"],
 ];
 
 // ── Free Higher Education & Voluntary Contribution Form (Application Form) ──
