@@ -29,7 +29,7 @@ const COLS = ["log_date", "student", "client_name", "age", "sex", "course_sectio
 const HEADERS = ["No.", "Date", "Student", "Client Name", "Age", "Sex", "Course/Year & Section", "Chief Complaint", "Oral Examination Findings", "Dental Treatment", "Dentist's Recommendation", "Next Follow-up Date", "Dentist Signature", "Actions"];
 const WIDTHS = [45, 95, 65, 170, 45, 55, 140, 170, 180, 170, 180, 100, 130, 70];
 
-export function DentalCheckup() {
+export function DentalCheckup({ canDelete = true }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -111,10 +111,12 @@ export function DentalCheckup() {
                 <td style={CELL}>{rows.length - i}</td>
                 {COLS.map(c => <td key={c} style={CELL}>{r[c] != null && r[c] !== "" ? r[c] : "—"}</td>)}
                 <td style={CELL}>
-                  <button onClick={() => remove(r.id)} title="Delete"
-                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer" }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
-                  </button>
+                  {canDelete ? (
+                    <button onClick={() => remove(r.id)} title="Delete"
+                      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer" }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+                    </button>
+                  ) : <span style={{ color: "#D1D5DB" }}>—</span>}
                 </td>
               </tr>
             ))}

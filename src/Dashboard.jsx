@@ -409,6 +409,9 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
   const _roleLc = String(user?.role || "").toLowerCase();
   const isLibrary = _roleLc.includes("librar");
   const isClinic = _roleLc.includes("nurse") || _roleLc.includes("clinic");
+  // Delete permissions: librarian can delete, library_staff cannot (add only); nurse can delete.
+  const libCanDelete = isAdmin || _roleLc === "librarian";
+  const clinicCanDelete = isAdmin || _roleLc.includes("nurse");
   const visibleNav = MAIN_NAV.filter(link => link.alwaysFor.some(r => r.toLowerCase() === _roleLc));
 
   // Then add any MAIN_NAV items granted via the Roles Management permissions
@@ -1312,19 +1315,19 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   {activeView === "Class Assignment"    && <ClassSchedule isAdmin={true} user={user} />}
                   {activeView === "Account Settings"    && <AccountSettings user={user} />}
                   {activeView === "Library Dashboard"  && <Library />}
-                  {activeView === "Check In/Out"       && <CheckInOut />}
-                  {activeView === "Library Search"     && <LibrarySearch />}
+                  {activeView === "Check In/Out"       && <CheckInOut canDelete={libCanDelete} />}
+                  {activeView === "Library Search"     && <LibrarySearch canDelete={libCanDelete} />}
                   {activeView === "Acquisition"        && <Acquisition />}
-                  {activeView === "Circulation"        && <Circulation />}
+                  {activeView === "Circulation"        && <Circulation canDelete={libCanDelete} />}
                   {activeView === "Library Settings"    && <LibraryPlaceholder title="Library Settings" desc="Choose a settings section." icon="⚙️" />}
-                  {activeView === "Library Purpose"     && <LibraryPurposeSettings />}
+                  {activeView === "Library Purpose"     && <LibraryPurposeSettings canDelete={libCanDelete} />}
                   {activeView === "Inventory Report"   && <LibraryPlaceholder title="Inventory Report" desc="Choose a report section." icon="📊" />}
                   {activeView === "Inventory Print"    && <LibraryPlaceholder title="Print" desc="Print the library inventory." icon="🖨" />}
                   {activeView === "Clinic Dashboard"     && <LibraryPlaceholder title="Clinic Dashboard" desc="Clinic overview." icon="🏥" />}
                   {activeView === "Emergency Referral"   && <LibraryPlaceholder title="Emergency Referral" desc="Emergency referrals." icon="🚑" />}
                   {activeView === "First Aid"            && <LibraryPlaceholder title="First Aid" desc="First aid records." icon="➕" />}
                   {activeView === "Disease Surveillance" && <LibraryPlaceholder title="Disease Surveillance" desc="Monitor disease reports." icon="🦠" />}
-                  {activeView === "Dental CheckUp"       && <DentalCheckup />}
+                  {activeView === "Dental CheckUp"       && <DentalCheckup canDelete={clinicCanDelete} />}
                 </>
               )}
             </div>

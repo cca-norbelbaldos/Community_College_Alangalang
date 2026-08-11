@@ -3228,7 +3228,7 @@ export default function Registrar({ user = {} }) {
                 </div>
               ) : (
                 <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-                  <CandidateGradForm student={candPreview} grades={candGrades} user={user} inline />
+                  <CandidateGradForm student={candPreview} grades={candGrades} user={user} signName={registrarSignName} inline />
                 </div>
               )}
             </div>
@@ -3237,7 +3237,7 @@ export default function Registrar({ user = {} }) {
       })()}
 
       {/* ── RECORDS OF CANDIDATES FOR GRADUATION FORM ── */}
-      <CandidateGradForm student={candFormStudent} grades={candGrades} user={user} onClose={() => setCandFormStudent(null)} />
+      <CandidateGradForm student={candFormStudent} grades={candGrades} user={user} signName={registrarSignName} onClose={() => setCandFormStudent(null)} />
 
       {/* ── GRADUATE CREDENTIALS MODAL ── */}
       {gradViewStudent && createPortal(
@@ -4329,7 +4329,7 @@ function ApplicationForm({ student, onClose, inline = false }) {
 
 const FOLIO_PAGE_PX = 1181; // printable height of an 8.5x13 page (13in - 0.7in margins @96dpi)
 
-function CandidateGradForm({ student, grades, user = {}, onClose, inline = false }) {
+function CandidateGradForm({ student, grades, user = {}, signName = "", onClose, inline = false }) {
   const areaRef = useRef(null);
   const [pageCount, setPageCount] = useState(1);
   useEffect(() => {
@@ -4361,12 +4361,15 @@ function CandidateGradForm({ student, grades, user = {}, onClose, inline = false
   const address = [student.barangay, student.municipality, student.province].filter(Boolean).join(", ");
   const semLabel = (n) => n === 1 ? "1st Sem" : n === 2 ? "2nd Sem" : `Sem ${n}`;
 
-  // Signatory: if the logged-in user is a registrar OR administrator, auto-use their name.
+  // Signatory: registrar/administrator sign with their own name; registrar_staff (and
+  // anyone else) sign with the actual Registrar's name passed in via signName.
   const loggedName = [user.first_name, user.middle_name, user.last_name].filter(Boolean).join(" ").trim();
   const canSign = user.role === "registrar" || user.role === "administrator";
-  const registrarName = (canSign && (loggedName || user.username))
-    ? (loggedName || user.username)
-    : "CAMILLE KESSEY E. RELATORRES";
+  const registrarName = (signName && signName.trim())
+    ? signName.trim()
+    : (canSign && (loggedName || user.username))
+      ? (loggedName || user.username)
+      : "CAMILLE KESSEY E. RELATORRES";
 
   const grandTotals = {}; CAND_GROUPS.forEach(g => grandTotals[g] = 0);
   let grandCredits = 0;

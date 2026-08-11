@@ -101,7 +101,7 @@ const CIRC_FIELDS = [
   { key: "due_date", label: "Due Date", type: "date" },
 ];
 
-export function Circulation() {
+export function Circulation({ canDelete = true }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -245,10 +245,12 @@ export function Circulation() {
               <tr key={r.id}>
                 {cols.map(c => <td key={c} style={LIB_CELL}>{r[c] != null && r[c] !== "" ? r[c] : "—"}</td>)}
                 <td style={{ ...LIB_CELL, textAlign: "center" }}>
-                  <button onClick={() => remove(r.id)} title="Delete"
-                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer" }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
-                  </button>
+                  {canDelete ? (
+                    <button onClick={() => remove(r.id)} title="Delete"
+                      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer" }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+                    </button>
+                  ) : <span style={{ color: "#D1D5DB" }}>—</span>}
                 </td>
               </tr>
             ))}
@@ -387,7 +389,7 @@ export function Circulation() {
 }
 
 // ── Library Settings → Purpose — manage the check-in purpose options ──────────
-export function LibraryPurposeSettings() {
+export function LibraryPurposeSettings({ canDelete = true }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
@@ -453,9 +455,11 @@ export function LibraryPurposeSettings() {
           ) : items.map(it => (
             <div key={it.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", border: `1px solid ${BORDER}`, borderRadius: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: "#1f2937" }}>{it.name}</span>
-              <button onClick={() => remove(it.id)} title="Delete" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer" }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
-              </button>
+              {canDelete && (
+                <button onClick={() => remove(it.id)} title="Delete" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer" }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -467,7 +471,7 @@ export function LibraryPurposeSettings() {
 // ── Check In / Check Out — two big action buttons + visitor log ───────────────
 const CIO_EMPTY = { role: "", fullname: "", program: "", section: "", purpose: "", purpose_other: "" };
 
-export function CheckInOut() {
+export function CheckInOut({ canDelete = true }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);   // check-in form
@@ -633,10 +637,12 @@ export function CheckInOut() {
               <tr key={r.id}>
                 {cols.map(c => <td key={c} style={LIB_CELL}>{r[c] != null && r[c] !== "" ? r[c] : "—"}</td>)}
                 <td style={{ ...LIB_CELL, textAlign: "center" }}>
-                  <button onClick={() => remove(r.id)} title="Delete"
-                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer" }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
-                  </button>
+                  {canDelete ? (
+                    <button onClick={() => remove(r.id)} title="Delete"
+                      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer" }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+                    </button>
+                  ) : <span style={{ color: "#D1D5DB" }}>—</span>}
                 </td>
               </tr>
             ))}
@@ -806,7 +812,7 @@ export function CheckInOut() {
 }
 
 // Library Search — header with a minimal search bar on the right.
-export function LibrarySearch() {
+export function LibrarySearch({ canDelete = true }) {
   const [books, setBooks] = useState([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
@@ -884,10 +890,12 @@ export function LibrarySearch() {
                     <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, color: avail ? "#166534" : "#92400e", background: avail ? "#DCFCE7" : "#FEF3C7" }}>{st}</span>
                   </td>
                   <td style={{ ...LIB_CELL, textAlign: "center" }}>
-                    <button onClick={() => remove(b.id)} title="Delete"
-                      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer" }}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
-                    </button>
+                    {canDelete ? (
+                      <button onClick={() => remove(b.id)} title="Delete"
+                        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer" }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+                      </button>
+                    ) : <span style={{ color: "#D1D5DB" }}>—</span>}
                   </td>
                 </tr>
               );
