@@ -22,6 +22,7 @@ const ACQ_FIELDS = [
   { key: "mode_of_acquisition", label: "Mode of Acquisition", options: ["Purchased", "Donation"] },
   { key: "price", label: "Price" },
   { key: "subject", label: "Subject" },
+  { key: "type_of_material", label: "Type of Material", dynamic: true },
 ];
 
 export function Acquisition() {
@@ -29,6 +30,14 @@ export function Acquisition() {
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null); // { type, text }
+  const [materialTypes, setMaterialTypes] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API}/api/erd/library-material-types?t=${Date.now()}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setMaterialTypes(Array.isArray(d) ? d : []))
+      .catch(() => setMaterialTypes([]));
+  }, []);
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -62,7 +71,12 @@ export function Acquisition() {
               <label style={{ fontSize: 11, fontWeight: 700, color: GRAY, textTransform: "uppercase", letterSpacing: 0.3 }}>
                 {f.label} {f.required && <span style={{ color: "#DC2626" }}>*</span>}
               </label>
-              {f.options ? (
+              {f.dynamic ? (
+                <select value={form[f.key]} onChange={set(f.key)} style={{ ...inputStyle, marginTop: 4, background: WHITE }}>
+                  <option value="">— Select —</option>
+                  {materialTypes.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                </select>
+              ) : f.options ? (
                 <select value={form[f.key]} onChange={set(f.key)} style={{ ...inputStyle, marginTop: 4, background: WHITE }}>
                   <option value="">— Select —</option>
                   {f.options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -388,8 +402,8 @@ export function Circulation({ canDelete = true }) {
   );
 }
 
-// ── Library Settings → Purpose — manage the check-in purpose options ──────────
-export function LibraryPurposeSettings({ canDelete = true }) {
+// A reusable "manage a simple named list" card (used for Purpose + Type of Material).
+function SettingsListCard({ title, subtitle, endpoint, placeholder, deleteLabel, canDelete = true }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
@@ -398,19 +412,19 @@ export function LibraryPurposeSettings({ canDelete = true }) {
 
   const load = () => {
     setLoading(true);
-    fetch(`${API}/api/erd/library-purposes?t=${Date.now()}`, { cache: "no-store" })
+    fetch(`${API}/api/erd/${endpoint}?t=${Date.now()}`, { cache: "no-store" })
       .then(r => r.ok ? r.json() : [])
       .then(d => setItems(Array.isArray(d) ? d : []))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
   };
-  useEffect(load, []);
+  useEffect(load, [endpoint]);
 
   const add = async () => {
     if (!name.trim()) return;
     setSaving(true); setMsg(null);
     try {
-      const res = await fetch(`${API}/api/erd/library-purposes`, {
+      const res = await fetch(`${API}/api/erd/${endpoint}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim() }),
       });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || ""); }
@@ -420,9 +434,9 @@ export function LibraryPurposeSettings({ canDelete = true }) {
   };
 
   const remove = async (id) => {
-    if (!window.confirm("Delete this purpose?")) return;
+    if (!window.confirm(`Delete this ${deleteLabel || "item"}?`)) return;
     try {
-      const res = await fetch(`${API}/api/erd/library-purposes/${id}`, { method: "DELETE" });
+      const res = await fetch(`${API}/api/erd/${endpoint}/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       setItems(xs => xs.filter(x => x.id !== id));
     } catch { alert("Failed to delete. Is the backend running?"); }
@@ -431,15 +445,14 @@ export function LibraryPurposeSettings({ canDelete = true }) {
   const inputStyle = { width: "100%", padding: "9px 11px", border: `1.5px solid ${BORDER}`, borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" };
 
   return (
-    <div style={{ fontFamily: "system-ui,-apple-system,sans-serif" }}>
-      <div style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: DARK_GREEN }}>Purpose</h2>
-        <p style={{ margin: "4px 0 0", fontSize: 12.5, color: GRAY }}>Manage the purpose options shown in the check-in form.</p>
+    <div style={{ flex: "1 1 380px", minWidth: 300, maxWidth: 560 }}>
+      <div style={{ marginBottom: 12 }}>
+        <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: DARK_GREEN }}>{title}</h2>
+        <p style={{ margin: "4px 0 0", fontSize: 12, color: GRAY }}>{subtitle}</p>
       </div>
-
-      <div style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 18, maxWidth: 560 }}>
+      <div style={{ background: WHITE, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 18 }}>
         <div style={{ display: "flex", gap: 10 }}>
-          <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") add(); }} placeholder="Add a purpose (e.g. Study, Research, Borrow)…" style={inputStyle} />
+          <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") add(); }} placeholder={placeholder} style={inputStyle} />
           <button onClick={add} disabled={saving} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", background: `linear-gradient(135deg, ${DARK_GREEN}, ${GREEN})`, color: WHITE, border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: saving ? "default" : "pointer", whiteSpace: "nowrap", opacity: saving ? 0.7 : 1 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             Add
@@ -451,7 +464,7 @@ export function LibraryPurposeSettings({ canDelete = true }) {
           {loading ? (
             <div style={{ fontSize: 12.5, color: GRAY }}>Loading…</div>
           ) : items.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: GRAY }}>No purposes yet. Add one above.</div>
+            <div style={{ fontSize: 12.5, color: GRAY }}>Nothing yet. Add one above.</div>
           ) : items.map(it => (
             <div key={it.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", border: `1px solid ${BORDER}`, borderRadius: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: "#1f2937" }}>{it.name}</span>
@@ -464,6 +477,18 @@ export function LibraryPurposeSettings({ canDelete = true }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Library Settings → Purpose + Type of Material ─────────────────────────────
+export function LibraryPurposeSettings({ canDelete = true }) {
+  return (
+    <div style={{ fontFamily: "system-ui,-apple-system,sans-serif", display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
+      <SettingsListCard title="Purpose" subtitle="Manage the purpose options shown in the check-in form."
+        endpoint="library-purposes" placeholder="Add a purpose (e.g. Study, Research, Borrow)…" deleteLabel="purpose" canDelete={canDelete} />
+      <SettingsListCard title="Type of Material" subtitle="Manage the material types shown in the acquisition form."
+        endpoint="library-material-types" placeholder="Add a material type (e.g. Book, Magazine, Journal)…" deleteLabel="material type" canDelete={canDelete} />
     </div>
   );
 }
@@ -987,6 +1012,18 @@ export default function Library() {
   const bars = [...subjMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([label, v]) => ({ label, v }));
   const barMax = Math.max(1, ...bars.map(b => b.v));
 
+  // per-material-type counts
+  const matMap = new Map();
+  books.forEach(b => { const m = (b.type_of_material || "").trim() || "—"; matMap.set(m, (matMap.get(m) || 0) + 1); });
+  const matBars = [...matMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([label, v]) => ({ label, v }));
+  const matMax = Math.max(1, ...matBars.map(b => b.v));
+
+  // total price of purchased books
+  const purchasedTotal = books
+    .filter(b => /purchas/i.test(b.mode_of_acquisition || ""))
+    .reduce((sum, b) => sum + (parseFloat(String(b.price || "").replace(/[^0-9.]/g, "")) || 0), 0);
+  const purchasedTotalCount = useCountUp(Math.round(purchasedTotal));
+
   const recent = books.slice(0, 4); // endpoint returns newest first
 
   // donut geometry
@@ -1104,6 +1141,43 @@ export default function Library() {
             )}
           </div>
         </Card>
+
+        {/* Total price of purchased books — sits beside the subject chart */}
+        <Card title="Total Purchase Cost" sub="Sum of purchased book prices" accent="#DC2626">
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 30, fontWeight: 900, color: "#111827", lineHeight: 1.1 }}>
+              ₱{purchasedTotalCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: 11.5, color: GRAY, marginTop: 8 }}>{purchased} purchased book{purchased === 1 ? "" : "s"}</div>
+          </div>
+        </Card>
+
+        {/* Bar chart — No. of Book per Material Type (full-width row below) */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <Card title="No. of Book per Material Type" sub="Books by type of material" accent="#1E88E5">
+            <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+              {matBars.length === 0 ? (
+                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: GRAY, fontSize: 12 }}>No data yet</div>
+              ) : (
+                <>
+                  <div style={{ flex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-around", gap: 10, borderBottom: `1px solid ${BORDER}`, borderLeft: `1px solid ${BORDER}`, padding: "6px 6px 0", minHeight: 150 }}>
+                    {matBars.map(b => (
+                      <div key={b.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%", gap: 4 }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: DARK_GREEN }}>{b.v}</div>
+                        <div className="lib-bar" style={{ width: "55%", maxWidth: 40, height: ready ? `${Math.max(4, (b.v / matMax) * 100)}%` : "0%", background: "linear-gradient(180deg, #1E88E5, #0d3b66)", borderRadius: "4px 4px 0 0" }} />
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-around", gap: 10, padding: "5px 6px 0" }}>
+                    {matBars.map(b => (
+                      <div key={b.label} style={{ flex: 1, textAlign: "center", fontSize: 10, color: GRAY, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.label}</div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );

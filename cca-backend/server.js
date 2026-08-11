@@ -1262,15 +1262,18 @@ app.delete("/api/erd/scholastic-requirements/:id", async (req, res) => {
         mode_of_acquisition  VARCHAR(100) NULL,
         price                VARCHAR(50) NULL,
         subject              VARCHAR(150) NULL,
+        type_of_material     VARCHAR(150) NULL,
         status               VARCHAR(50) NULL DEFAULT 'Available',
         created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    // Migrate existing tables that predate the status column.
+    // Migrate existing tables that predate newer columns.
     try {
       const [cols] = await pool.query("SHOW COLUMNS FROM erd_library_books LIKE 'status'");
       if (!cols.length) await pool.query("ALTER TABLE erd_library_books ADD COLUMN status VARCHAR(50) NULL DEFAULT 'Available'");
-    } catch (e) { console.error("erd_library_books status migrate error:", e); }
+      const [c2] = await pool.query("SHOW COLUMNS FROM erd_library_books LIKE 'type_of_material'");
+      if (!c2.length) await pool.query("ALTER TABLE erd_library_books ADD COLUMN type_of_material VARCHAR(150) NULL AFTER subject");
+    } catch (e) { console.error("erd_library_books migrate error:", e); }
   } catch (err) { console.error("erd_library_books table init error:", err); }
 })();
 
@@ -1290,12 +1293,12 @@ app.post("/api/erd/library-books", async (req, res) => {
   try {
     const [result] = await pool.query(
       `INSERT INTO erd_library_books
-        (accession_no, isbn, copy_no, title, author, edition, no_of_title, copyright_year, publisher, place_of_publication, mode_of_acquisition, price, subject, status)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        (accession_no, isbn, copy_no, title, author, edition, no_of_title, copyright_year, publisher, place_of_publication, mode_of_acquisition, price, subject, type_of_material, status)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [b.accession_no || null, b.isbn || null, b.copy_no || null, b.title.trim(), b.author || null,
        b.edition || null, b.no_of_title || null, b.copyright_year || null, b.publisher || null,
        b.place_of_publication || null, b.mode_of_acquisition || null, b.price || null, b.subject || null,
-       b.status || "Available"]
+       b.type_of_material || null, b.status || "Available"]
     );
     res.status(201).json({ id: result.insertId, ...b });
   } catch (err) {
@@ -1613,6 +1616,53 @@ app.delete("/api/erd/library-purposes/:id", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to delete purpose." });
+  }
+});
+
+// ─── LIBRARY MATERIAL TYPES (acquisition "Type of Material" options) ──────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_library_material_type (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        name       VARCHAR(150) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (err) { console.error("erd_library_material_type table init error:", err); }
+})();
+
+app.get("/api/erd/library-material-types", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, name FROM erd_library_material_type ORDER BY name ASC");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch material types." });
+  }
+});
+
+app.post("/api/erd/library-material-types", async (req, res) => {
+  const name = ((req.body || {}).name || "").trim();
+  if (!name) return res.status(400).json({ message: "Material type is required." });
+  try {
+    const [existing] = await pool.query("SELECT id FROM erd_library_material_type WHERE name = ?", [name]);
+    if (existing.length) return res.status(409).json({ message: "That material type already exists." });
+    const [result] = await pool.query("INSERT INTO erd_library_material_type (name) VALUES (?)", [name]);
+    res.status(201).json({ id: result.insertId, name });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to save material type." });
+  }
+});
+
+app.delete("/api/erd/library-material-types/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_library_material_type WHERE id=?", [req.params.id]);
+    res.json({ message: "Material type deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete material type." });
   }
 });
 

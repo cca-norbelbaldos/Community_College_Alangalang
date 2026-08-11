@@ -741,13 +741,13 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
           <button
             onClick={() => setAccountMenuOpen(o => !o)}
             title="Account"
-            style={{ width: "34px", height: "34px", borderRadius: "50%", background: DARK_GREEN, color: WHITE, border: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 700, cursor: "pointer", flexShrink: 0, padding: 0, overflow: "hidden" }}
+            style={{ width: "38px", height: "38px", borderRadius: "50%", background: DARK_GREEN, color: WHITE, border: `2px solid ${DARK_GREEN}`, boxShadow: "0 0 0 2px #ffffff, 0 1px 3px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 700, cursor: "pointer", flexShrink: 0, padding: 0, overflow: "hidden" }}
           >
             {myProfilePic ? (
               <img
                 src={myProfilePic}
                 alt="Profile"
-                style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", borderRadius: "50%", display: "block", imageRendering: "auto" }}
                 onError={() => setMyProfilePic(null)}
               />
             ) : (

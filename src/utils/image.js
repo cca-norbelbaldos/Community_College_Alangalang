@@ -7,7 +7,7 @@
 // are smoothed instead of pixelated.
 //
 // Returns a Promise that resolves to a JPEG data URL.
-export function processProfileImage(file, { size = 800, quality = 0.95 } = {}) {
+export function processProfileImage(file, { size = 1024, quality = 0.98 } = {}) {
   return new Promise((resolve, reject) => {
     if (!file) return reject(new Error("No file"));
     const reader = new FileReader();
