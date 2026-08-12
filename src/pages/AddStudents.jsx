@@ -161,7 +161,7 @@ function StudentSIFormModal({ student, courses = [], onClose, onUpdated, activeS
   const ci = (extra={}) => ({
     width: "100%", padding: "4px 6px", border: "none", outline: "none",
     fontSize: "12px", boxSizing: "border-box", background: "transparent",
-    fontFamily: TNR, color: "#000", textTransform: "uppercase", ...extra,
+    fontFamily: TNR, color: "#000", ...extra,
   });
   const rlc = (w = "110px") => ({
     background: WHITE, color: "#000", padding: "5px 8px",

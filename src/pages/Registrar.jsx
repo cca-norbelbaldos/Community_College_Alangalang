@@ -2605,30 +2605,37 @@ export default function Registrar({ user = {} }) {
 
         // Unique option lists derived from student data
         const schoolYears = [...new Set(allEnrollments.map(e => `${e.year_enrolled}-${parseInt(e.year_enrolled)+1}`))].sort().reverse();
-        const municipalities = [...new Set(rows.map(r => r.student?.municipality).filter(Boolean))].sort();
-        const barangays = [...new Set(
+        // Municipalities come from the full student list (not just enrolled students),
+        // de-duplicated case-insensitively so "Alangalang" and "ALANGALANG" are one option.
+        const _norm = (v) => String(v || "").trim().toLowerCase();
+        const municipalities = [...new Map(
+          students.map(s => s.municipality).filter(Boolean).map(m => [_norm(m), m.trim()])
+        ).values()].sort();
+        const barangays = [...new Map(
           rows
-            .filter(r => !enrListFilter.municipality || r.student?.municipality === enrListFilter.municipality)
+            .filter(r => !enrListFilter.municipality || _norm(r.student?.municipality) === _norm(enrListFilter.municipality))
             .map(r => r.student?.barangay)
             .filter(Boolean)
-        )].sort();
-        const programs = [...new Set(rows.map(r => r.student?.course).filter(Boolean))].sort();
-        const sections = [...new Set(
+            .map(b => [_norm(b), b.trim()])
+        ).values()].sort();
+        const programs = [...new Map(rows.map(r => r.student?.course).filter(Boolean).map(c => [_norm(c), c.trim()])).values()].sort();
+        const sections = [...new Map(
           rows
-            .filter(r => !enrListFilter.program || r.student?.course === enrListFilter.program)
+            .filter(r => !enrListFilter.program || _norm(r.student?.course) === _norm(enrListFilter.program))
             .map(r => r.student?.section)
             .filter(Boolean)
-        )].sort();
+            .map(sec => [_norm(sec), sec.trim()])
+        ).values()].sort();
 
         // Apply filters
         const filtered = rows.filter(r => {
           const sy = `${r.year_enrolled}-${parseInt(r.year_enrolled)+1}`;
           if (enrListFilter.school_year && sy !== enrListFilter.school_year) return false;
           if (enrListFilter.sex && (r.student?.gender || "").toLowerCase() !== enrListFilter.sex.toLowerCase()) return false;
-          if (enrListFilter.municipality && r.student?.municipality !== enrListFilter.municipality) return false;
-          if (enrListFilter.barangay && r.student?.barangay !== enrListFilter.barangay) return false;
-          if (enrListFilter.program && r.student?.course !== enrListFilter.program) return false;
-          if (enrListFilter.section && r.student?.section !== enrListFilter.section) return false;
+          if (enrListFilter.municipality && _norm(r.student?.municipality) !== _norm(enrListFilter.municipality)) return false;
+          if (enrListFilter.barangay && _norm(r.student?.barangay) !== _norm(enrListFilter.barangay)) return false;
+          if (enrListFilter.program && _norm(r.student?.course) !== _norm(enrListFilter.program)) return false;
+          if (enrListFilter.section && _norm(r.student?.section) !== _norm(enrListFilter.section)) return false;
           return true;
         });
 
