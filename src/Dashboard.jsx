@@ -15,7 +15,7 @@ import FacultyGrades from "./pages/FacultyGrades";
 import StudentPortal from "./pages/StudentPortal";
 import DatesToRemember from "./pages/DatesToRemember";
 import ClassSchedule from "./pages/ClassSchedule";
-import Library, { LibraryPlaceholder, LibrarySearch, Acquisition, Circulation, CheckInOut, LibraryPurposeSettings } from "./pages/Library";
+import Library, { LibraryPlaceholder, LibrarySearch, Acquisition, Circulation, CheckInOut, LibraryPurposeSettings, TotalPurchase } from "./pages/Library";
 import { DentalCheckup } from "./pages/Clinic";
 
 const GOLD       = "#F5A800";
@@ -108,7 +108,7 @@ const LIBRARY_LINKS = [
 // Inventory Report is a nested dropdown with its own sub-items.
 const ICON_INVENTORY = (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>);
 const INVENTORY_LINKS = [
-  { view: "Inventory Print", label: "Print", icon: (<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>) },
+  { view: "Total Purchase", label: "Total Purchase", icon: (<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>) },
 ];
 const INVENTORY_VIEWS = ["Inventory Report", ...INVENTORY_LINKS.map(l => l.view)];
 // Library Settings is a nested dropdown with its own sub-items.
@@ -1322,7 +1322,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   {activeView === "Library Settings"    && <LibraryPlaceholder title="Library Settings" desc="Choose a settings section." icon="⚙️" />}
                   {activeView === "Library Purpose"     && <LibraryPurposeSettings canDelete={libCanDelete} />}
                   {activeView === "Inventory Report"   && <LibraryPlaceholder title="Inventory Report" desc="Choose a report section." icon="📊" />}
-                  {activeView === "Inventory Print"    && <LibraryPlaceholder title="Print" desc="Print the library inventory." icon="🖨" />}
+                  {activeView === "Total Purchase"     && <TotalPurchase />}
                   {activeView === "Clinic Dashboard"     && <LibraryPlaceholder title="Clinic Dashboard" desc="Clinic overview." icon="🏥" />}
                   {activeView === "Emergency Referral"   && <LibraryPlaceholder title="Emergency Referral" desc="Emergency referrals." icon="🚑" />}
                   {activeView === "First Aid"            && <LibraryPlaceholder title="First Aid" desc="First aid records." icon="➕" />}

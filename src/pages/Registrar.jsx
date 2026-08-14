@@ -1136,7 +1136,7 @@ export default function Registrar({ user = {} }) {
       {activeTab === "manage_students" && (
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", padding: "10px 0", borderBottom: `1px solid ${BORDER}`, marginTop: "-8px" }}>
           {[
-            { key: "application_form",     label: "Application Form" },
+            { key: "application_form",     label: "Enrollment Form" },
             { key: "student_info",         label: "Student Information" },
             { key: "student_registration", label: "Student Registration" },
             { key: "grades",               label: "Grades" },
@@ -2789,38 +2789,28 @@ export default function Registrar({ user = {} }) {
 
                       <div id="enr-print-area" style={{ width: "816px", minHeight: "1181px", margin: "0 auto", background: WHITE, padding: "24px 40px", boxSizing: "border-box", fontFamily: '"Times New Roman",Times,serif', color: "#000", boxShadow: "0 4px 24px rgba(0,0,0,0.18)" }}>
 
-                        {/* HEADER (Transcript-of-Records style) */}
-                        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "2px", tableLayout: "fixed" }}>
-                          <tbody>
-                            <tr>
-                              <td style={{ width: "130px", verticalAlign: "middle", textAlign: "center", paddingRight: "6px" }}>
-                                <div style={{ display: "flex", gap: "4px", alignItems: "center", justifyContent: "center" }}>
-                                  <img src={alangalangLogo} alt="" style={{ width: 70, height: 70, objectFit: "contain" }} />
-                                  <img src={ccaLogo} alt="" style={{ width: 80, height: 80, objectFit: "contain" }} />
-                                </div>
-                              </td>
-                              <td style={{ textAlign: "center", verticalAlign: "middle" }}>
-                                <div style={{ fontSize: "15pt", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", lineHeight: 1.1, fontFamily: '"Times New Roman",Times,serif', marginLeft: "50px" }}>Community College of Alangalang</div>
-                              </td>
-                              <td style={{ width: "185px", verticalAlign: "top", paddingLeft: "36px", fontSize: "8pt", lineHeight: 1.7, fontFamily: '"Times New Roman",Times,serif' }}>
-                                <div style={{ fontWeight: 900, fontSize: "8.5pt", textTransform: "uppercase", paddingLeft: "20px" }}>Office of the Registrar</div>
-                                <div style={{ paddingLeft: "20px" }}>Community College of Alangalang</div>
-                                <div style={{ paddingLeft: "20px" }}>Alangalang, Leyte</div>
-                                <div style={{ paddingLeft: "20px" }}>communitycollegeofalangalang@gmail.com</div>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td colSpan={3} style={{ position: "relative", height: "44px" }}>
-                                <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                                  <div style={{ fontSize: "44px", fontWeight: 900, letterSpacing: "-1px", fontFamily: 'Algerian, "Times New Roman", Times, serif', whiteSpace: "nowrap", transform: "scaleX(0.68)", transformOrigin: "center center" }}>OFFICIAL ENROLLMENT LIST</div>
-                                </div>
-                              </td>
-                            </tr>
-                          </tbody>
+                        {/* HEADER — logos on both sides, centered institution block */}
+                        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "4px", tableLayout: "fixed" }}>
+                          <tbody><tr>
+                            <td style={{ width: "110px", verticalAlign: "middle", textAlign: "center" }}>
+                              <img src={alangalangLogo} alt="" style={{ width: 84, height: 84, objectFit: "contain" }} />
+                            </td>
+                            <td style={{ textAlign: "center", verticalAlign: "middle", userSelect: "none", pointerEvents: "none", fontFamily: '"Times New Roman",Times,serif' }}>
+                              <div style={{ fontSize: "12.5pt", lineHeight: 1.2 }}>Republic of the Philippines</div>
+                              <div style={{ fontSize: "16pt", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1.15 }}>Community College of Alangalang</div>
+                              <div style={{ fontSize: "12.5pt", lineHeight: 1.2 }}>Alangalang, Leyte</div>
+                            </td>
+                            <td style={{ width: "110px", verticalAlign: "middle", textAlign: "center" }}>
+                              <img src={ccaLogo} alt="" style={{ width: 84, height: 84, objectFit: "contain" }} />
+                            </td>
+                          </tr></tbody>
                         </table>
 
+                        {/* Document title */}
+                        <div style={{ textAlign: "center", fontSize: "15pt", fontWeight: 900, letterSpacing: "2px", textTransform: "uppercase", fontFamily: '"Times New Roman",Times,serif', margin: "4px 0 2px" }}>Official Enrollment List</div>
+
                         {/* Thick divider */}
-                        <div style={{ borderTop: "2.5px solid #000", borderBottom: "1px solid #000", height: "3px", marginBottom: "6px", marginTop: "0px" }} />
+                        <div style={{ borderTop: "2.5px solid #000", borderBottom: "1px solid #000", height: "3px", marginBottom: "6px", marginTop: "2px" }} />
 
                         {/* Filter summary */}
                         {activeFilters.length > 0 && (
@@ -4005,12 +3995,12 @@ export default function Registrar({ user = {} }) {
 }
 
 // ── Records of Candidates for Graduation — printable form (8.5×13) ──
-const CAND_GROUPS = ["Ia", "Ib", "Ic", "II", "III", "IV", "Va", "Vb", "CMO"];
+const CAND_GROUPS = ["Ia", "Ib", "Ic", "II", "III", "IV", "Va", "Vb", "PF"];
 const CAND_LEGEND = [
   ["Ia", "General Courses"], ["Ib", "Elective Courses"], ["Ic", "Mandated Courses"],
   ["II", "Additional GE Courses"], ["III", "Physical Education"], ["IV", "ROTC"],
   ["Va", "Professional Courses - Core Courses"], ["Vb", "Professional Courses - Major Courses"],
-  ["CMO", "CHED Memorandum Order Courses"],
+  ["PF", "Pathfit"],
 ];
 
 // ── Free Higher Education & Voluntary Contribution Form (Application Form) ──
@@ -4040,7 +4030,7 @@ function ApplicationForm({ student, onClose, inline = false }) {
       ? { position: "relative", background: WHITE, display: "flex", flexDirection: "column", border: `1px solid ${BORDER}`, borderRadius: 10, overflow: "hidden", marginTop: 12 }
       : { position: "fixed", inset: 0, background: WHITE, zIndex: 2147483646, display: "flex", flexDirection: "column" }}>
       <div className="no-print" style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: DARK_GREEN, flexShrink: 0 }}>
-        <span style={{ fontWeight: 800, fontSize: 13, color: WHITE }}>{student.last_name ? `${student.last_name}, ${student.first_name} — ` : ""}Application Form</span>
+        <span style={{ fontWeight: 800, fontSize: 13, color: WHITE }}>{student.last_name ? `${student.last_name}, ${student.first_name} — ` : ""}Enrollment Form</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           {!inline && <button type="button" onClick={onClose} style={{ padding: "7px 16px", background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.4)", borderRadius: 6, fontSize: 12, fontWeight: 600, color: WHITE, cursor: "pointer" }}>← Back</button>}
           <button type="button" onClick={() => {
@@ -4100,7 +4090,7 @@ function ApplicationForm({ student, onClose, inline = false }) {
           {/* Fixed contact footer — repeats at the bottom of every printed page */}
           <div className="app-fixed-footer">
             <span className="fi"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>communitycollegeofalangalang@gmail.com</span>
-            <span className="fi"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>xxxxxxxxxxx</span>
+            <span className="fi"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>09758876966</span>
             <span className="fi"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>communitycollegealangalang.com</span>
           </div>
 
@@ -4113,7 +4103,7 @@ function ApplicationForm({ student, onClose, inline = false }) {
               <div style={{ fontSize: "12pt", fontFamily: '"Times New Roman",Times,serif' }}>Republic of the Philippines</div>
               <div style={{ fontSize: "15pt", fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.5, lineHeight: 1.1, whiteSpace: "nowrap" }}>Community College of Alangalang</div>
               <div style={{ fontSize: "12pt", fontFamily: '"Times New Roman",Times,serif' }}>Alangalang, Leyte</div>
-              <div style={{ fontSize: "11pt", fontWeight: 800, marginTop: 5, letterSpacing: 0.5 }}>APPLICATION FORM FOR ADMISSION</div>
+              <div style={{ fontSize: "11pt", fontWeight: 800, marginTop: 5, letterSpacing: 0.5 }}>ENROLLMENT FORM</div>
             </td>
             <td style={{ width: 160, textAlign: "center", verticalAlign: "middle" }}>
               <img src={ccaLogo} alt="" style={{ width: 85, height: 85, objectFit: "contain" }} />
@@ -4867,7 +4857,7 @@ function TorContactFooter() {
   return (
     <div style={{ position: "absolute", left: "48px", right: "48px", bottom: "2px", borderTop: "1px solid #999", paddingTop: "3px", display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", fontSize: "7.5pt", fontFamily: '"Times New Roman",Times,serif', color: "#333" }}>
       <span style={ic}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>communitycollegeofalangalang@gmail.com</span>
-      <span style={ic}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>xxxxxxxxxxx</span>
+      <span style={ic}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>09758876966</span>
       <span style={ic}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>communitycollegealangalang.com</span>
     </div>
   );

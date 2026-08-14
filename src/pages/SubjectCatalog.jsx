@@ -22,7 +22,7 @@ const DESCRIPTION_OPTIONS = [
   { code: "IV",  label: "ROTC" },
   { code: "Va",  label: "Professional Courses - Core Courses" },
   { code: "Vb",  label: "Professional Courses - Major Courses" },
-  { code: "CMO",  label: "CMO #39 S. 2021" },
+  { code: "PF",  label: "Pathfit" },
 ];
 
 export default function SubjectCatalog() {

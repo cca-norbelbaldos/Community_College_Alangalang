@@ -935,6 +935,108 @@ export function LibrarySearch({ canDelete = true }) {
 // Cell style for the catalog table (wraps so all text is visible).
 export const LIB_CELL = { padding: "6px 8px", fontSize: 11, color: "#1f2937", border: "1px solid #E5E7EB", textAlign: "center", verticalAlign: "middle", whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.35 };
 
+// ── Inventory Report → Total Purchase — purchased books + total cost ───────────
+export function TotalPurchase() {
+  const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${API}/api/erd/library-books?t=${Date.now()}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setBooks(Array.isArray(d) ? d : []))
+      .catch(() => setBooks([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const purchased = books.filter(b => /purchas/i.test(b.mode_of_acquisition || ""));
+  const priceOf = (b) => parseFloat(String(b.price || "").replace(/[^0-9.]/g, "")) || 0;
+  const total = purchased.reduce((s, b) => s + priceOf(b), 0);
+  const peso = (n) => "₱" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const th = { padding: "9px 10px", textAlign: "center", fontSize: 11, fontWeight: 700, color: WHITE, background: GREEN, border: "1px solid #6b8f3a" };
+  const td = { padding: "8px 10px", fontSize: 12, color: "#1f2937", border: `1px solid ${BORDER}`, textAlign: "center" };
+
+  const doPrint = () => {
+    const esc = (v) => String(v == null || v === "" ? "—" : v).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+    const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const body = purchased.map(b =>
+      `<tr><td>${esc(b.accession_no)}</td><td>${esc(b.isbn)}</td><td>${esc(b.copy_no)}</td><td class="l">${esc(b.title)}</td><td>${esc(b.author)}</td><td>${esc(peso(priceOf(b)))}</td></tr>`
+    ).join("");
+    const html = `<!doctype html><html><head><title>Total Purchase</title><style>
+      *{box-sizing:border-box;} body{font-family:"Times New Roman",serif;margin:0;padding:28px;color:#111;}
+      h1{margin:0;font-size:20px;text-align:center;} .sub{text-align:center;font-size:12px;color:#444;margin:4px 0 18px;}
+      table{border-collapse:collapse;width:100%;} th,td{border:1px solid #333;padding:6px 8px;font-size:12px;text-align:center;}
+      th{background:#3d6e01;color:#fff;} td.l{text-align:left;} tr.total td{font-weight:bold;background:#eee;} td.r{text-align:right;}
+      @media print{@page{margin:14mm;}}
+    </style></head><body>
+      <h1>Community College of Alangalang</h1>
+      <div class="sub">Library — Total Purchase &nbsp;·&nbsp; ${dateStr}</div>
+      <table><thead><tr><th>Accession No.</th><th>ISBN</th><th>Copy No.</th><th>Title</th><th>Author</th><th>Price</th></tr></thead>
+      <tbody>${body || `<tr><td colspan="6">No purchased books.</td></tr>`}
+      <tr class="total"><td colspan="5" class="r">TOTAL</td><td>${esc(peso(total))}</td></tr></tbody></table>
+    </body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) { alert("Please allow pop-ups to print."); return; }
+    w.document.write(html); w.document.close(); w.focus();
+    // Close the print tab automatically once printing is done or cancelled.
+    w.onafterprint = () => w.close();
+    setTimeout(() => { w.print(); }, 300);
+  };
+
+  return (
+    <div style={{ fontFamily: "system-ui,-apple-system,sans-serif", display: "flex", flexDirection: "column", minHeight: "calc(100vh - 130px)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: DARK_GREEN }}>Total Purchase</h2>
+          <p style={{ margin: "4px 0 0", fontSize: 12.5, color: GRAY }}>All purchased books and their total cost.</p>
+        </div>
+        <button onClick={doPrint} disabled={loading || purchased.length === 0}
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 18px", background: `linear-gradient(135deg, ${DARK_GREEN}, ${GREEN})`, color: WHITE, border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: (loading || purchased.length === 0) ? "default" : "pointer", opacity: (loading || purchased.length === 0) ? 0.6 : 1 }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+          Print
+        </button>
+      </div>
+
+      <div style={{ flex: 1, background: WHITE, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "auto" }}>
+        <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed", minWidth: 820 }}>
+          <colgroup>{[110, 160, 80, "auto", 180, 140].map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+          <thead>
+            <tr>
+              {["Accession No.", "ISBN", "Copy No.", "Title", "Author", "Price"].map(h => (
+                <th key={h} style={th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={6} style={{ ...td, textAlign: "center", color: GRAY, padding: 24 }}>Loading…</td></tr>
+            ) : purchased.length === 0 ? (
+              <tr><td colSpan={6} style={{ ...td, textAlign: "center", color: GRAY, padding: 24 }}>No purchased books yet.</td></tr>
+            ) : (
+              <>
+                {purchased.map(b => (
+                  <tr key={b.id}>
+                    <td style={td}>{b.accession_no || "—"}</td>
+                    <td style={td}>{b.isbn || "—"}</td>
+                    <td style={td}>{b.copy_no || "—"}</td>
+                    <td style={{ ...td, fontWeight: 600 }}>{b.title || "—"}</td>
+                    <td style={td}>{b.author || "—"}</td>
+                    <td style={td}>{peso(priceOf(b))}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan={5} style={{ ...td, textAlign: "right", fontWeight: 800, color: DARK_GREEN, background: "#F3F7EE" }}>TOTAL</td>
+                  <td style={{ ...td, fontWeight: 900, color: DARK_GREEN, background: "#F3F7EE", fontSize: 13 }}>{peso(total)}</td>
+                </tr>
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // Simple placeholder page for Library sub-sections not built out yet.
 export function LibraryPlaceholder({ title, desc, icon = "📚" }) {
   return (
