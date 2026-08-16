@@ -972,16 +972,18 @@ export default function Registrar({ user = {} }) {
           }
 
           // Generate their QR code right away so the registrar can print/save it on the spot.
+          // Use the ID the SERVER actually assigned (it may differ if two people enrolled at once).
+          const assignedNumber = newStudent?.student_number || studentForm.student_number;
           const fullName = `${studentForm.last_name}, ${studentForm.first_name} ${studentForm.middle_name || ""}`.replace(/\s+/g, " ").trim();
           const payload = [
             "CCA-STUDENT",
-            studentForm.student_number || "—",
+            assignedNumber || "—",
             fullName,
             studentForm.course,
             studentForm.year_level,
             studentForm.section || "—",
           ].join("|");
-          setStudentQr({ payload, name: fullName, studentNumber: studentForm.student_number });
+          setStudentQr({ payload, name: fullName, studentNumber: assignedNumber });
         }
       }
       else showToast("Failed to save student. Please try again.", "error");

@@ -1797,6 +1797,23 @@ app.get("/api/erd/students/next-id", async (req, res) => {
   } catch (err) { res.status(500).json({ message: "Failed to generate next ID." }); }
 });
 
+// Ensure student_number is unique at the DB level so two concurrent enrollments
+// can never end up with the same ID (a duplicate insert will error and be retried).
+(async () => {
+  try {
+    const [idx] = await pool.query("SHOW INDEX FROM erd_student WHERE Key_name = 'uniq_student_number'");
+    if (!idx.length) await pool.query("ALTER TABLE erd_student ADD UNIQUE KEY uniq_student_number (student_number)");
+  } catch (e) { console.error("erd_student unique student_number index error (existing duplicates?):", e.message); }
+})();
+
+// Compute the next student number for a given 4-digit year prefix (global max sequence + 1).
+async function computeNextStudentNumber(yearPrefix) {
+  const [rows] = await pool.query("SELECT student_number FROM erd_student WHERE student_number REGEXP '^[0-9]{4}-[0-9]+$'");
+  const seqs = rows.map(r => parseInt((r.student_number || "").split("-")[1]) || 0).filter(n => n > 0);
+  const nextSeq = seqs.length ? Math.max(...seqs) + 1 : 1;
+  return `${yearPrefix}-${String(nextSeq).padStart(4, "0")}`;
+}
+
 app.get("/api/erd/students", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -2173,44 +2190,65 @@ app.post("/api/erd/students", async (req, res) => {
       courseId = courseRow ? courseRow.id : null;
     }
 
-    const [studentResult] = await pool.query(
-      `INSERT INTO erd_student
-         (first_name, middle_name, last_name, gender, profile_picture,
-          student_number, course_id, year_level, section, year_enrolled,
-          email, mobile, birthdate, place_of_birth, barangay, municipality, province, zip_code,
-          religion, citizenship, status, acr_no, classification,
-          father_last, father_first, father_middle, father_occupation,
-          mother_last, mother_first, mother_middle, mother_occupation,
-          parents_address, parents_mobile,
-          guardian_name, guardian_relationship, guardian_address, guardian_mobile,
-          spouse_name, spouse_occupation, spouse_address, spouse_mobile,
-          elem_school, elem_address, elem_year, elem_honors,
-          hs_school, hs_address, hs_year, hs_honors,
-          col_school, col_address, col_year, col_honors,
-          scholastic_notes)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        first_name, middle_name||null, last_name, gender||null, profile_picture||null,
-        student_number, courseId, year_level||null, section||null,
-        year_enrolled ? parseInt(year_enrolled,10) : null,
-        email||null, mobile||null, birthdate||null, place_of_birth||null,
-        barangay||null, municipality||null, province||null, zip_code||null,
-        religion||null, citizenship||null, status||null, acr_no||null, classification||null,
-        father_last||null, father_first||null, father_middle||null, father_occupation||null,
-        mother_last||null, mother_first||null, mother_middle||null, mother_occupation||null,
-        parents_address||null, parents_mobile||null,
-        guardian_name||null, guardian_relationship||null, guardian_address||null, guardian_mobile||null,
-        spouse_name||null, spouse_occupation||null, spouse_address||null, spouse_mobile||null,
-        elem_school||null, elem_address||null, elem_year||null, elem_honors||null,
-        hs_school||null, hs_address||null, hs_year||null, hs_honors||null,
-        col_school||null, col_address||null, col_year||null, col_honors||null,
-        scholastic_notes||null,
-      ]
-    );
+    // Derive the year prefix from the submitted ID (fallback: current year).
+    const yearPrefix = /^\d{4}-/.test(student_number || "") ? String(student_number).slice(0, 4) : String(new Date().getFullYear());
+
+    // Assign the ID atomically: recompute the next number and insert; if another
+    // enrollment grabbed the same number first, the UNIQUE key rejects it and we retry.
+    let studentResult = null;
+    let assignedNumber = null;
+    for (let attempt = 0; attempt < 25 && !studentResult; attempt++) {
+      const candidate = await computeNextStudentNumber(yearPrefix);
+      try {
+        [studentResult] = await pool.query(
+          `INSERT INTO erd_student
+             (first_name, middle_name, last_name, gender, profile_picture,
+              student_number, course_id, year_level, section, year_enrolled,
+              email, mobile, birthdate, place_of_birth, barangay, municipality, province, zip_code,
+              religion, citizenship, status, acr_no, classification,
+              father_last, father_first, father_middle, father_occupation,
+              mother_last, mother_first, mother_middle, mother_occupation,
+              parents_address, parents_mobile,
+              guardian_name, guardian_relationship, guardian_address, guardian_mobile,
+              spouse_name, spouse_occupation, spouse_address, spouse_mobile,
+              elem_school, elem_address, elem_year, elem_honors,
+              hs_school, hs_address, hs_year, hs_honors,
+              col_school, col_address, col_year, col_honors,
+              scholastic_notes)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [
+            first_name, middle_name||null, last_name, gender||null, profile_picture||null,
+            candidate, courseId, year_level||null, section||null,
+            year_enrolled ? parseInt(year_enrolled,10) : null,
+            email||null, mobile||null, birthdate||null, place_of_birth||null,
+            barangay||null, municipality||null, province||null, zip_code||null,
+            religion||null, citizenship||null, status||null, acr_no||null, classification||null,
+            father_last||null, father_first||null, father_middle||null, father_occupation||null,
+            mother_last||null, mother_first||null, mother_middle||null, mother_occupation||null,
+            parents_address||null, parents_mobile||null,
+            guardian_name||null, guardian_relationship||null, guardian_address||null, guardian_mobile||null,
+            spouse_name||null, spouse_occupation||null, spouse_address||null, spouse_mobile||null,
+            elem_school||null, elem_address||null, elem_year||null, elem_honors||null,
+            hs_school||null, hs_address||null, hs_year||null, hs_honors||null,
+            col_school||null, col_address||null, col_year||null, col_honors||null,
+            scholastic_notes||null,
+          ]
+        );
+        assignedNumber = candidate;
+      } catch (e) {
+        if (e.code === "ER_DUP_ENTRY") { studentResult = null; continue; } // ID taken — retry
+        throw e;
+      }
+    }
+
+    if (!studentResult) {
+      return res.status(409).json({ message: "Could not assign a unique ID number. Please try saving again." });
+    }
 
     res.status(201).json({
       message: "Student enrolled and saved to erd_student.",
       id: studentResult.insertId,
+      student_number: assignedNumber,
       users_id: null
     });
   } catch (err) {
