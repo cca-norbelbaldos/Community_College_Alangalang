@@ -159,6 +159,23 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
         religion:       form.religion,
         citizenship:    form.citizenship,
         status:         form.status,
+        acr_no:         form.acr_no,
+        classification: form.classification,
+        // Family background
+        father_last:   form.father_last,   father_first:  form.father_first,
+        father_middle: form.father_middle, father_occupation: form.father_occupation,
+        mother_last:   form.mother_last,   mother_first:  form.mother_first,
+        mother_middle: form.mother_middle, mother_occupation: form.mother_occupation,
+        parents_address: form.parents_address, parents_mobile: form.parents_mobile,
+        guardian_name: form.guardian_name, guardian_relationship: form.guardian_relationship,
+        guardian_address: form.guardian_address, guardian_mobile: form.guardian_mobile,
+        spouse_name:   form.spouse_name,   spouse_occupation: form.spouse_occupation,
+        spouse_address: form.spouse_address, spouse_mobile: form.spouse_mobile,
+        // Educational background (scholastic record before enrollment)
+        elem_school: form.elem_school, elem_address: form.elem_address, elem_year: form.elem_year, elem_honors: form.elem_honors,
+        hs_school:   form.hs_school,   hs_address:   form.hs_address,   hs_year:   form.hs_year,   hs_honors:   form.hs_honors,
+        col_school:  form.col_school,  col_address:  form.col_address,  col_year:  form.col_year,  col_honors:  form.col_honors,
+        scholastic_notes: form.scholastic_notes,
       };
       const res = await fetch(`${API}/api/erd/students`, {
         method: "POST",
