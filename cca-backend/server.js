@@ -1819,6 +1819,7 @@ app.get("/api/erd/students", async (req, res) => {
     const [rows] = await pool.query(
       `SELECT s.id, s.student_number, s.year_level, s.section, s.year_enrolled, s.created_at,
               s.users_id, s.graduation_status,
+              (SELECT e.year_level FROM erd_enrollment e WHERE e.student_id = s.id ORDER BY e.id DESC LIMIT 1) AS enrolled_year_level,
               COALESCE(s.first_name,  u.first_name)       AS first_name,
               COALESCE(s.middle_name, u.middle_name)      AS middle_name,
               COALESCE(s.last_name,   u.last_name)        AS last_name,
@@ -1850,7 +1851,9 @@ app.get("/api/erd/students", async (req, res) => {
       middle_name: r.middle_name,
       last_name: r.last_name,
       course: r.course || null,
-      year_level: r.year_level || null,
+      // Reflect the student's ACTUAL standing from their latest enrollment record
+      // (falls back to the stored field if they have no enrollment yet).
+      year_level: r.enrolled_year_level || r.year_level || null,
       section: r.section || null,
       profile_picture: r.profile_picture,
       year_enrolled: r.year_enrolled || (r.created_at ? new Date(r.created_at).getFullYear() : null),
