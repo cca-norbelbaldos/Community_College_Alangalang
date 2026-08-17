@@ -1563,6 +1563,11 @@ export default function AddStudents({ user = {} }) {
   const yearOptions    = ["1st Year","2nd Year","3rd Year","4th Year"];
   const sectionOptions = [...new Set(students.map(s => s.section).filter(Boolean))].sort();
 
+  // Sort by ID number ascending (2026-0001, 0002, 0003 … present).
+  const _snKey = (s) => {
+    const m = String(s.student_number || "").match(/^(\d{4})-(\d+)/);
+    return m ? parseInt(m[1], 10) * 1000000 + parseInt(m[2], 10) : Number.MAX_SAFE_INTEGER;
+  };
   const filteredStudents = studentsWithRole.filter(s => {
     if (s.graduation_status === "graduated") return false;
     const matchSearch  = `${s.first_name} ${s.last_name} ${s.student_number} ${s.course}`.toLowerCase().includes(search.toLowerCase());
@@ -1570,7 +1575,7 @@ export default function AddStudents({ user = {} }) {
     const matchYear    = !filterYear    || s.year_level === filterYear;
     const matchSection = !filterSection || s.section   === filterSection;
     return matchSearch && matchCourse && matchYear && matchSection;
-  });
+  }).sort((a, b) => _snKey(a) - _snKey(b));
 
   return (
     <div style={{ fontFamily: "system-ui, sans-serif" }}>
