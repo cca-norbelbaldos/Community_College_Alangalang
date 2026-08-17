@@ -1265,6 +1265,7 @@ export default function AddStudents({ user = {} }) {
   const [filterCourse,  setFilterCourse]  = useState("");
   const [filterYear,    setFilterYear]    = useState("");
   const [filterSection, setFilterSection] = useState("");
+  const [photoPreview,  setPhotoPreview]  = useState(null); // { src, name } — enlarged photo
 
   // Subjects the CURRENTLY LOGGED-IN user is assigned to teach (erd_subject_load).
   // Grade inputs in the Student List view are locked unless the subject is in here.
@@ -1659,7 +1660,9 @@ export default function AddStudents({ user = {} }) {
                     <td style={{ padding: "9px 14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                         {s.profile_picture ? (
-                          <img src={s.profile_picture} alt="Profile" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", border: `1px solid ${BORDER}` }} />
+                          <img src={s.profile_picture} alt="Profile" title="Click to view photo"
+                            onClick={(e) => { e.stopPropagation(); setPhotoPreview({ src: s.profile_picture, name: fullName }); }}
+                            style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", border: `1px solid ${BORDER}`, cursor: "pointer", flexShrink: 0 }} />
                         ) : (
                           <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#eaf2d9", color: GREEN, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "12px", flexShrink: 0 }}>
                             {s.first_name ? s.first_name.charAt(0).toUpperCase() : "S"}
@@ -1733,6 +1736,19 @@ export default function AddStudents({ user = {} }) {
           </div>
         )}
       </div>
+
+      {/* ── PHOTO PREVIEW LIGHTBOX ── */}
+      {photoPreview && createPortal(
+        <div onClick={() => setPhotoPreview(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2147483647, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: WHITE, borderRadius: 14, overflow: "hidden", maxWidth: "min(92vw, 460px)", boxShadow: "0 24px 60px rgba(0,0,0,0.5)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: DARK_GREEN, color: WHITE }}>
+              <span style={{ fontSize: 13, fontWeight: 800 }}>{photoPreview.name}</span>
+              <button onClick={() => setPhotoPreview(null)} style={{ background: "transparent", border: "none", color: WHITE, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            <img src={photoPreview.src} alt={photoPreview.name} style={{ display: "block", width: "100%", maxHeight: "78vh", objectFit: "contain", background: "#f3f4f6" }} />
+          </div>
+        </div>, document.body)}
 
       {/* ── FIXED 3-DOT DROPDOWN ── */}
       {openDropdownId !== null && createPortal((() => {
