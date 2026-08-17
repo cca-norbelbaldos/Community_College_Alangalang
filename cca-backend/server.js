@@ -2416,11 +2416,15 @@ app.put("/api/erd/students/:id/graduate", async (req, res) => {
 
 app.get("/api/erd/faculty", async (req, res) => {
   try {
+    // Include anyone who is faculty by PRIMARY role OR by an additional (multi-role)
+    // assignment — e.g. a user who is both Faculty and Registrar still shows here.
     const [rows] = await pool.query(
-      `SELECT u.id, u.first_name, u.middle_name, u.last_name, u.profile_picture, u.is_active
+      `SELECT DISTINCT u.id, u.first_name, u.middle_name, u.last_name, u.profile_picture, u.is_active
        FROM erd_users u
-       JOIN erd_user_type ut ON u.user_type_id = ut.id
-       WHERE ut.user_type = 'faculty'
+       LEFT JOIN erd_user_type ut  ON u.user_type_id = ut.id
+       LEFT JOIN erd_user_roles ur ON ur.users_id = u.id
+       LEFT JOIN erd_user_type ut2 ON ur.user_type_id = ut2.id
+       WHERE ut.user_type = 'faculty' OR ut2.user_type = 'faculty'
        ORDER BY u.last_name ASC, u.first_name ASC`
     );
     res.json(rows.map(r => ({
