@@ -1289,6 +1289,7 @@ export default function AddStudents({ user = {} }) {
   const [filterCourse,  setFilterCourse]  = useState("");
   const [filterYear,    setFilterYear]    = useState("");
   const [filterSection, setFilterSection] = useState("");
+  const [filterClassification, setFilterClassification] = useState(""); // Regular / Irregular
   const [photoPreview,  setPhotoPreview]  = useState(null); // { src, name } — enlarged photo
 
   // Subjects the CURRENTLY LOGGED-IN user is assigned to teach (erd_subject_load).
@@ -1599,7 +1600,14 @@ export default function AddStudents({ user = {} }) {
     const matchCourse  = !filterCourse  || s.course   === filterCourse;
     const matchYear    = !filterYear    || s.year_level === filterYear;
     const matchSection = !filterSection || s.section   === filterSection;
-    return matchSearch && matchCourse && matchYear && matchSection;
+    // Map each classification to Regular / Irregular for the filter.
+    const cls = (s.classification || "").trim().toLowerCase();
+    const isRegular   = ["new", "old"].includes(cls);
+    const isIrregular = ["transferee", "returnee", "cross-enrollee", "cross enrollee"].includes(cls);
+    const matchClass  = !filterClassification
+      || (filterClassification === "Regular"   && isRegular)
+      || (filterClassification === "Irregular" && isIrregular);
+    return matchSearch && matchCourse && matchYear && matchSection && matchClass;
   }).sort((a, b) => _snKey(a) - _snKey(b));
 
   return (
@@ -1630,8 +1638,14 @@ export default function AddStudents({ user = {} }) {
             <option value="">All Sections</option>
             {sectionOptions.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          {(filterCourse || filterYear || filterSection) && (
-            <button type="button" onClick={() => { setFilterCourse(""); setFilterYear(""); setFilterSection(""); }}
+          <select value={filterClassification} onChange={e => setFilterClassification(e.target.value)}
+            style={{ padding: "6px 10px", border: `1px solid ${BORDER}`, borderRadius: "5px", fontSize: "12px", color: "#374151", outline: "none", background: WHITE, cursor: "pointer" }}>
+            <option value="">All Students</option>
+            <option value="Regular">Regular</option>
+            <option value="Irregular">Irregular</option>
+          </select>
+          {(filterCourse || filterYear || filterSection || filterClassification) && (
+            <button type="button" onClick={() => { setFilterCourse(""); setFilterYear(""); setFilterSection(""); setFilterClassification(""); }}
               style={{ padding: "6px 10px", fontSize: "11px", background: WHITE, color: "#6B7280", border: `1px solid ${BORDER}`, borderRadius: "5px", cursor: "pointer" }}>
               Clear
             </button>
