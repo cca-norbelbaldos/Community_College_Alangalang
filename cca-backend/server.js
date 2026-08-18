@@ -1820,6 +1820,8 @@ app.get("/api/erd/students", async (req, res) => {
       `SELECT s.id, s.student_number, s.year_level, s.section, s.year_enrolled, s.created_at,
               s.users_id, s.graduation_status,
               (SELECT e.year_level FROM erd_enrollment e WHERE e.student_id = s.id ORDER BY e.id DESC LIMIT 1) AS enrolled_year_level,
+              (SELECT COUNT(*) FROM erd_enrollment e2 WHERE e2.student_id = s.id AND e2.semester LIKE '%2nd%') AS sem2_count,
+              (SELECT COUNT(*) FROM erd_grades g2 WHERE g2.student_id = s.id AND g2.grade IS NOT NULL) AS graded_count,
               COALESCE(s.first_name,  u.first_name)       AS first_name,
               COALESCE(s.middle_name, u.middle_name)      AS middle_name,
               COALESCE(s.last_name,   u.last_name)        AS last_name,
@@ -1854,6 +1856,9 @@ app.get("/api/erd/students", async (req, res) => {
       // Reflect the student's ACTUAL standing from their latest enrollment record
       // (falls back to the stored field if they have no enrollment yet).
       year_level: r.enrolled_year_level || r.year_level || null,
+      // For the Regular/Irregular rule: enrolled in a 2nd sem + has grades recorded.
+      enrolled_2nd_sem: (r.sem2_count || 0) > 0,
+      has_grades: (r.graded_count || 0) > 0,
       section: r.section || null,
       profile_picture: r.profile_picture,
       year_enrolled: r.year_enrolled || (r.created_at ? new Date(r.created_at).getFullYear() : null),
@@ -2312,7 +2317,7 @@ app.put("/api/erd/students/:id", async (req, res) => {
     await pool.query(
       `UPDATE erd_student
        SET first_name=?, middle_name=?, last_name=?, gender=?,
-           profile_picture=?, student_number=?, course_id=?,
+           profile_picture=COALESCE(?, profile_picture), student_number=?, course_id=?,
            year_level=?, section=?, year_enrolled=?,
            email=?, mobile=?, birthdate=?, place_of_birth=?,
            barangay=?, municipality=?, province=?, zip_code=?,
@@ -2329,7 +2334,8 @@ app.put("/api/erd/students/:id", async (req, res) => {
        WHERE id=?`,
       [
         first_name, middle_name||null, last_name, gender||null,
-        profile_picture||null, student_number, courseId,
+        // undefined (field not sent) → keep existing photo; "" → clear; base64 → set.
+        (profile_picture === undefined ? null : profile_picture), student_number, courseId,
         year_level||null, section||null, year_enrolled ? parseInt(year_enrolled,10) : null,
         email||null, mobile||null, birthdate||null, place_of_birth||null,
         barangay||null, municipality||null, province||null, zip_code||null,
@@ -2350,8 +2356,8 @@ app.put("/api/erd/students/:id", async (req, res) => {
     // Also sync basic fields to linked erd_users row if one exists (backward compat)
     if (studentRow.users_id) {
       await pool.query(
-        "UPDATE erd_users SET first_name=?, middle_name=?, last_name=?, gender=?, profile_picture=? WHERE id=?",
-        [first_name, middle_name||null, last_name, gender||null, profile_picture||null, studentRow.users_id]
+        "UPDATE erd_users SET first_name=?, middle_name=?, last_name=?, gender=?, profile_picture=COALESCE(?, profile_picture) WHERE id=?",
+        [first_name, middle_name||null, last_name, gender||null, (profile_picture === undefined ? null : profile_picture), studentRow.users_id]
       );
     }
 

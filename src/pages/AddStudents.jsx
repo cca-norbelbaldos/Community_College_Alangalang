@@ -451,6 +451,15 @@ function StudentInfoCard({ student, enrollments, subjects, assignedSubjectIds = 
   const [loadingMap, setLoadingMap] = useState({});
 
   const isAdmin = user?.role === "administrator";
+  // Grade permissions by role. Registrar + registrar_staff can INPUT grades;
+  // only registrar (and admin) can DELETE grades — registrar_staff cannot.
+  const _gradeRoles = Array.isArray(user?.roles) && user.roles.length
+    ? user.roles.map(r => String(r).toLowerCase())
+    : [String(user?.role || "").toLowerCase()];
+  const isRegistrar      = _gradeRoles.includes("registrar");
+  const isRegistrarStaff = _gradeRoles.some(r => r.includes("registrar_staff") || r.includes("registrar staff"));
+  const canGrade       = isAdmin || isRegistrar || isRegistrarStaff; // may input grades on any subject
+  const canDeleteGrade = isAdmin || isRegistrar;                     // may delete grades (NOT staff)
   // College Registrar signatory:
   //  · registrar / administrator → the logged-in user's own name
   //  · registrar_staff           → the name of whoever holds the REGISTRAR role
@@ -1223,15 +1232,15 @@ body{
                                 const g = grades.find(gr => gr.subject_id === sub.id) || {};
                                 const isAssigned = assignedSubjectIds.has(sub.id);
                                 const isLocked   = !!g.id || !!g._justSaved;
-                                const canEdit    = isAdmin ? !isLocked : (isAssigned && !isLocked && !graduationLocked);
-                                const remarksPlaceholder = graduationLocked ? "🎓 Graduated — locked" : isLocked ? "🔒 Saved" : (!isAdmin && !isAssigned) ? "🔒 Not assigned" : "PASSED / FAILED";
+                                const canEdit    = canGrade ? (!isLocked && !graduationLocked) : (isAssigned && !isLocked && !graduationLocked);
+                                const remarksPlaceholder = graduationLocked ? "🎓 Graduated — locked" : isLocked ? "🔒 Saved" : (!canGrade && !isAssigned) ? "🔒 Not assigned" : "PASSED / FAILED";
                                 const lockReason = isLocked
                                   ? "Grade already saved — delete it to edit again"
-                                  : (!isAdmin && !isAssigned)
+                                  : (!canGrade && !isAssigned)
                                     ? "You are not assigned to teach this subject"
                                     : "";
                                 return (
-                                  <tr key={sub.id} style={{ borderBottom: `1px solid ${BORDER}`, opacity: (isAdmin || isAssigned) ? 1 : 0.6 }}>
+                                  <tr key={sub.id} style={{ borderBottom: `1px solid ${BORDER}`, opacity: (canGrade || isAssigned) ? 1 : 0.6 }}>
                                     <td style={{ padding: "9px 12px", fontSize: "12px", fontWeight: 700, color: BLUE }}>{sub.subject_code || sub.id}</td>
                                     <td style={{ padding: "9px 12px", fontSize: "12px" }}>{sub.subject_title}</td>
                                     <td style={{ padding: "9px 12px", fontSize: "12px" }}>{sub.units}</td>
@@ -1251,9 +1260,9 @@ body{
                                           title={lockReason}
                                           onChange={e => updateGrade(uid, sub.id, "remarks", e.target.value)}
                                           style={{ width: "130px", padding: "4px 8px", fontSize: "12px", border: `1px solid ${BORDER}`, borderRadius: "4px", background: canEdit ? WHITE : LIGHT_GRAY, color: canEdit ? "#111827" : GRAY, cursor: canEdit ? "text" : "not-allowed" }} />
-                                        {isAdmin && g.id && (
+                                        {canDeleteGrade && g.id && (
                                           <button type="button" onClick={() => deleteGrade(uid, g)}
-                                            title="Delete saved grade (Administrator only)"
+                                            title="Delete saved grade"
                                             style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: RED, padding: "2px" }}>
                                             🗑️
                                           </button>
@@ -1600,10 +1609,14 @@ export default function AddStudents({ user = {} }) {
     const matchCourse  = !filterCourse  || s.course   === filterCourse;
     const matchYear    = !filterYear    || s.year_level === filterYear;
     const matchSection = !filterSection || s.section   === filterSection;
-    // Map each classification to Regular / Irregular for the filter.
+    // Regular / Irregular. New/Old are always Regular. Transferee/Returnee/Cross-Enrollee
+    // start as Irregular and only become Regular once they've enrolled for a 2nd semester
+    // AND have their grades recorded.
     const cls = (s.classification || "").trim().toLowerCase();
-    const isRegular   = ["new", "old"].includes(cls);
-    const isIrregular = ["transferee", "returnee", "cross-enrollee", "cross enrollee"].includes(cls);
+    const irregularBase = ["transferee", "returnee", "cross-enrollee", "cross enrollee"].includes(cls);
+    const promotedRegular = irregularBase && s.enrolled_2nd_sem && s.has_grades;
+    const isRegular   = ["new", "old"].includes(cls) || promotedRegular;
+    const isIrregular = irregularBase && !promotedRegular;
     const matchClass  = !filterClassification
       || (filterClassification === "Regular"   && isRegular)
       || (filterClassification === "Irregular" && isIrregular);
