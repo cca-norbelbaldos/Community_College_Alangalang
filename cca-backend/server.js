@@ -2417,6 +2417,55 @@ app.put("/api/erd/students/:id/graduate", async (req, res) => {
   }
 });
 
+// ─── CREDITED SUBJECTS (subjects the school credited → excluded from the COR) ──
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_credited_subjects (
+        id           INT AUTO_INCREMENT PRIMARY KEY,
+        student_id   INT NOT NULL,
+        subject_code VARCHAR(50) NOT NULL,
+        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_student_subject (student_id, subject_code)
+      )
+    `);
+  } catch (err) { console.error("erd_credited_subjects table init error:", err); }
+})();
+
+app.get("/api/erd/credited-subjects/:studentId", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT subject_code FROM erd_credited_subjects WHERE student_id = ?", [req.params.studentId]);
+    res.json(rows.map(r => r.subject_code));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch credited subjects." });
+  }
+});
+
+app.post("/api/erd/credited-subjects", async (req, res) => {
+  const { student_id, subject_code } = req.body || {};
+  if (!student_id || !(subject_code || "").trim()) return res.status(400).json({ message: "student_id and subject_code are required." });
+  try {
+    await pool.query("INSERT IGNORE INTO erd_credited_subjects (student_id, subject_code) VALUES (?, ?)", [student_id, subject_code.trim()]);
+    res.status(201).json({ message: "Subject credited." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to credit subject." });
+  }
+});
+
+app.delete("/api/erd/credited-subjects", async (req, res) => {
+  const { student_id, subject_code } = req.body || {};
+  if (!student_id || !(subject_code || "").trim()) return res.status(400).json({ message: "student_id and subject_code are required." });
+  try {
+    await pool.query("DELETE FROM erd_credited_subjects WHERE student_id = ? AND subject_code = ?", [student_id, subject_code.trim()]);
+    res.json({ message: "Credit removed." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to remove credit." });
+  }
+});
+
 app.get("/api/erd/faculty", async (req, res) => {
   try {
     // Include anyone who is faculty by PRIMARY role OR by an additional (multi-role)

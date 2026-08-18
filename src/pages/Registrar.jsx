@@ -656,6 +656,7 @@ export default function Registrar({ user = {} }) {
   const [enrollClassLoading, setEnrollClassLoading] = useState(false);
   const [activeSchoolYear, setActiveSchoolYear] = useState(null);
   const [sectionCapacity, setSectionCapacity] = useState({ count: 0, max_students: null }); // enrolled count + max for current block/term
+  const [creditedSubjects, setCreditedSubjects] = useState(new Set()); // subject codes credited by the school (excluded from COR)
 
   // Fetch active school year on mount so all enrollment forms use it automatically
   useEffect(() => {
@@ -665,8 +666,32 @@ export default function Registrar({ user = {} }) {
       .catch(() => {});
   }, []);
 
+  // Toggle a subject's "credited" status (persisted per student).
+  const toggleCreditSubject = async (code) => {
+    if (!selectedEnrollStudent || !code) return;
+    const isCredited = creditedSubjects.has(code);
+    // Optimistic UI
+    setCreditedSubjects(prev => { const n = new Set(prev); isCredited ? n.delete(code) : n.add(code); return n; });
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/erd/credited-subjects`, {
+        method: isCredited ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: selectedEnrollStudent.id, subject_code: code }),
+      });
+    } catch {
+      // revert on failure
+      setCreditedSubjects(prev => { const n = new Set(prev); isCredited ? n.add(code) : n.delete(code); return n; });
+    }
+  };
+
   const selectEnrollStudent = async (s) => {
     setSelectedEnrollStudent(s);
+    // Load which subjects were credited for this student.
+    setCreditedSubjects(new Set());
+    fetch(`${import.meta.env.VITE_API_URL}/api/erd/credited-subjects/${s.id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(list => setCreditedSubjects(new Set(Array.isArray(list) ? list : [])))
+      .catch(() => {});
     const _now = new Date();
     const _y = _now.getMonth() >= 5 ? _now.getFullYear() : _now.getFullYear() - 1;
     const _defaultSY = activeSchoolYear || `${_y}-${_y + 1}`;
@@ -2354,9 +2379,9 @@ export default function Registrar({ user = {} }) {
                   </div>
 
                   {/* Subject load table — header */}
-                  <div style={{ display: "grid", gridTemplateColumns: "100px 1fr 46px 150px 50px 80px 1fr", background: DARK_GREEN, color: WHITE }}>
-                    {["Course Code","Descriptive Title","Unit","Time","Days","Room","Instructor"].map((h, i) => (
-                      <div key={i} style={{ padding: "5px 7px", borderRight: i < 6 ? "1px solid rgba(255,255,255,0.2)" : "none", fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "center", fontFamily: TNR }}>{h}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "100px 1fr 46px 150px 50px 80px 1fr 84px", background: DARK_GREEN, color: WHITE }}>
+                    {["Course Code","Descriptive Title","Unit","Time","Days","Room","Instructor","Actions"].map((h, i) => (
+                      <div key={i} style={{ padding: "5px 7px", borderRight: i < 7 ? "1px solid rgba(255,255,255,0.2)" : "none", fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "center", fontFamily: TNR }}>{h}</div>
                     ))}
                   </div>
 
@@ -2370,17 +2395,29 @@ export default function Registrar({ user = {} }) {
                         : `No schedule found for ${enrollRegForm.year_level} — ${enrollRegForm.term === "1" ? "1st" : "2nd"} Semester — ${enrollRegForm.block_number}`}
                     </div>
                   ) : (
-                    enrollRegSubjects.map((row, idx) => (
-                      <div key={row.id || idx} style={{ display: "grid", gridTemplateColumns: "100px 1fr 46px 150px 50px 80px 1fr", borderBottom: `1px solid #F3F4F6`, background: idx % 2 === 0 ? WHITE : LIGHT_GRAY, alignItems: "center" }}>
-                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, color: BLUE, fontWeight: 700, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.subject_code || "—"}</div>
-                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, color: "#111827", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.subject_title || "—"}</div>
-                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, textAlign: "center", fontWeight: 700 }}>{row.units ?? "—"}</div>
-                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, color: GRAY, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.time || "—"}</div>
-                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, color: GRAY, textAlign: "center", overflow: "hidden", wordBreak: "break-word" }}>{formatDays(row.day) || "—"}</div>
-                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, color: GRAY, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.room || "—"}</div>
-                        <div style={{ padding: "4px 7px", fontSize: "11px", fontFamily: TNR, color: GRAY, textAlign: "center", wordBreak: "break-word" }}>{row.faculty_name || "—"}</div>
+                    enrollRegSubjects.map((row, idx) => {
+                      const credited = creditedSubjects.has(row.subject_code);
+                      const strike = credited ? { textDecoration: "line-through", opacity: 0.55 } : {};
+                      return (
+                      <div key={row.id || idx} style={{ display: "grid", gridTemplateColumns: "100px 1fr 46px 150px 50px 80px 1fr 84px", borderBottom: `1px solid #F3F4F6`, background: credited ? "#F0FDF4" : (idx % 2 === 0 ? WHITE : LIGHT_GRAY), alignItems: "center" }}>
+                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, color: BLUE, fontWeight: 700, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", ...strike }}>{row.subject_code || "—"}</div>
+                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, color: "#111827", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", ...strike }}>{row.subject_title || "—"}</div>
+                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, textAlign: "center", fontWeight: 700, ...strike }}>{row.units ?? "—"}</div>
+                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, color: GRAY, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", ...strike }}>{row.time || "—"}</div>
+                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, color: GRAY, textAlign: "center", overflow: "hidden", wordBreak: "break-word", ...strike }}>{formatDays(row.day) || "—"}</div>
+                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, color: GRAY, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", ...strike }}>{row.room || "—"}</div>
+                        <div style={{ padding: "4px 7px", borderRight: `1px solid ${BORDER}`, fontSize: "11px", fontFamily: TNR, color: GRAY, textAlign: "center", wordBreak: "break-word", ...strike }}>{row.faculty_name || "—"}</div>
+                        <div style={{ padding: "4px 7px", textAlign: "center" }}>
+                          <button type="button" onClick={() => toggleCreditSubject(row.subject_code)} title={credited ? "Credited — click to undo" : "Credit this subject"}
+                            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 3, minWidth: 58, padding: "3px 8px", borderRadius: 6, border: `1px solid ${credited ? "#16a34a" : DARK_GREEN}`, background: credited ? "#16a34a" : WHITE, color: credited ? WHITE : DARK_GREEN, fontSize: "10px", fontWeight: 800, cursor: "pointer", fontFamily: TNR }}>
+                            {credited
+                              ? (<><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg></>)
+                              : "Credit"}
+                          </button>
+                        </div>
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
 
@@ -2430,7 +2467,8 @@ export default function Registrar({ user = {} }) {
       {activeTab === "manage_students" && corPrintOnly && (() => {
         const s     = selectedEnrollStudent;
         const rf    = enrollRegForm;
-        const sched = enrollClassSchedule;
+        // Credited subjects are excluded from the printed Certificate of Registration.
+        const sched = (enrollClassSchedule || []).filter(r => !creditedSubjects.has(r.subject_code));
         const today = new Date().toLocaleDateString("en-PH", { month: "2-digit", day: "2-digit", year: "numeric" });
 
         const BLANK_ROWS = 10;

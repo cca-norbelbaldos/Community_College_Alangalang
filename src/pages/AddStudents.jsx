@@ -147,6 +147,14 @@ function StudentSIFormModal({ student, courses = [], onClose, onUpdated, activeS
     year_enrolled: student.year_enrolled || "",
   });
   const [saving, setSaving] = useState(false);
+  // Configurable scholastic-requirements checklist (managed in System).
+  const [reqOptions, setReqOptions] = useState([]);
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/api/erd/scholastic-requirements?t=${Date.now()}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setReqOptions(Array.isArray(d) ? d.map(x => x.name) : []))
+      .catch(() => setReqOptions([]));
+  }, []);
 
   // When activeSchoolYear arrives async, push it into the form
   useEffect(() => {
@@ -389,10 +397,26 @@ function StudentSIFormModal({ student, courses = [], onClose, onUpdated, activeS
           <div style={{ background: "#F3F4F6", color: "#000", padding: "5px 12px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", textAlign: "center", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}`, fontFamily: TNR, letterSpacing: "0.04em" }}>
             Scholastic Requirements
           </div>
-          <div style={{ padding: "8px 10px" }}>
-            <textarea rows={3} placeholder="List submitted requirements (e.g. Form 138, Birth Certificate, Good Moral Certificate...)"
-              value={f("scholastic_notes")} onChange={e => sf("scholastic_notes", e.target.value)}
-              style={{ width: "100%", padding: "6px 8px", border: `1px solid ${BORDER}`, borderRadius: "4px", fontSize: "12px", boxSizing: "border-box", resize: "vertical", outline: "none", height: "58px", fontFamily: TNR, color: "#000" }} />
+          <div style={{ padding: "10px 12px" }}>
+            {reqOptions.length === 0 && (
+              <div style={{ fontSize: "11px", color: GRAY, fontFamily: TNR }}>No requirements configured. Add them in Admin Settings → System → Scholastic Requirements.</div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px 18px" }}>
+              {reqOptions.map(item => {
+                const list = (f("scholastic_notes") || "").split(",").map(s => s.trim()).filter(Boolean);
+                const checked = list.includes(item);
+                return (
+                  <label key={item} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "12px", fontFamily: TNR, color: "#000", cursor: "pointer" }}>
+                    <input type="checkbox" checked={checked} onChange={() => {
+                      const set = new Set(list);
+                      if (checked) set.delete(item); else set.add(item);
+                      sf("scholastic_notes", Array.from(set).join(", "));
+                    }} style={{ width: 15, height: 15, cursor: "pointer", accentColor: DARK_GREEN }} />
+                    {item}
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           {/* Footer */}
