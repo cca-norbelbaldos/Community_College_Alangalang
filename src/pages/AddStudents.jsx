@@ -1592,6 +1592,16 @@ export default function AddStudents({ user = {} }) {
     ? userRolesMap[user.id]
     : (user?.role ? [user.role.toLowerCase()] : []);
   const canEnroll = myRoles.includes("administrator") || myRoles.includes("registrar");
+  const canDeleteStudent = myRoles.includes("administrator") || myRoles.includes("registrar"); // admin + registrar may delete students
+
+  const deleteStudentRecord = async (s) => {
+    if (!window.confirm(`Delete ${s.first_name} ${s.last_name} (${s.student_number || "—"})?\n\nThis permanently removes the student from the database and cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/students/${s.id}`, { method: "DELETE" });
+      if (res.ok) { setStudents(prev => prev.filter(x => x.id !== s.id)); }
+      else alert("Failed to delete student.");
+    } catch { alert("Failed to delete student. Is the backend running?"); }
+  };
 
   // Derive unique filter options from loaded students
   const courseOptions  = [...new Set(students.map(s => s.course).filter(Boolean))].sort();
@@ -1845,6 +1855,16 @@ export default function AddStudents({ user = {} }) {
                 onMouseLeave={e => e.currentTarget.style.background = "none"}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/></svg>
                 View Student QR
+              </button>}
+
+              {/* Delete — administrator + registrar */}
+              {canDeleteStudent && <button type="button"
+                onClick={() => { const stu = s; setOpenDropdownId(null); deleteStudentRecord(stu); }}
+                style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "12px", background: "none", border: "none", borderTop: `1px solid ${BORDER}`, cursor: "pointer", color: "#B91C1C", fontWeight: 700 }}
+                onMouseEnter={e => e.currentTarget.style.background = "#FEF2F2"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B91C1C" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                Delete Student
               </button>}
             </div>
           </div>

@@ -2383,7 +2383,22 @@ app.delete("/api/erd/students/:id", async (req, res) => {
       return res.status(404).json({ message: "Student not found." });
     }
 
-    // Delete from erd_student first (child)
+    // Remove every record that references this student first, otherwise the
+    // student row can't be deleted (foreign keys / leftover rows) and the count
+    // would never change. Each is wrapped so a missing table won't abort the rest.
+    const childDeletes = [
+      "DELETE FROM erd_student_user      WHERE student_id = ?",
+      "DELETE FROM erd_enrollment        WHERE student_id = ?",
+      "DELETE FROM erd_grades            WHERE student_id = ?",
+      "DELETE FROM erd_grade_lock        WHERE student_id = ?",
+      "DELETE FROM erd_credited_subjects WHERE student_id = ?",
+      "DELETE FROM erd_attendance        WHERE student_id = ?",
+    ];
+    for (const q of childDeletes) {
+      try { await conn.query(q, [req.params.id]); } catch (e) { /* table/column may not exist — skip */ }
+    }
+
+    // Delete the student record itself
     await conn.query("DELETE FROM erd_student WHERE id = ?", [req.params.id]);
 
     // Also delete linked erd_users row if it exists
@@ -2393,7 +2408,7 @@ app.delete("/api/erd/students/:id", async (req, res) => {
     }
 
     await conn.commit();
-    res.json({ message: "Student and associated account deleted." });
+    res.json({ message: "Student and associated records deleted." });
   } catch (err) {
     await conn.rollback();
     console.error(err);
