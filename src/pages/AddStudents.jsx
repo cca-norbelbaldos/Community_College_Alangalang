@@ -1595,7 +1595,7 @@ export default function AddStudents({ user = {} }) {
   const canDeleteStudent = myRoles.includes("administrator") || myRoles.includes("registrar"); // admin + registrar may delete students
 
   const deleteStudentRecord = async (s) => {
-    if (!window.confirm(`Delete ${s.first_name} ${s.last_name} (${s.student_number || "—"})?\n\nThis permanently removes the student from the database and cannot be undone.`)) return;
+    if (!window.confirm(`Delete ${s.first_name} ${s.last_name} (${s.student_number || "—"})?\n\nThe student will be archived and hidden from the system. Their records are kept in the database and can be restored.`)) return;
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/students/${s.id}`, { method: "DELETE" });
       if (res.ok) { setStudents(prev => prev.filter(x => x.id !== s.id)); }

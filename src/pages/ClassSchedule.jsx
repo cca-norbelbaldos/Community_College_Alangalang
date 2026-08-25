@@ -233,7 +233,7 @@ export default function ClassSchedule({ isAdmin = false, user = null }) {
         if (row.subject_id) {
           d[row.subject_id] = {
             scheduleRowId: row.id,
-            day:           row.day        ?? "MONDAY",
+            day:           row.day        ?? "",
             time:          row.time       ?? "",
             room:          row.room       ?? "",
             faculty_id:    row.faculty_id ?? "",
@@ -289,7 +289,7 @@ export default function ClassSchedule({ isAdmin = false, user = null }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            day:           d.day        || "MONDAY",
+            day:           d.day        || null,
             course:        filter.course     || null,
             year_level:    filter.year_level || null,
             section:       filter.section    || null,

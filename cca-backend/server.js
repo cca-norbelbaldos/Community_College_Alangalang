@@ -54,7 +54,7 @@ const pool = mysql.createPool({
 // ─── SYSTEM OVERVIEW TELEMETRY & METRICS ─────────────────────────────────────
 app.get("/api/erd/dashboard-metrics", async (req, res) => {
   try {
-    const [[{ sCount }]] = await pool.query("SELECT COUNT(*) as sCount FROM erd_student");
+    const [[{ sCount }]] = await pool.query("SELECT COUNT(*) as sCount FROM erd_student WHERE COALESCE(archive,0) = 0");
     const [[{ fCount }]] = await pool.query(
       `SELECT COUNT(*) as fCount FROM erd_users u
        JOIN erd_user_type ut ON u.user_type_id = ut.id
@@ -1806,6 +1806,14 @@ app.get("/api/erd/students/next-id", async (req, res) => {
   } catch (e) { console.error("erd_student unique student_number index error (existing duplicates?):", e.message); }
 })();
 
+// Soft-delete support: an "archive" flag (0 = shown in system, 1 = archived/hidden).
+(async () => {
+  try {
+    const [c] = await pool.query("SHOW COLUMNS FROM erd_student LIKE 'archive'");
+    if (!c.length) await pool.query("ALTER TABLE erd_student ADD COLUMN archive TINYINT NOT NULL DEFAULT 0 AFTER scholastic_notes");
+  } catch (e) { console.error("erd_student archive column error:", e.message); }
+})();
+
 // Compute the next student number for a given 4-digit year prefix (global max sequence + 1).
 async function computeNextStudentNumber(yearPrefix) {
   const [rows] = await pool.query("SELECT student_number FROM erd_student WHERE student_number REGEXP '^[0-9]{4}-[0-9]+$'");
@@ -1843,6 +1851,7 @@ app.get("/api/erd/students", async (req, res) => {
        FROM erd_student s
        LEFT JOIN erd_users u ON s.users_id = u.id
        LEFT JOIN erd_course c ON s.course_id = c.id
+       WHERE COALESCE(s.archive, 0) = 0
        ORDER BY COALESCE(s.last_name, u.last_name) ASC, COALESCE(s.first_name, u.first_name) ASC`
     );
     res.json(rows.map(r => ({
@@ -2368,53 +2377,17 @@ app.put("/api/erd/students/:id", async (req, res) => {
   }
 });
 
+// "Delete" a student = ARCHIVE it (soft delete). The record and all its history
+// stay in the database (archive=1) but are hidden everywhere in the system.
 app.delete("/api/erd/students/:id", async (req, res) => {
-  const conn = await pool.getConnection();
   try {
-    await conn.beginTransaction();
-
-    // Get linked users_id before deleting
-    const [[studentRow]] = await conn.query(
-      "SELECT users_id FROM erd_student WHERE id = ?", [req.params.id]
-    );
-    if (!studentRow) {
-      await conn.rollback();
-      conn.release();
-      return res.status(404).json({ message: "Student not found." });
-    }
-
-    // Remove every record that references this student first, otherwise the
-    // student row can't be deleted (foreign keys / leftover rows) and the count
-    // would never change. Each is wrapped so a missing table won't abort the rest.
-    const childDeletes = [
-      "DELETE FROM erd_student_user      WHERE student_id = ?",
-      "DELETE FROM erd_enrollment        WHERE student_id = ?",
-      "DELETE FROM erd_grades            WHERE student_id = ?",
-      "DELETE FROM erd_grade_lock        WHERE student_id = ?",
-      "DELETE FROM erd_credited_subjects WHERE student_id = ?",
-      "DELETE FROM erd_attendance        WHERE student_id = ?",
-    ];
-    for (const q of childDeletes) {
-      try { await conn.query(q, [req.params.id]); } catch (e) { /* table/column may not exist — skip */ }
-    }
-
-    // Delete the student record itself
-    await conn.query("DELETE FROM erd_student WHERE id = ?", [req.params.id]);
-
-    // Also delete linked erd_users row if it exists
-    if (studentRow.users_id) {
-      await conn.query("DELETE FROM erd_user_roles WHERE users_id = ?", [studentRow.users_id]);
-      await conn.query("DELETE FROM erd_users WHERE id = ?", [studentRow.users_id]);
-    }
-
-    await conn.commit();
-    res.json({ message: "Student and associated records deleted." });
+    const [[studentRow]] = await pool.query("SELECT id FROM erd_student WHERE id = ?", [req.params.id]);
+    if (!studentRow) return res.status(404).json({ message: "Student not found." });
+    await pool.query("UPDATE erd_student SET archive = 1 WHERE id = ?", [req.params.id]);
+    res.json({ message: "Student archived (hidden from the system)." });
   } catch (err) {
-    await conn.rollback();
     console.error(err);
-    res.status(500).json({ message: "Failed to delete student." });
-  } finally {
-    conn.release();
+    res.status(500).json({ message: "Failed to archive student." });
   }
 });
 
