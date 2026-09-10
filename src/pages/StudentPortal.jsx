@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 
 const GREEN      = "#3d6e01";
 const DARK_GREEN = "#2c4a1e";
@@ -10,6 +11,45 @@ const BORDER     = "#E5E7EB";
 const RED        = "#C62828";
 
 const API = import.meta.env.VITE_API_URL;
+
+// Faculty Evaluation — four weighted areas, 5-point scale.
+const EVAL_SECTIONS = [
+  { code: "A", title: "A. Mastery of Subject Matter (35%)", note: "As the instructor, he/she:", items: [
+    "Explains things simply, uses words and give explanations we understand.",
+    "Emphasizes important points to learn.",
+    "Makes clear how each course topics fit together.",
+    "Clarifies things when we don't understand.",
+    "Explains something and then uses an example to illustrate it.",
+  ] },
+  { code: "B", title: "B. Delivery of Instruction (30%)", items: [
+    "Stays with the topic until we understand.",
+    "Tries to find out when we don't understand and then repeat things.",
+    "Shows graphics, diagrams, and examples to help us understand.",
+    "Describes the work to be done and how to do it. Gives tests and outputs covering the most important points of the course.",
+    "Provides timely and frequent feedback.",
+    "Explains something and then stops whenever we have queries.",
+  ] },
+  { code: "C", title: "C. Presentation and Management (20%)", items: [
+    "Has clear and audible voice.",
+    "Uses proper and fitting humor and body language to make the lesson more interesting.",
+    "Promotes participation among students (question-answer).",
+    "Controls and maintains a learning-friendly environment.",
+    "Responds appropriately to any student concerns.",
+  ] },
+  { code: "D", title: "D. Professional Behavior (15%)", items: [
+    "Remains honest, polite, and gentle in any situation.",
+    "Shows respect towards students and encourages class participation.",
+    "Arrives and leaves the class on time.",
+    "Available during the specified office hours and for after-class consultations.",
+  ] },
+];
+const EVAL_SCALE = [
+  { n: 5, label: "Always Observed" },
+  { n: 4, label: "Often Observed" },
+  { n: 3, label: "Sometimes" },
+  { n: 2, label: "Seldom Observed" },
+  { n: 1, label: "Never" },
+];
 
 const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -34,6 +74,14 @@ function StudentGradesPage({ user }) {
   const [error,   setError]   = useState("");
   const [search,  setSearch]  = useState("");
   const [semSel,  setSemSel]  = useState("all");
+  const [consentedIds, setConsentedIds] = useState({}); // { rowKey: true } — accepted per subject
+  const [modalRow, setModalRow] = useState(null);       // subject row awaiting consent
+  const [modalStage, setModalStage] = useState("consent"); // "consent" | "evaluate"
+  const [agreeChecked, setAgreeChecked] = useState(false);
+  const [ratings, setRatings] = useState({});           // { itemKey: 1..5 }
+  const [comments, setComments] = useState("");
+  const [savingEval, setSavingEval] = useState(false);
+  const [evaluatedKeys, setEvaluatedKeys] = useState(new Set()); // subjects already evaluated in the DB
 
   useEffect(() => {
     let cancelled = false;
@@ -42,13 +90,16 @@ function StudentGradesPage({ user }) {
       try {
         const id = user?.student_id;
         if (!id) { setError("No student profile is linked to this account."); setLoading(false); return; }
-        const [pRes, gRes] = await Promise.all([
+        const [pRes, gRes, eRes] = await Promise.all([
           fetch(`${API}/api/erd/student/profile/${id}`, { cache: "no-store" }),
           fetch(`${API}/api/erd/grades/${id}?t=${Date.now()}`, { cache: "no-store" }),
+          fetch(`${API}/api/erd/faculty-evaluation/student/${id}?t=${Date.now()}`, { cache: "no-store" }),
         ]);
         if (cancelled) return;
         setProfile(pRes.ok ? await pRes.json() : null);
         setGrades(gRes.ok ? await gRes.json() : []);
+        const evs = eRes.ok ? await eRes.json() : [];
+        setEvaluatedKeys(new Set((Array.isArray(evs) ? evs : []).map(e => `${e.subject_id}-${e.year_start}-${e.semester}`)));
       } catch { if (!cancelled) setError("Unable to reach the server."); }
       finally { if (!cancelled) setLoading(false); }
     })();
@@ -88,6 +139,34 @@ function StudentGradesPage({ user }) {
     return (wsum / units).toFixed(2);
   };
 
+  const studentName = [profile?.first_name, profile?.middle_name, profile?.last_name].filter(Boolean).join(" ") || "—";
+  const yearSection = [profile?.year_level, profile?.section].filter(Boolean).join(" — ") || "—";
+  const courseName = profile?.course || "—";
+  const rowKey = (r, g) => r.id ?? `${r.subject_id}-${g.year}-${g.sem}`;
+  // A subject is unlocked if evaluated this session OR a saved evaluation exists in the DB.
+  const isUnlocked = (r, g) => !!consentedIds[rowKey(r, g)] || evaluatedKeys.has(`${r.subject_id}-${g.year}-${g.sem}`);
+  const openConsent = (r, g) => { setAgreeChecked(false); setModalStage("consent"); setRatings({}); setComments(""); setModalRow({ r, g, key: rowKey(r, g) }); };
+  const acceptConsent = () => setModalStage("evaluate");
+  const allRated = EVAL_SECTIONS.every(sec => sec.items.every((_, i) => ratings[`${sec.code}${i + 1}`]));
+  const submitEvaluation = async () => {
+    if (!allRated || !modalRow) return;
+    setSavingEval(true);
+    const { r, g } = modalRow;
+    try {
+      await fetch(`${API}/api/erd/faculty-evaluation`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: user?.student_id, subject_id: r.subject_id, subject_code: r.subject_code,
+          subject_title: r.subject_title, instructor: r.instructor, year_start: g.year, semester: g.sem,
+          ratings, comments,
+        }),
+      });
+    } catch { /* still unlock even if save fails */ }
+    setSavingEval(false);
+    setConsentedIds(m => ({ ...m, [modalRow.key]: true }));
+    setModalRow(null);
+  };
+
   return (
     <div style={{ fontFamily: "system-ui,-apple-system,sans-serif" }}>
       <div style={{ marginBottom: 12 }}>
@@ -119,7 +198,9 @@ function StudentGradesPage({ user }) {
                   <div style={{ fontSize: 12, fontWeight: 800, color: "#1f2937" }}>S.Y. {g.year || "—"}-{g.year ? g.year + 1 : "—"} · {SEM_NAME[g.sem] || "Semester"}</div>
                   <div style={{ fontSize: 10, color: GRAY, marginTop: 1 }}>{profile?.course || "—"}</div>
                 </div>
-                <span style={{ fontSize: 9.5, fontWeight: 800, color: DARK_GREEN, background: "#ECFDF5", padding: "3px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>SEM GWA: {gwaOf(g.rows)}</span>
+                {g.rows.every(r => isUnlocked(r, g))
+                  ? <span style={{ fontSize: 9.5, fontWeight: 800, color: DARK_GREEN, background: "#ECFDF5", padding: "3px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>SEM GWA: {gwaOf(g.rows)}</span>
+                  : <span style={{ fontSize: 9.5, fontWeight: 700, color: GRAY, background: "#F3F4F6", padding: "3px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>Evaluate all subjects to see GWA</span>}
               </div>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                 <thead>
@@ -134,15 +215,23 @@ function StudentGradesPage({ user }) {
                 <tbody>
                   {g.rows.map((r, i) => {
                     const has = r.grade != null && r.grade !== "" && parseFloat(r.grade) > 0;
+                    const unlocked = isUnlocked(r, g);
                     return (
                       <tr key={r.id || i} style={{ borderBottom: `1px solid ${BORDER}` }}>
                         <td style={{ ...gTd, fontWeight: 700, color: DARK_GREEN }}>{r.subject_code || "—"}</td>
                         <td style={gTd}>{r.subject_title || "—"}</td>
                         <td style={{ ...gTd, textAlign: "center" }}>{r.units != null ? Number(r.units).toFixed(2) : "—"}</td>
                         <td style={{ ...gTd, textAlign: "center" }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 8px", borderRadius: 20, color: has ? "#166534" : GRAY, background: has ? "#DCFCE7" : "#F3F4F6" }}>
-                            {has ? parseFloat(r.grade).toFixed(1) : "N/A"}
-                          </span>
+                          {unlocked ? (
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 8px", borderRadius: 20, color: has ? "#166534" : GRAY, background: has ? "#DCFCE7" : "#F3F4F6" }}>
+                              {has ? parseFloat(r.grade).toFixed(1) : "N/A"}
+                            </span>
+                          ) : (
+                            <button onClick={() => openConsent(r, g)}
+                              style={{ fontSize: 9.5, fontWeight: 700, padding: "3px 10px", borderRadius: 20, color: WHITE, background: `linear-gradient(135deg, ${DARK_GREEN}, ${GREEN})`, border: "none", cursor: "pointer", whiteSpace: "nowrap" }}>
+                              View Grade
+                            </button>
+                          )}
                         </td>
                         <td style={{ ...gTd, color: GRAY }}>{r.instructor || "—"}</td>
                       </tr>
@@ -153,6 +242,107 @@ function StudentGradesPage({ user }) {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Per-subject Notice of Disclosure Agreement */}
+      {modalRow && createPortal(
+        <div onClick={() => setModalRow(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", zIndex: 2000 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: WHITE, borderRadius: 14, padding: "26px 30px", maxWidth: modalStage === "evaluate" ? 820 : 720, width: "100%", maxHeight: "90vh", overflowY: "auto", lineHeight: 1.6, color: "#1f2937", fontSize: 13.5, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            {modalStage === "consent" ? (<>
+              <div style={{ fontWeight: 800, marginBottom: 4 }}>Notice of Disclosure Agreement:</div>
+              <div style={{ fontSize: 11.5, color: GRAY, marginBottom: 12 }}>
+                Faculty Evaluation for <b style={{ color: DARK_GREEN }}>{modalRow.r.subject_code || "—"} · {modalRow.r.subject_title || "—"}</b>
+                {modalRow.r.instructor ? <> — Instructor: <b>{modalRow.r.instructor}</b></> : null}
+              </div>
+              <p style={{ margin: "0 0 12px", textAlign: "justify" }}>
+                The Community College of Alangalang (CCA) understands its obligations under Republic Act No. 10173, generally known as the Data Privacy Act of 2012, with regard to the data it collects, records, organizes, updates, utilizes, consolidates, or extracts from students.
+              </p>
+              <p style={{ margin: "0 0 16px", textAlign: "justify" }}>
+                In addition, the assessment document that was handed in to the office for faculty development is strictly confidential and is only meant to be used by the office to whom it was directed. In the same manner, you may have peace of mind knowing that the Community College of Alangalang or the faculty development team will ensure honesty and openness regarding the results reached in this section. You may be sure that the information you've supplied in this space will be treated with the utmost discretion.
+              </p>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, margin: "0 0 18px", padding: "0 12px", cursor: "pointer", textAlign: "justify" }}>
+                <input type="checkbox" checked={agreeChecked} onChange={e => setAgreeChecked(e.target.checked)}
+                  style={{ width: 17, height: 17, accentColor: GREEN, marginTop: 2, flexShrink: 0, cursor: "pointer" }} />
+                <span>I have read the Data Privacy Statement of the University and that I express consent for the Community College of Alangalang (CCA) to collect, organize, consolidate data from the Faculty Evaluation and other relevant information thereof.</span>
+              </label>
+              <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, fontSize: 13 }}>
+                <div style={{ marginBottom: 6 }}><b>Name of the Student:</b> {studentName}</div>
+                <div style={{ marginBottom: 6 }}><b>Year &amp; Section:</b> {yearSection}</div>
+                <div style={{ marginBottom: 6 }}><b>Course:</b> {courseName}</div>
+                <div><b>Subject:</b> {[modalRow.r.subject_code, modalRow.r.subject_title].filter(Boolean).join(" — ") || "—"}</div>
+              </div>
+              <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
+                <button onClick={() => setModalRow(null)}
+                  style={{ padding: "10px 20px", background: WHITE, color: "#374151", border: `1.5px solid ${BORDER}`, borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  Cancel
+                </button>
+                <button onClick={acceptConsent} disabled={!agreeChecked}
+                  style={{ padding: "10px 24px", background: agreeChecked ? `linear-gradient(135deg, ${DARK_GREEN}, ${GREEN})` : "#E5E7EB", color: agreeChecked ? WHITE : "#9CA3AF", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: agreeChecked ? "pointer" : "not-allowed" }}>
+                  Agree &amp; View Grade
+                </button>
+              </div>
+            </>) : (<>
+              <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Faculty Evaluation</div>
+              <div style={{ fontSize: 11.5, color: GRAY, marginBottom: 12 }}>
+                <b style={{ color: DARK_GREEN }}>{modalRow.r.subject_code || "—"} · {modalRow.r.subject_title || "—"}</b>
+                {modalRow.r.instructor ? <> — Instructor: <b>{modalRow.r.instructor}</b></> : null}
+              </div>
+              <p style={{ margin: "0 0 10px", textAlign: "justify", fontSize: 12.5 }}>
+                <b>Instructions:</b> This form of assessment includes statements for evaluating a teacher's "Teaching Performance." As a student, you are asked to provide an honest response to each of the statements. Your honest assessment will help to improve the "teaching quality" of your esteemed teacher community. Be truthful!!
+              </p>
+              <div style={{ background: LIGHT_GRAY, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: 12 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>Five (5) point scale:</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 16px" }}>
+                  {EVAL_SCALE.map(s => <span key={s.n}><b>{s.n}</b> – {s.label}</span>)}
+                </div>
+              </div>
+              {EVAL_SECTIONS.map(sec => (
+                <div key={sec.code} style={{ marginBottom: 14 }}>
+                  <div style={{ fontWeight: 800, fontSize: 12.5, color: DARK_GREEN, marginBottom: 2 }}>{sec.title}</div>
+                  {sec.note && <div style={{ fontSize: 11.5, color: GRAY, fontStyle: "italic", marginBottom: 4 }}>{sec.note}</div>}
+                  <div style={{ border: `1px solid ${BORDER}`, borderRadius: 8, overflow: "hidden" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 150px", background: LIGHT_GRAY, fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: GRAY, letterSpacing: 0.3 }}>
+                      <div style={{ padding: "5px 10px" }}>Indicator</div>
+                      <div style={{ padding: "5px 4px", display: "flex", justifyContent: "space-around" }}>{EVAL_SCALE.map(s => <span key={s.n}>{s.n}</span>)}</div>
+                    </div>
+                    {sec.items.map((item, i) => {
+                      const key = `${sec.code}${i + 1}`;
+                      return (
+                        <div key={key} style={{ display: "grid", gridTemplateColumns: "1fr 150px", borderTop: `1px solid ${BORDER}`, alignItems: "center", fontSize: 12 }}>
+                          <div style={{ padding: "7px 10px" }}><b>{i + 1}.</b> {item}</div>
+                          <div style={{ padding: "6px 4px", display: "flex", justifyContent: "space-around" }}>
+                            {EVAL_SCALE.map(s => (
+                              <input key={s.n} type="radio" name={key} checked={ratings[key] === s.n}
+                                onChange={() => setRatings(m => ({ ...m, [key]: s.n }))}
+                                style={{ width: 15, height: 15, accentColor: GREEN, cursor: "pointer" }} />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 5 }}>Comments / Suggestion to improve the conduct of classes:</div>
+                <textarea value={comments} onChange={e => setComments(e.target.value)} rows={3}
+                  style={{ width: "100%", padding: "8px 10px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 12.5, outline: "none", boxSizing: "border-box", resize: "vertical", fontFamily: "inherit" }} />
+              </div>
+              {!allRated && <div style={{ fontSize: 11.5, color: RED, marginBottom: 10 }}>Please rate every item before submitting.</div>}
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button onClick={() => setModalStage("consent")}
+                  style={{ padding: "10px 20px", background: WHITE, color: "#374151", border: `1.5px solid ${BORDER}`, borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  Back
+                </button>
+                <button onClick={submitEvaluation} disabled={!allRated || savingEval}
+                  style={{ padding: "10px 24px", background: allRated && !savingEval ? `linear-gradient(135deg, ${DARK_GREEN}, ${GREEN})` : "#E5E7EB", color: allRated && !savingEval ? WHITE : "#9CA3AF", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: allRated && !savingEval ? "pointer" : "not-allowed" }}>
+                  {savingEval ? "Submitting…" : "Submit & View Grade"}
+                </button>
+              </div>
+            </>)}
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

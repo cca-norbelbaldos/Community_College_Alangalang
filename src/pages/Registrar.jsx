@@ -736,6 +736,42 @@ export default function Registrar({ user = {} }) {
   const saveEnrollRegistration = async () => {
     if (!selectedEnrollStudent || !enrollRegForm) return;
     setEnrollRegSaving(true);
+    // ── Cashier payment gate (checked BEFORE anything is saved) ─────────────
+    // 1st Year: must be at least Partially Paid. 2nd–4th: previous year Fully Paid.
+    if (enrollRegForm.term && enrollRegForm.school_year) {
+      const API = import.meta.env.VITE_API_URL;
+      const ylNum = parseInt((String(enrollRegForm.year_level || "").match(/(\d+)/) || [])[1] || "0", 10);
+      const dg = (v) => { const m = String(v || "").match(/(\d)/); return m ? +m[1] : 0; };
+      const nm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+      try {
+        const [payR, colR] = await Promise.all([
+          fetch(`${API}/api/erd/cashier/payments?t=${Date.now()}`, { cache: "no-store" }),
+          fetch(`${API}/api/erd/cashier/collections?t=${Date.now()}`, { cache: "no-store" }),
+        ]);
+        const pays = payR.ok ? await payR.json() : [];
+        const cols = colR.ok ? await colR.json() : [];
+        const nA = nm([enrollRegForm.first_name, enrollRegForm.middle_name, enrollRegForm.last_name].filter(Boolean).join(" "));
+        const nB = nm([enrollRegForm.last_name, enrollRegForm.first_name, enrollRegForm.middle_name].filter(Boolean).join(" "));
+        const myPays = (Array.isArray(pays) ? pays : []).filter(p => String(p.student_id) === String(selectedEnrollStudent.id));
+        const myCols = (Array.isArray(cols) ? cols : []).filter(c => { const n = nm(c.payer_name); return n && (n === nA || n === nB); });
+        if (ylNum === 1) {
+          // Paid = an actual Form 51 receipt exists for this student for 1st year.
+          const paid = myCols.some(c => (dg(c.pay_year) || dg(c.year_level)) === 1);
+          if (!paid) {
+            showToast("Cannot enroll for 1st Year — no payment recorded at the Cashier (must be at least Partially Paid).", "error");
+            setEnrollRegSaving(false); return;
+          }
+        } else if (ylNum >= 2) {
+          const prev = ylNum - 1;
+          const prevPays = myPays.filter(p => dg(p.year_level) === prev);
+          const semFull = (n) => { const r = prevPays.find(p => parseInt(p.semester, 10) === n); return !!(r && r.box1 && r.box2); };
+          if (!(semFull(1) && semFull(2))) {
+            showToast(`Cannot enroll for Year ${ylNum} — Year ${prev} is not Fully Paid at the Cashier.`, "error");
+            setEnrollRegSaving(false); return;
+          }
+        }
+      } catch (_) { /* if the check can't run, the backend gate still enforces it */ }
+    }
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/students/${selectedEnrollStudent.id}`, {
         method: "PUT",
@@ -2694,6 +2730,11 @@ export default function Registrar({ user = {} }) {
           if (enrListFilter.program && _norm(r.student?.course) !== _norm(enrListFilter.program)) return false;
           if (enrListFilter.section && _norm(r.student?.section) !== _norm(enrListFilter.section)) return false;
           return true;
+        }).sort((a, b) => {
+          const la = (a.student?.last_name || "").toLowerCase();
+          const lb = (b.student?.last_name || "").toLowerCase();
+          if (la !== lb) return la.localeCompare(lb);
+          return (a.student?.first_name || "").toLowerCase().localeCompare((b.student?.first_name || "").toLowerCase());
         });
 
         const selStyle = { padding: "5px 10px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "11px", background: WHITE, cursor: "pointer" };

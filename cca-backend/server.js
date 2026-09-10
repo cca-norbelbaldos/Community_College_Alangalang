@@ -345,6 +345,17 @@ async function ensureUserRolesTable(conn) {
 // POST /api/erd/roles          – create a new role
 // DELETE /api/erd/roles/:id    – delete any role (administrator has full control)
 
+// Seed the Municipal Treasurer role so it's available to assign (used as the
+// "Verified by" signatory on the Record of Collection and Deposit).
+(async () => {
+  try {
+    for (const role of ["municipal_treasurer", "mto_collecting_officer"]) {
+      const [ex] = await pool.query("SELECT id FROM erd_user_type WHERE user_type = ?", [role]);
+      if (!ex.length) await pool.query("INSERT INTO erd_user_type (user_type) VALUES (?)", [role]);
+    }
+  } catch (err) { console.error("cashier role seed error:", err.message); }
+})();
+
 app.get("/api/erd/roles", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT id, user_type FROM erd_user_type ORDER BY id ASC");
@@ -1362,6 +1373,11 @@ app.post("/api/erd/circulation", async (req, res) => {
       [b.date_borrowed || null, b.borrower_type || null, b.fullname.trim(), b.accession_no || null, b.author_title || null,
        b.copy_no || null, b.no_of_books || null, b.due_date || null]
     );
+    // Mark the borrowed book copy as Not Available.
+    if (b.accession_no) {
+      if (b.copy_no) await pool.query("UPDATE erd_library_books SET status='Not Available' WHERE accession_no=? AND copy_no=?", [b.accession_no, b.copy_no]);
+      else await pool.query("UPDATE erd_library_books SET status='Not Available' WHERE accession_no=?", [b.accession_no]);
+    }
     res.status(201).json({ id: result.insertId, ...b });
   } catch (err) {
     console.error(err);
@@ -1371,11 +1387,77 @@ app.post("/api/erd/circulation", async (req, res) => {
 
 app.delete("/api/erd/circulation/:id", async (req, res) => {
   try {
+    // Look up the borrowed copy first so we can restore its availability.
+    const [recs] = await pool.query("SELECT accession_no, copy_no FROM erd_library_circulation WHERE id=?", [req.params.id]);
     await pool.query("DELETE FROM erd_library_circulation WHERE id=?", [req.params.id]);
+    const rec = recs[0];
+    if (rec && rec.accession_no) {
+      if (rec.copy_no) await pool.query("UPDATE erd_library_books SET status='Available' WHERE accession_no=? AND copy_no=?", [rec.accession_no, rec.copy_no]);
+      else await pool.query("UPDATE erd_library_books SET status='Available' WHERE accession_no=?", [rec.accession_no]);
+    }
     res.json({ message: "Record deleted." });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to delete record." });
+  }
+});
+
+// ─── FACULTY EVALUATION (per-subject, submitted before viewing a grade) ──────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_faculty_evaluation (
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        student_id    VARCHAR(50) NULL,
+        subject_id    VARCHAR(50) NULL,
+        subject_code  VARCHAR(100) NULL,
+        subject_title VARCHAR(255) NULL,
+        instructor    VARCHAR(255) NULL,
+        year_start    VARCHAR(20) NULL,
+        semester      VARCHAR(20) NULL,
+        ratings       LONGTEXT NULL,
+        comments      TEXT NULL,
+        created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+  } catch (err) { console.error("erd_faculty_evaluation table init error:", err); }
+})();
+
+app.get("/api/erd/faculty-evaluation", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM erd_faculty_evaluation ORDER BY id DESC");
+    res.json(rows.map(r => { let ratings = {}; try { ratings = JSON.parse(r.ratings || "{}"); } catch {} return { ...r, ratings }; }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch evaluations." });
+  }
+});
+
+app.get("/api/erd/faculty-evaluation/student/:id", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT subject_id, subject_code, year_start, semester FROM erd_faculty_evaluation WHERE student_id=?", [req.params.id]);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch student evaluations." });
+  }
+});
+
+app.post("/api/erd/faculty-evaluation", async (req, res) => {
+  const b = req.body || {};
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO erd_faculty_evaluation
+        (student_id, subject_id, subject_code, subject_title, instructor, year_start, semester, ratings, comments)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [b.student_id || null, b.subject_id || null, b.subject_code || null, b.subject_title || null,
+       b.instructor || null, b.year_start || null, b.semester || null,
+       JSON.stringify(b.ratings || {}), b.comments || null]
+    );
+    res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to save evaluation." });
   }
 });
 
@@ -1570,6 +1652,313 @@ app.delete("/api/erd/clinic/dental/:id", async (req, res) => {
     console.error(err);
     res.status(500).json({ message: "Failed to delete dental record." });
   }
+});
+
+// ─── CASHIER — GENERAL COLLECTION (Form 51 cash receipt entries) ─────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS erd_cashier_collection (
+        id           INT AUTO_INCREMENT PRIMARY KEY,
+        or_number    VARCHAR(50) NULL,
+        acct_no      VARCHAR(50) NULL,
+        date_posted  VARCHAR(30) NULL,
+        or_date      VARCHAR(30) NULL,
+        collector    VARCHAR(255) NULL,
+        payer_name   VARCHAR(255) NULL,
+        address      VARCHAR(255) NULL,
+        items        TEXT NULL,
+        total        VARCHAR(30) NULL,
+        image        LONGTEXT NULL,
+        course       VARCHAR(150) NULL,
+        year_level   VARCHAR(50) NULL,
+        section      VARCHAR(100) NULL,
+        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    for (const [col, def] of [["image", "LONGTEXT NULL"], ["course", "VARCHAR(150) NULL"], ["year_level", "VARCHAR(50) NULL"], ["section", "VARCHAR(100) NULL"], ["acct_left", "VARCHAR(20) NULL"], ["acct_right", "VARCHAR(20) NULL"], ["pay_year", "VARCHAR(30) NULL"], ["pay_sem", "VARCHAR(30) NULL"], ["payment_mode", "VARCHAR(30) NULL"], ["created_by", "VARCHAR(200) NULL"], ["pay_period", "VARCHAR(30) NULL"], ["less", "TEXT NULL"]]) {
+      const [c] = await pool.query(`SHOW COLUMNS FROM erd_cashier_collection LIKE '${col}'`);
+      if (!c.length) await pool.query(`ALTER TABLE erd_cashier_collection ADD COLUMN ${col} ${def}`);
+    }
+  } catch (err) { console.error("erd_cashier_collection table init error:", err); }
+})();
+
+app.get("/api/erd/cashier/collections", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM erd_cashier_collection ORDER BY id DESC");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch collections." });
+  }
+});
+
+app.post("/api/erd/cashier/collections", async (req, res) => {
+  const b = req.body || {};
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO erd_cashier_collection
+        (or_number, acct_no, date_posted, or_date, collector, payer_name, address, items, total, image, course, year_level, section, acct_left, acct_right, pay_year, pay_sem, payment_mode, created_by, pay_period, less)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [b.or_number || null, b.acct_no || null, b.date_posted || null, b.or_date || null,
+       b.collector || null, b.payer_name || null, b.address || null,
+       typeof b.items === "string" ? b.items : JSON.stringify(b.items || []), b.total || null, b.image || null,
+       b.course || null, b.year_level || null, b.section || null, b.acct_left || null, b.acct_right || null, b.pay_year || null, b.pay_sem || null, b.payment_mode || null, b.created_by || null, b.pay_period || null,
+       typeof b.less === "string" ? b.less : JSON.stringify(b.less || [])]
+    );
+    res.status(201).json({ id: result.insertId, ...b });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to save collection." });
+  }
+});
+
+app.delete("/api/erd/cashier/collections/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_cashier_collection WHERE id=?", [req.params.id]);
+    res.json({ message: "Collection deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete collection." });
+  }
+});
+
+// ─── CASHIER SETTINGS — Collectors & Nature-of-Collection options ────────────
+for (const cfg of [
+  { table: "erd_cashier_collector", path: "collectors", label: "collector" },
+  { table: "erd_cashier_nature",    path: "natures",    label: "nature of collection" },
+]) {
+  (async () => {
+    try {
+      await pool.query(`CREATE TABLE IF NOT EXISTS ${cfg.table} (
+        id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(200) NOT NULL UNIQUE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    } catch (err) { console.error(`${cfg.table} table init error:`, err); }
+  })();
+
+  app.get(`/api/erd/cashier/${cfg.path}`, async (req, res) => {
+    try {
+      const [rows] = await pool.query(`SELECT id, name FROM ${cfg.table} ORDER BY name ASC`);
+      res.json(rows);
+    } catch (err) { console.error(err); res.status(500).json({ message: `Failed to fetch ${cfg.label}s.` }); }
+  });
+
+  app.post(`/api/erd/cashier/${cfg.path}`, async (req, res) => {
+    const name = ((req.body || {}).name || "").trim();
+    if (!name) return res.status(400).json({ message: `${cfg.label} is required.` });
+    try {
+      const [ex] = await pool.query(`SELECT id FROM ${cfg.table} WHERE name = ?`, [name]);
+      if (ex.length) return res.status(409).json({ message: "That already exists." });
+      const [r] = await pool.query(`INSERT INTO ${cfg.table} (name) VALUES (?)`, [name]);
+      res.status(201).json({ id: r.insertId, name });
+    } catch (err) { console.error(err); res.status(500).json({ message: `Failed to save ${cfg.label}.` }); }
+  });
+
+  app.delete(`/api/erd/cashier/${cfg.path}/:id`, async (req, res) => {
+    try {
+      await pool.query(`DELETE FROM ${cfg.table} WHERE id=?`, [req.params.id]);
+      res.json({ message: "Deleted." });
+    } catch (err) { console.error(err); res.status(500).json({ message: `Failed to delete ${cfg.label}.` }); }
+  });
+}
+
+// ─── CASHIER — CHARGES under each Nature of Collection ───────────────────────
+(async () => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS erd_cashier_charge (
+      id INT AUTO_INCREMENT PRIMARY KEY, nature_id INT NOT NULL, name VARCHAR(200) NOT NULL,
+      amount DECIMAL(12,2) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    for (const [col, def] of [["amount", "DECIMAL(12,2) NULL"], ["year_level", "VARCHAR(30) NULL"], ["semester", "VARCHAR(30) NULL"]]) {
+      const [c] = await pool.query(`SHOW COLUMNS FROM erd_cashier_charge LIKE '${col}'`);
+      if (!c.length) await pool.query(`ALTER TABLE erd_cashier_charge ADD COLUMN ${col} ${def}`);
+    }
+    // Term groups (year + semester) under a nature.
+    await pool.query(`CREATE TABLE IF NOT EXISTS erd_cashier_term (
+      id INT AUTO_INCREMENT PRIMARY KEY, nature_id INT NOT NULL,
+      year_level VARCHAR(30) NOT NULL, semester VARCHAR(30) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+  } catch (err) { console.error("erd_cashier_charge table init error:", err); }
+})();
+
+// Term groups (Year + Semester) under a nature.
+app.get("/api/erd/cashier/natures/:natureId/terms", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, year_level, semester FROM erd_cashier_term WHERE nature_id = ? ORDER BY year_level ASC, semester ASC", [req.params.natureId]);
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to fetch terms." }); }
+});
+app.post("/api/erd/cashier/natures/:natureId/terms", async (req, res) => {
+  const b = req.body || {};
+  const yl = (b.year_level || "").trim(), sem = (b.semester || "").trim();
+  if (!yl || !sem) return res.status(400).json({ message: "Year and semester are required." });
+  try {
+    const [ex] = await pool.query("SELECT id FROM erd_cashier_term WHERE nature_id=? AND year_level=? AND semester=?", [req.params.natureId, yl, sem]);
+    if (ex.length) return res.status(409).json({ message: "That year & semester already exists." });
+    const [r] = await pool.query("INSERT INTO erd_cashier_term (nature_id, year_level, semester) VALUES (?,?,?)", [req.params.natureId, yl, sem]);
+    res.status(201).json({ id: r.insertId, year_level: yl, semester: sem });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to save term." }); }
+});
+app.delete("/api/erd/cashier/terms/:id", async (req, res) => {
+  try { await pool.query("DELETE FROM erd_cashier_term WHERE id=?", [req.params.id]); res.json({ message: "Deleted." }); }
+  catch (err) { console.error(err); res.status(500).json({ message: "Failed to delete term." }); }
+});
+
+app.get("/api/erd/cashier/natures/:natureId/charges", async (req, res) => {
+  const { year_level, semester } = req.query;
+  try {
+    let sql = "SELECT id, name, amount, year_level, semester FROM erd_cashier_charge WHERE nature_id = ?";
+    const params = [req.params.natureId];
+    if (year_level) { sql += " AND year_level = ?"; params.push(year_level); }
+    if (semester) { sql += " AND semester = ?"; params.push(semester); }
+    sql += " ORDER BY name ASC";
+    const [rows] = await pool.query(sql, params);
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to fetch charges." }); }
+});
+
+app.post("/api/erd/cashier/natures/:natureId/charges", async (req, res) => {
+  const b = req.body || {};
+  const name = (b.name || "").trim();
+  const amount = (b.amount === "" || b.amount == null) ? null : parseFloat(String(b.amount).replace(/[^0-9.]/g, "")) || null;
+  if (!name) return res.status(400).json({ message: "Charge is required." });
+  try {
+    const [r] = await pool.query("INSERT INTO erd_cashier_charge (nature_id, name, amount, year_level, semester) VALUES (?,?,?,?,?)", [req.params.natureId, name, amount, (b.year_level || "").trim() || null, (b.semester || "").trim() || null]);
+    res.status(201).json({ id: r.insertId, name, amount, year_level: b.year_level || null, semester: b.semester || null });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to save charge." }); }
+});
+
+app.put("/api/erd/cashier/charges/:id", async (req, res) => {
+  const b = req.body || {};
+  const amount = (b.amount === "" || b.amount == null) ? null : parseFloat(String(b.amount).replace(/[^0-9.]/g, "")) || null;
+  try {
+    if (b.name != null && String(b.name).trim()) {
+      await pool.query("UPDATE erd_cashier_charge SET name=?, amount=? WHERE id=?", [String(b.name).trim(), amount, req.params.id]);
+    } else {
+      await pool.query("UPDATE erd_cashier_charge SET amount=? WHERE id=?", [amount, req.params.id]);
+    }
+    res.json({ message: "Charge updated.", amount });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to update charge." }); }
+});
+
+app.delete("/api/erd/cashier/charges/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_cashier_charge WHERE id=?", [req.params.id]);
+    res.json({ message: "Charge deleted." });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to delete charge." }); }
+});
+
+// ─── CASHIER — LESS (deductions/discounts by municipality) ───────────────────
+(async () => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS erd_cashier_less (
+      id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(200) NOT NULL,
+      amount DECIMAL(12,2) NULL, municipality VARCHAR(120) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+  } catch (err) { console.error("erd_cashier_less table init error:", err); }
+})();
+
+app.get("/api/erd/cashier/less", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, name, amount, municipality FROM erd_cashier_less ORDER BY name ASC");
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to fetch less items." }); }
+});
+
+app.post("/api/erd/cashier/less", async (req, res) => {
+  const b = req.body || {};
+  const name = (b.name || "").trim();
+  const amount = (b.amount === "" || b.amount == null) ? null : parseFloat(String(b.amount).replace(/[^0-9.]/g, "")) || null;
+  if (!name) return res.status(400).json({ message: "Name is required." });
+  try {
+    const [r] = await pool.query("INSERT INTO erd_cashier_less (name, amount, municipality) VALUES (?,?,?)", [name, amount, (b.municipality || "").trim() || null]);
+    res.status(201).json({ id: r.insertId, name, amount, municipality: b.municipality || null });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to save less item." }); }
+});
+
+app.delete("/api/erd/cashier/less/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_cashier_less WHERE id=?", [req.params.id]);
+    res.json({ message: "Deleted." });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to delete less item." }); }
+});
+
+// ─── CASHIER — SUB-ITEMS under each Charge ───────────────────────────────────
+(async () => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS erd_cashier_subcharge (
+      id INT AUTO_INCREMENT PRIMARY KEY, charge_id INT NOT NULL, name VARCHAR(200) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+  } catch (err) { console.error("erd_cashier_subcharge table init error:", err); }
+})();
+
+app.get("/api/erd/cashier/charges/:chargeId/subitems", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, name FROM erd_cashier_subcharge WHERE charge_id = ? ORDER BY name ASC", [req.params.chargeId]);
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to fetch sub-items." }); }
+});
+
+app.post("/api/erd/cashier/charges/:chargeId/subitems", async (req, res) => {
+  const name = ((req.body || {}).name || "").trim();
+  if (!name) return res.status(400).json({ message: "Sub-item is required." });
+  try {
+    const [r] = await pool.query("INSERT INTO erd_cashier_subcharge (charge_id, name) VALUES (?, ?)", [req.params.chargeId, name]);
+    res.status(201).json({ id: r.insertId, name });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to save sub-item." }); }
+});
+
+app.delete("/api/erd/cashier/subitems/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM erd_cashier_subcharge WHERE id=?", [req.params.id]);
+    res.json({ message: "Sub-item deleted." });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to delete sub-item." }); }
+});
+
+// ─── CASHIER — PAYMENT TRACKING (per student, per year & semester) ────────────
+// Each semester has TWO installment boxes. box1 only = "Partially Paid";
+// box1 + box2 = "Fully Paid". A year is fully paid when both semesters are full.
+(async () => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS erd_cashier_payment (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      student_id  INT NOT NULL,
+      year_level  INT NOT NULL,
+      semester    INT NOT NULL,
+      box1        TINYINT NOT NULL DEFAULT 0,
+      box2        TINYINT NOT NULL DEFAULT 0,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_pay (student_id, year_level, semester)
+    )`);
+    for (const col of ["box1", "box2"]) {
+      const [c] = await pool.query(`SHOW COLUMNS FROM erd_cashier_payment LIKE '${col}'`);
+      if (!c.length) await pool.query(`ALTER TABLE erd_cashier_payment ADD COLUMN ${col} TINYINT NOT NULL DEFAULT 0`);
+    }
+    // Migrate any legacy single 'paid' flag into both boxes (fully paid), then keep column for safety.
+    const [pc] = await pool.query("SHOW COLUMNS FROM erd_cashier_payment LIKE 'paid'");
+    if (pc.length) { await pool.query("UPDATE erd_cashier_payment SET box1 = 1, box2 = 1 WHERE paid = 1 AND box1 = 0 AND box2 = 0"); }
+  } catch (err) { console.error("erd_cashier_payment table init error:", err); }
+})();
+
+app.get("/api/erd/cashier/payments", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT student_id, year_level, semester, box1, box2 FROM erd_cashier_payment");
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to fetch payments." }); }
+});
+
+app.post("/api/erd/cashier/payments", async (req, res) => {
+  const b = req.body || {};
+  const sid = parseInt(b.student_id), yl = parseInt(b.year_level), sem = parseInt(b.semester);
+  const box1 = b.box1 ? 1 : 0, box2 = b.box2 ? 1 : 0;
+  if (!sid || !yl || !sem) return res.status(400).json({ message: "student_id, year_level and semester are required." });
+  try {
+    await pool.query(
+      `INSERT INTO erd_cashier_payment (student_id, year_level, semester, box1, box2) VALUES (?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE box1 = VALUES(box1), box2 = VALUES(box2)`,
+      [sid, yl, sem, box1, box2]
+    );
+    res.json({ student_id: sid, year_level: yl, semester: sem, box1, box2 });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to save payment." }); }
 });
 
 // ─── LIBRARY PURPOSES (check-in purpose options) ─────────────────────────────
@@ -1865,6 +2254,9 @@ app.get("/api/erd/students", async (req, res) => {
       // Reflect the student's ACTUAL standing from their latest enrollment record
       // (falls back to the stored field if they have no enrollment yet).
       year_level: r.enrolled_year_level || r.year_level || null,
+      // Raw enrolled year (null when the student has no enrollment record yet) —
+      // used by Cashier payment tracking to know the ACTUAL current term.
+      enrolled_year_level: r.enrolled_year_level || null,
       // For the Regular/Irregular rule: enrolled in a 2nd sem + has grades recorded.
       enrolled_2nd_sem: (r.sem2_count || 0) > 0,
       has_grades: (r.graded_count || 0) > 0,
@@ -3375,7 +3767,7 @@ app.get("/api/erd/enrollments/count", async (req, res) => {
     const semMap = { "1": "1st Semester", "2": "2nd Semester", "S": "Summer" };
     const semLabel = semMap[String(semester)] || semester;
     // Build dynamic WHERE clause
-    let cntWhere = "WHERE s.section = ? AND e.semester = ?";
+    let cntWhere = "WHERE s.section = ? AND e.semester = ? AND COALESCE(s.archive,0) = 0";
     const cntParams = [section, semLabel];
     if (year_enrolled) { cntWhere += " AND e.year_enrolled = ?"; cntParams.push(year_enrolled); }
     if (year_level)    { cntWhere += " AND s.year_level = ?";   cntParams.push(year_level); }
@@ -3417,6 +3809,54 @@ app.post("/api/erd/enrollments", async (req, res) => {
     return res.status(400).json({ message: "student_id, year_enrolled, year_level, and semester are all required." });
   }
   try {
+    // ── Cashier payment gate ──────────────────────────────────────────────
+    // Enrolling into 2nd–4th year requires the PREVIOUS year to be Fully Paid
+    // (both semesters, both installment boxes) at the Cashier. Partially Paid
+    // in the current year is fine — this only blocks advancing to the next year.
+    const ylMatch = String(year_level || "").match(/(\d+)/);
+    const ylNum = ylMatch ? parseInt(ylMatch[1], 10) : 0;
+
+    // Helpers: a payment is recognized either from the Payment Tracking boxes
+    // (erd_cashier_payment) OR from an actual Form 51 collection receipt.
+    const digit = (v) => { const m = String(v || "").match(/(\d)/); return m ? +m[1] : 0; };
+    const nm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+    const [[stu]] = await pool.query("SELECT first_name, middle_name, last_name FROM erd_student WHERE id=?", [student_id]);
+    const nameA = nm([stu?.first_name, stu?.middle_name, stu?.last_name].filter(Boolean).join(" "));
+    const nameB = nm([stu?.last_name, stu?.first_name, stu?.middle_name].filter(Boolean).join(" "));
+    const [allCols] = await pool.query("SELECT payer_name, pay_year, year_level, pay_sem, total FROM erd_cashier_collection");
+    const myRecs = allCols.filter(c => { const n = nm(c.payer_name); return n && (n === nameA || n === nameB); });
+    const paidTotalForYear = (yn) => myRecs.filter(c => (digit(c.pay_year) || digit(c.year_level)) === yn).reduce((s, c) => s + (parseFloat(c.total) || 0), 0);
+    const hasReceiptForYear = (yn) => myRecs.some(c => (digit(c.pay_year) || digit(c.year_level)) === yn);
+    const [charges] = await pool.query("SELECT amount, year_level FROM erd_cashier_charge");
+    const feeTotalForYear = (yn) => charges.filter(c => digit(c.year_level) === yn).reduce((s, c) => s + (parseFloat(c.amount) || 0), 0);
+
+    if (ylNum === 1) {
+      // 1st year: must have an ACTUAL Form 51 receipt for year 1. Unpaid = blocked.
+      // (The Payment Tracking box table is not used here — it can be auto/stale.)
+      if (!hasReceiptForYear(1)) {
+        return res.status(409).json({
+          message: "Cannot enroll for 1st Year. This student has no payment recorded at the Cashier (must be at least Partially Paid).",
+          paymentBlock: true,
+        });
+      }
+    } else if (ylNum >= 2) {
+      const prevYear = ylNum - 1;
+      const [pays] = await pool.query(
+        "SELECT semester, box1, box2 FROM erd_cashier_payment WHERE student_id = ? AND year_level = ?",
+        [student_id, prevYear]
+      );
+      const semFull = (n) => { const row = pays.find(p => parseInt(p.semester, 10) === n); return !!(row && row.box1 && row.box2); };
+      const feeTot = feeTotalForYear(prevYear);
+      const paidTot = paidTotalForYear(prevYear);
+      const fullyPaidByReceipts = feeTot > 0 && paidTot >= feeTot - 0.001;
+      if (!((semFull(1) && semFull(2)) || fullyPaidByReceipts)) {
+        return res.status(409).json({
+          message: `Cannot enroll for Year ${ylNum}. This student's Year ${prevYear} balance is not Fully Paid at the Cashier.`,
+          paymentBlock: true,
+        });
+      }
+    }
+
     // Count prior enrollments to determine classification
     const [[{ priorCount }]] = await pool.query(
       "SELECT COUNT(*) AS priorCount FROM erd_enrollment WHERE student_id = ?",
@@ -3434,7 +3874,7 @@ app.post("/api/erd/enrollments", async (req, res) => {
           `SELECT COUNT(DISTINCT e.student_id) AS cnt
            FROM erd_enrollment e
            JOIN erd_student s ON s.id = e.student_id
-           WHERE s.section = ? AND e.semester = ? AND e.year_enrolled = ?
+           WHERE s.section = ? AND e.semester = ? AND e.year_enrolled = ? AND COALESCE(s.archive,0) = 0
              ${year_level ? "AND s.year_level = ?" : ""}`,
           year_level ? [section, semester, year_enrolled, year_level] : [section, semester, year_enrolled]
         );

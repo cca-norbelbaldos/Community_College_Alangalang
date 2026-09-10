@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { processProfileImage } from "../utils/image";
+import { SchoolFeesPanel } from "./Cashier";
 import QRCode from "qrcode";
 import { showToast, showConfirm } from "../components/Toast";
 import ccaLogo        from "../assets/cca_logo.jpg";
@@ -443,6 +444,7 @@ function StudentInfoCard({ student, enrollments, subjects, assignedSubjectIds = 
   const [showSIForm, setShowSIForm] = useState(false);
   const [showCOR, setShowCOR]           = useState(false);
   const [showCORPicker, setShowCORPicker] = useState(false);
+  const [showSchoolFees, setShowSchoolFees] = useState(false);
   const [corSchedule, setCorSchedule]   = useState([]);
   const [corSemester, setCorSemester]   = useState("");
   // grades keyed by enrollment uid
@@ -838,7 +840,13 @@ body{
         </button>
         <button type="button" onClick={generateIdCard}
           style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 14px", background: WHITE, color: DARK_GREEN, border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-          🪪 Generate ID Card
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2"/><line x1="13" y1="10" x2="18" y2="10"/><line x1="13" y1="14" x2="18" y2="14"/></svg>
+          Generate ID Card
+        </button>
+        <button type="button" onClick={() => setShowSchoolFees(v => !v)}
+          style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 14px", background: showSchoolFees ? DARK_GREEN : WHITE, color: showSchoolFees ? WHITE : DARK_GREEN, border: `1px solid ${showSchoolFees ? DARK_GREEN : BORDER}`, borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
+          School Fees
         </button>
       </div>
 
@@ -1130,7 +1138,11 @@ body{
         document.body
       )}
 
+      {/* School Fees (inline) — replaces enrollment history when active */}
+      {showSchoolFees && <SchoolFeesPanel student={student} />}
+
       {/* Enrollment history */}
+      {!showSchoolFees && (
       <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
         <div style={{ fontSize: "11px", fontWeight: 700, color: GRAY, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>Enrollment Records</div>
         {enrollments.length === 0 ? (
@@ -1284,11 +1296,12 @@ body{
           })
         )}
       </div>
+      )}
     </div>
   );
 }
 
-export default function AddStudents({ user = {} }) {
+export default function AddStudents({ user = {}, viewOnly = false }) {
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [coursesList, setCoursesList] = useState([]);
@@ -1543,6 +1556,12 @@ export default function AddStudents({ user = {} }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newRecord)
       });
+      if (res.status === 409) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || "This student cannot be enrolled for this term.");
+        setSavingEnroll(false);
+        return;
+      }
       if (res.ok) {
         const saved = await res.json().catch(() => newRecord);
         newRecord.id = saved.id || newRecord.id;
@@ -1768,6 +1787,13 @@ export default function AddStudents({ user = {} }) {
 
                     {/* Actions */}
                     <td style={{ padding: "9px 14px", textAlign: "right" }}>
+                      {viewOnly ? (
+                        <button type="button" onClick={(e) => { e.stopPropagation(); openViewModal(s); }} title="View Student Information"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", background: WHITE, color: DARK_GREEN, border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                          View
+                        </button>
+                      ) : (
                       <div style={{ position: "relative", display: "inline-block" }}>
                         <button
                           type="button"
@@ -1782,6 +1808,7 @@ export default function AddStudents({ user = {} }) {
                           title="Actions"
                         >⋮</button>
                       </div>
+                      )}
                     </td>
                   </tr>
                 );

@@ -7,6 +7,7 @@ import AddStudents from "./pages/AddStudents";
 import Faculty from "./pages/Faculty";
 import Registrar from "./pages/Registrar";
 import Announcements from "./pages/Announcement";
+import FacultyEvaluationReport from "./pages/FacultyEvaluation";
 import AssignedSubject from "./pages/AssignedSubject";
 import Designation from "./pages/Designation";
 import AccountSettings from "./pages/AccountSettings";
@@ -17,6 +18,7 @@ import DatesToRemember from "./pages/DatesToRemember";
 import ClassSchedule from "./pages/ClassSchedule";
 import Library, { LibraryPlaceholder, LibrarySearch, Acquisition, Circulation, CheckInOut, LibraryPurposeSettings, TotalPurchase } from "./pages/Library";
 import { DentalCheckup } from "./pages/Clinic";
+import { GeneralCollection, CashierSettings, CashierDashboard, PaymentTracking, CollectorRecord, Assessment } from "./pages/Cashier";
 
 const GOLD       = "#F5A800";
 const GREEN      = "#3d6e01";
@@ -85,6 +87,7 @@ const MAIN_NAV = [
   { label: "Grade",               icon: ICON_SUBJECT,  featureKey: "feat_grade",             alwaysFor: ["faculty", "administrator"] },
   { label: "Student User",        icon: ICON_CAP,      featureKey: "feat_student_portal",    alwaysFor: ["student", "administrator"] },
   { label: "Create Announcement", icon: ICON_BELL,     featureKey: "feat_announcements",  alwaysFor: ["administrator"] },
+  { label: "Faculty Evaluation",  icon: ICON_SUBJECT,  featureKey: "feat_faculty_eval",   alwaysFor: ["administrator"] },
 ];
 
 // Admin Settings dropdown items
@@ -130,6 +133,18 @@ const CLINIC_LINKS = [
 ];
 const CLINIC_VIEWS = CLINIC_LINKS.map(l => l.view);
 
+// Cashier dropdown (same pattern as Clinic).
+const ICON_CASHIER = (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><line x1="12" y1="12" x2="12" y2="12"/></svg>);
+const CASHIER_LINKS = [
+  { view: "Cashier Overview", label: "Dashboard", icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 13a9 9 0 0 1 18 0"/><line x1="12" y1="13" x2="16" y2="9"/></svg>) },
+  { view: "Cashier Dashboard", label: "FORM # 51 - General Collection", icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>) },
+  { view: "Payments",          label: "Record of Collection and Deposit (Collector)", icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>) },
+  { view: "Payment Tracking",  label: "Payment Tracking", icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>) },
+  { view: "Assessment",        label: "Assessment", icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>) },
+  { view: "Cashier Settings",  label: "Cashier Settings", icon: (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>) },
+];
+const CASHIER_VIEWS = CASHIER_LINKS.map(l => l.view);
+
 // ── ROLE → NAV MAPPING ────────────────────────────────────────────────────────
 // Custom roles can map to existing pages. Add new mappings here as needed.
 // NOTE: "faculty" and "registrar" used to be hardcoded here, which meant they
@@ -156,6 +171,8 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
     if (r.includes("librar")) return "Library Dashboard";
     // Clinic staff (college_nurse, clinic, …) land on the Clinic Dashboard.
     if (r.includes("nurse") || r.includes("clinic")) return "Clinic Dashboard";
+    // Cashier lands on the Cashier Dashboard.
+    if (r.includes("cashier") || r.includes("treasurer") || r.includes("collecting")) return "Cashier Overview";
     try { return sessionStorage.getItem("cca_dashboard_active_view") || "Overview Workspace"; }
     catch { return "Overview Workspace"; }
   });
@@ -166,6 +183,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
   const [librarySettingsOpen, setLibrarySettingsOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [clinicOpen, setClinicOpen] = useState(() => { const r = String(user?.role || "").toLowerCase(); return r.includes("nurse") || r.includes("clinic"); });
+  const [cashierOpen, setCashierOpen] = useState(() => { const r = String(user?.role || "").toLowerCase(); return r.includes("cashier") || r.includes("treasurer") || r.includes("collecting"); });
   const [myProfileOpen, setMyProfileOpen] = useState(true);
   const [metrics, setMetrics]             = useState({ students: 0, faculty: 0, announcements: 0, systemAccounts: 0 });
   const [features, setFeatures]           = useState({ feat_overview: 1, feat_student_list: 1, feat_faculty_mgmt: 1, feat_registrar_mgmt: 1, feat_announcements: 1 });
@@ -409,6 +427,17 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
   const _roleLc = String(user?.role || "").toLowerCase();
   const isLibrary = _roleLc.includes("librar");
   const isClinic = _roleLc.includes("nurse") || _roleLc.includes("clinic");
+  const _isTreasurer = _roleLc.includes("treasurer");
+  const _isCollectingOfficer = _roleLc.includes("collecting");
+  const isCashier = _roleLc.includes("cashier") || _isTreasurer || _isCollectingOfficer;
+  // Cashier permissions:
+  //  • Administrator: full (input, edit, delete)
+  //  • Cashier / Municipal Treasurer: can input + edit, CANNOT delete (admin only)
+  //  • MTO-Collecting Officer: can input only, CANNOT edit or delete
+  const cashCanInput = isAdmin || isCashier;
+  const cashCanEdit = isAdmin || _roleLc.includes("cashier") || _isTreasurer;
+  const cashCanDelete = isAdmin;
+  const cashierPerms = { canInput: cashCanInput, canEdit: cashCanEdit, canDelete: cashCanDelete };
   // Delete permissions: librarian can delete, library_staff cannot (add only); nurse can delete.
   const libCanDelete = isAdmin || _roleLc === "librarian";
   const clinicCanDelete = isAdmin || _roleLc.includes("nurse");
@@ -502,12 +531,12 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   background: activeView === item.view ? DARK_GREEN : "transparent", border: "none",
                   borderLeft: `2px solid ${activeView === item.view ? DARK_GREEN : "rgba(61,110,1,0.3)"}`, borderRadius: "0 8px 8px 0",
                   color: activeView === item.view ? WHITE : DARK_GREEN, fontSize: "11px", fontWeight: activeView === item.view ? 700 : 400,
-                  textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "nowrap"
+                  textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "normal", lineHeight: 1.25
                 }}
                 className="subnav-interactive-btn"
               >
-                <span style={{ display: "flex" }}>{item.icon}</span>
-                <span>{item.label}</span>
+                <span style={{ display: "flex", flexShrink: 0 }}>{item.icon}</span>
+                <span style={{ wordBreak: "break-word" }}>{item.label}</span>
               </button>
             ))}
           </div>
@@ -551,12 +580,12 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   background: activeView === item.view ? DARK_GREEN : "transparent", border: "none",
                   borderLeft: `2px solid ${activeView === item.view ? DARK_GREEN : "rgba(61,110,1,0.3)"}`, borderRadius: "0 8px 8px 0",
                   color: activeView === item.view ? WHITE : DARK_GREEN, fontSize: "11px", fontWeight: activeView === item.view ? 700 : 400,
-                  textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "nowrap"
+                  textAlign: "left", cursor: "pointer", transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)", whiteSpace: "normal", lineHeight: 1.25
                 }}
                 className="subnav-interactive-btn"
               >
-                <span style={{ display: "flex" }}>{item.icon}</span>
-                <span>{item.label}</span>
+                <span style={{ display: "flex", flexShrink: 0 }}>{item.icon}</span>
+                <span style={{ wordBreak: "break-word" }}>{item.label}</span>
               </button>
             ))}
           </div>
@@ -815,7 +844,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
         <div style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: "4px", overflowY: "auto", position: "relative", zIndex: 1 }}>
 
           {/* Main nav items — icon-only, centered, when collapsed. Library staff see only the Library section. */}
-          {!isLibrary && !isClinic && visibleNav.map(link => (
+          {!isLibrary && !isClinic && !isCashier && visibleNav.map(link => (
             /* Admins access "Student User" via the Student Portal dropdown below */
             (link.label === "Student User" && _roleLc !== "student") ? null :
             <button
@@ -875,6 +904,51 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
             >
               <span style={{ fontSize: "13px", display: "flex" }}>{item.icon}</span>
               {sidebarOpen && <span>{item.label}</span>}
+            </button>
+          ))}
+
+          {/* Cashier staff see Overview + the Cashier sections directly (no dropdown). */}
+          {isCashier && !isAdmin && (
+            <button
+              onClick={() => setActiveView("Overview Workspace")}
+              title={!sidebarOpen ? "Overview" : undefined}
+              style={{ ...navBtnStyle("Overview Workspace"), marginTop: "2px", justifyContent: sidebarOpen ? "flex-start" : "center", gap: sidebarOpen ? "8px" : 0, padding: sidebarOpen ? "8px 12px" : "10px 0" }}
+              className="nav-interactive-btn"
+            >
+              <span style={{ fontSize: "13px", display: "flex", flexShrink: 0 }}>{ICON_HOME}</span>
+              {sidebarOpen && <span>Overview</span>}
+            </button>
+          )}
+          {isCashier && !isAdmin && (
+            <button
+              onClick={() => setActiveView("Student List")}
+              title={!sidebarOpen ? "Student List" : undefined}
+              style={{ ...navBtnStyle("Student List"), marginTop: "2px", justifyContent: sidebarOpen ? "flex-start" : "center", gap: sidebarOpen ? "8px" : 0, padding: sidebarOpen ? "8px 12px" : "10px 0" }}
+              className="nav-interactive-btn"
+            >
+              <span style={{ fontSize: "13px", display: "flex", flexShrink: 0 }}>{ICON_LAYERS}</span>
+              {sidebarOpen && <span>Student List</span>}
+            </button>
+          )}
+          {isCashier && CASHIER_LINKS.map(item => (
+            <button
+              key={item.view}
+              onClick={() => setActiveView(item.view)}
+              title={!sidebarOpen ? item.label : undefined}
+              style={{
+                ...navBtnStyle(item.view),
+                marginTop: "2px",
+                alignItems: "flex-start",
+                justifyContent: sidebarOpen ? "flex-start" : "center",
+                gap: sidebarOpen ? "8px" : 0,
+                padding: sidebarOpen ? "8px 12px" : "10px 0",
+                whiteSpace: "normal",
+                lineHeight: 1.25,
+              }}
+              className="nav-interactive-btn"
+            >
+              <span style={{ fontSize: "13px", display: "flex", flexShrink: 0 }}>{item.icon}</span>
+              {sidebarOpen && <span style={{ wordBreak: "break-word" }}>{item.label}</span>}
             </button>
           ))}
 
@@ -939,6 +1013,11 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
           {/* Clinic accordion — administrator only (clinic staff see direct items above) */}
           {isAdmin && (
             renderLibraryGroup({ variant: "top", title: "Clinic", icon: ICON_CLINIC, groupViews: CLINIC_VIEWS, links: CLINIC_LINKS, open: clinicOpen, setOpen: setClinicOpen })
+          )}
+
+          {/* Cashier accordion — administrator only (cashier staff see direct items above) */}
+          {isAdmin && (
+            renderLibraryGroup({ variant: "top", title: "Cashier", icon: ICON_CASHIER, groupViews: CASHIER_VIEWS, links: CASHIER_LINKS, open: cashierOpen, setOpen: setCashierOpen })
           )}
 
           {/* My Profile accordion — only for students */}
@@ -1290,7 +1369,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                 <div style={{ padding: "40px", textAlign: "center", color: GRAY }}>Loading...</div>
               ) : (
                 <>
-                  {activeView === "Student List"        && <AddStudents user={user} />}
+                  {activeView === "Student List"        && <AddStudents user={user} viewOnly={isCashier && !isAdmin} />}
                   {activeView === "Faculty"             && <Faculty />}
                   {activeView === "Registrar"           && <Registrar user={user} />}
                   {activeView === "Grade"               && <FacultyGrades user={user} />}
@@ -1307,6 +1386,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                       setActiveView("Overview Workspace");
                     }} />
                   )}
+                  {activeView === "Faculty Evaluation" && <FacultyEvaluationReport />}
                   {activeView === "Users"             && <UserManagementModule />}
                   {activeView === "Roles"             && <RolesManagementModule />}
                   {activeView === "System"             && <CourseManagement />}
@@ -1328,6 +1408,12 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   {activeView === "First Aid"            && <LibraryPlaceholder title="First Aid" desc="First aid records." icon="➕" />}
                   {activeView === "Disease Surveillance" && <LibraryPlaceholder title="Disease Surveillance" desc="Monitor disease reports." icon="🦠" />}
                   {activeView === "Dental CheckUp"       && <DentalCheckup canDelete={clinicCanDelete} />}
+                  {activeView === "Cashier Overview"     && <CashierDashboard />}
+                  {activeView === "Payment Tracking"     && <PaymentTracking perms={cashierPerms} />}
+                  {activeView === "Assessment"           && <Assessment />}
+                  {activeView === "Cashier Dashboard"    && <GeneralCollection perms={cashierPerms} user={user} />}
+                  {activeView === "Payments"             && <CollectorRecord />}
+                  {activeView === "Cashier Settings"     && <CashierSettings perms={cashierPerms} />}
                 </>
               )}
             </div>

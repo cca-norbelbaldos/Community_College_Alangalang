@@ -907,12 +907,12 @@ export function LibrarySearch({ canDelete = true }) {
               <tr><td colSpan={15} style={{ padding: 24, textAlign: "center", color: GRAY, fontSize: 12.5, border: `1px solid ${BORDER}` }}>{term ? "No matching books." : "No books recorded yet."}</td></tr>
             ) : rows.map(b => {
               const st = (b.status || "Available").trim() || "Available";
-              const avail = /avail/i.test(st);
+              const avail = !/not\s*avail/i.test(st);
               return (
                 <tr key={b.id}>
                   {cols.map(c => <td key={c} style={LIB_CELL}>{b[c] != null && b[c] !== "" ? b[c] : "—"}</td>)}
                   <td style={{ ...LIB_CELL, textAlign: "center" }}>
-                    <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, color: avail ? "#166534" : "#92400e", background: avail ? "#DCFCE7" : "#FEF3C7" }}>{st}</span>
+                    <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, color: avail ? "#166534" : "#B91C1C", background: avail ? "#DCFCE7" : "#FEE2E2" }}>{st}</span>
                   </td>
                   <td style={{ ...LIB_CELL, textAlign: "center" }}>
                     {canDelete ? (
