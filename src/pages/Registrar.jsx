@@ -99,6 +99,7 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
 
   const [form, setForm]   = useState(EMPTY_SI);
   const [saving, setSaving] = useState(false);
+  const [privacyConsent, setPrivacyConsent] = useState(false); // Data Privacy Act consent
   const [showBdCal, setShowBdCal] = useState(false);
   const [calBdYear, setCalBdYear] = useState(new Date().getFullYear());
   const [calBdMonth, setCalBdMonth] = useState(new Date().getMonth());
@@ -125,11 +126,15 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
 
   const clearForm = () => {
     setForm(EMPTY_SI);
+    setPrivacyConsent(false);
     fetchNextId(DEFAULT_SY);
   };
 
   const handleSave = async () => {
     if (saving) return;
+    if (!privacyConsent) {
+      showToast("Please obtain and confirm the student's data privacy consent before saving.", "error"); return;
+    }
     if (!form.last_name.trim() || !form.first_name.trim()) {
       showToast("First name and last name are required.", "error"); return;
     }
@@ -186,6 +191,7 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
         showToast("Student saved and added to Student List.", "success");
         onRefresh();
         setForm(EMPTY_SI);
+        setPrivacyConsent(false);
       } else {
         showToast("Failed to save student.", "error");
       }
@@ -543,6 +549,15 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
                 );
               })}
             </div>
+          </div>
+
+          {/* ── Data Privacy consent (RA 10173) ── */}
+          <div style={{ padding: "10px 14px", background: "#FAFAF7", borderTop: `1px solid ${BORDER}` }}>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 11.5, color: "#374151", cursor: "pointer", lineHeight: 1.5 }}>
+              <input type="checkbox" checked={privacyConsent} onChange={e => setPrivacyConsent(e.target.checked)}
+                style={{ width: 15, height: 15, marginTop: 1, accentColor: DARK_GREEN, cursor: "pointer", flexShrink: 0 }} />
+              <span>The student (or parent/guardian, if a minor) has been informed of and consents to the collection and processing of this personal information by the Community College of Alangalang, in accordance with the Data Privacy Act of 2012 (RA 10173).</span>
+            </label>
           </div>
 
           {/* ── Footer ── */}

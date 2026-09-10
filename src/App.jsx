@@ -3,8 +3,11 @@ import { useState, useEffect } from "react";
 import LoginPortal from "./CCALoginPortal";
 import Dashboard from "./Dashboard";
 import AppLoader from "./components/Apploader";
-import ToastManager from "./components/Toast";
+import ToastManager, { showToast } from "./components/Toast";
 import MaintenancePage from "./components/MaintenancePage";
+
+// Auto-logout after this many milliseconds of no activity.
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -54,9 +57,27 @@ export default function App() {
     setIsLoading(true);
     sessionStorage.removeItem("cca_user");
     setUser(null);
-    
+
     setTimeout(() => setIsLoading(false), 450);
   };
+
+  // Session timeout — auto-logout after 5 minutes of no activity.
+  useEffect(() => {
+    if (!user) return;
+    let timer;
+    const logoutForIdle = () => {
+      showToast("You've been logged out due to 5 minutes of inactivity.", "warning");
+      handleLogout();
+    };
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(logoutForIdle, IDLE_TIMEOUT_MS);
+    };
+    const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "click"];
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    reset(); // start the countdown
+    return () => { clearTimeout(timer); events.forEach(e => window.removeEventListener(e, reset)); };
+  }, [user]);
 
   // Not logged in layout (paints screen, overlays transparent loader if active)
   if (!user) {

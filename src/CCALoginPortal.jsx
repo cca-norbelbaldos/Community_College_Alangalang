@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ccaFullLogo from "./assets/cca_logo_t.png";
 import alangSeal from "./assets/alangalang_seal.png";
+import { PrivacyPolicy, TermsOfUse } from "./pages/LegalPages";
 
 const GREEN      = "#3d6e01";
 const DARK_GREEN = "#2c4a1e";
@@ -24,6 +25,7 @@ export default function CCALoginPortal({ onLogin }) {
   const [dark,     setDark]     = useState(() => {
     try { return localStorage.getItem("cca_dark") === "1"; } catch { return false; }
   });
+  const [legal,    setLegal]    = useState(null); // "privacy" | "terms" | null
 
   const toggleDark = () => setDark(d => {
     const next = !d;
@@ -118,6 +120,9 @@ export default function CCALoginPortal({ onLogin }) {
         white-space: normal !important;
       }
     `}</style>
+
+    {legal === "privacy" && <PrivacyPolicy onClose={()=>setLegal(null)} />}
+    {legal === "terms"   && <TermsOfUse   onClose={()=>setLegal(null)} />}
 
     <div style={{
       position:"relative",
@@ -222,6 +227,13 @@ export default function CCALoginPortal({ onLogin }) {
                   : `Login as ${userType} →`
                 }
               </button>
+
+              <p style={{ textAlign:"center", fontSize:10.5, color:t.muted, lineHeight:1.6, margin:"10px 0 0" }}>
+                By signing in, you agree to the{" "}
+                <button type="button" onClick={()=>setLegal("terms")} className="link-btn" style={{ background:"none", border:"none", padding:0, color:LINK, cursor:"pointer", fontSize:10.5, fontWeight:700 }}>Terms of Use</button>{" "}
+                and acknowledge the{" "}
+                <button type="button" onClick={()=>setLegal("privacy")} className="link-btn" style={{ background:"none", border:"none", padding:0, color:LINK, cursor:"pointer", fontSize:10.5, fontWeight:700 }}>Privacy Policy</button>.
+              </p>
             </form>
 
             <div style={{ textAlign:"center", marginTop:16, paddingTop:2 }}>
@@ -245,8 +257,13 @@ export default function CCALoginPortal({ onLogin }) {
 
         {/* Footer — Developed by (fixed to card bottom) */}
         <div style={{ position:"absolute", left:22, right:22, bottom:14, paddingTop:12, borderTop:`1px solid ${t.border}`, display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
-          <img src={alangSeal} alt="Alangalang Seal" style={{ width:52, height:52, objectFit:"contain" }} />
+          <img src={alangSeal} alt="Seal of the Municipality of Alangalang, Leyte" style={{ width:52, height:52, objectFit:"contain" }} />
           <span style={{ fontSize:10, color:t.muted }}>Developed by IT Support Office</span>
+          <div style={{ display:"flex", gap:8, alignItems:"center", fontSize:9.5 }}>
+            <button type="button" onClick={()=>setLegal("privacy")} className="link-btn" style={{ background:"none", border:"none", padding:0, color:t.muted, cursor:"pointer", fontSize:9.5, fontWeight:700 }}>Privacy Policy</button>
+            <span style={{ color:t.muted }}>·</span>
+            <button type="button" onClick={()=>setLegal("terms")} className="link-btn" style={{ background:"none", border:"none", padding:0, color:t.muted, cursor:"pointer", fontSize:9.5, fontWeight:700 }}>Terms of Use</button>
+          </div>
         </div>
       </div>
       </div>
