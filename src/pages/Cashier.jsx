@@ -130,6 +130,7 @@ export function CashierDashboard() {
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
   const [paid, setPaid] = useState({});
+  const [lessItems, setLessItems] = useState([]);
   const [fCourse, setFCourse] = useState("");
   const [fYear, setFYear] = useState("");
   const [fSection, setFSection] = useState("");
@@ -149,11 +150,24 @@ export function CashierDashboard() {
     load();
     fetch(`${API}/api/erd/students?t=${Date.now()}`, { cache: "no-store" })
       .then(r => r.ok ? r.json() : []).then(d => setStudents(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch(`${API}/api/erd/cashier/less?t=${Date.now()}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() : []).then(d => setLessItems(Array.isArray(d) ? d : [])).catch(() => {});
     const id = setInterval(load, 15000);
     return () => clearInterval(id);
   }, []);
 
   const parseItems = (it) => { try { return typeof it === "string" ? JSON.parse(it || "[]") : (Array.isArray(it) ? it : []); } catch { return []; } };
+  // A recorded Form 51 receipt means that term is at least Partially Paid, even
+  // if no box was ticked in Payment Tracking. Match receipts to a student by name.
+  const _nrm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const _dig = (v) => { const m = String(v || "").match(/(\d)/); return m ? +m[1] : 0; };
+  const _nameMatch = (payer, s) => {
+    const pt = _nrm(payer).split(" ").filter(Boolean);
+    if (!pt.length) return false;
+    const f = _nrm(s.first_name), l = _nrm(s.last_name);
+    return (!f || pt.includes(f)) && (!l || pt.includes(l)) && (f || l);
+  };
+  const hasReceiptFor = (s, y, sem) => rows.some(r => _nameMatch(r.payer_name, s) && (_dig(r.pay_year) || _dig(r.year_level)) === y && (_dig(r.pay_sem) || 1) === sem);
   const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
   const thisMonth = todayStr.slice(0, 7);
   const dateOf = (r) => String(r.or_date || r.date_posted || (r.created_at ? String(r.created_at).slice(0, 10) : "")).slice(0, 10);
@@ -162,6 +176,14 @@ export function CashierDashboard() {
   const receiptCount = rows.length;
   const todayTotal = rows.filter(r => dateOf(r) === todayStr).reduce((s, r) => s + toNum(r.total), 0);
   const monthTotal = rows.filter(r => dateOf(r).slice(0, 7) === thisMonth).reduce((s, r) => s + toNum(r.total), 0);
+  // Per-deduction (Less) usage: how many DISTINCT students availed each one.
+  const _nrmL = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const parseLess = (l) => { try { return typeof l === "string" ? JSON.parse(l || "[]") : (Array.isArray(l) ? l : []); } catch { return []; } };
+  const availCount = (lessName) => {
+    const set = new Set();
+    rows.forEach(r => { if (parseLess(r.less).some(x => _nrmL(x.name) === _nrmL(lessName))) set.add(_nrmL(r.payer_name)); });
+    return set.size;
+  };
 
   // Aggregate by nature of collection (from line items).
   const byNature = (() => {
@@ -209,6 +231,15 @@ export function CashierDashboard() {
     { label: "Receipts Issued", value: receiptCount.toLocaleString(), accent: "#2563EB" },
     { label: "Collected Today", value: pesoFmt(todayTotal), accent: "#D97706" },
     { label: "This Month", value: pesoFmt(monthTotal), accent: "#7C3AED" },
+    // One box per Less deduction — number of students who availed it.
+    ...lessItems.map(l => {
+      const n = availCount(l.name);
+      return {
+        label: `${l.name} (max ${pesoFmt(l.amount)}${l.municipality ? ` · ${l.municipality}` : ""})`,
+        value: `${n} student${n === 1 ? "" : "s"}`,
+        accent: "#B45309",
+      };
+    }),
   ];
 
   return (
@@ -275,7 +306,9 @@ export function CashierDashboard() {
                     <td style={dashMatCell}>{s.section || "—"}</td>
                     {CASH_YEARS.map(yr => [1, 2].map(sem => {
                       const unlocked = cellUnlocked(s, yr.y, sem);
-                      const st = semStatus(cellVal(paid, s.id, yr.y, sem));
+                      const bx = cellVal(paid, s.id, yr.y, sem);
+                      // Merge the box map with actual receipts: a receipt ⇒ at least Partially Paid.
+                      const st = semStatus({ box1: bx.box1 || hasReceiptFor(s, yr.y, sem), box2: bx.box2 });
                       const label = !unlocked ? "—" : st === "full" ? "Fully Paid" : st === "partial" ? "Partially Paid" : "Unpaid";
                       const col = !unlocked ? "#C4C4C4" : st === "full" ? "#15803D" : st === "partial" ? "#B45309" : "#DC2626";
                       const bg = !unlocked ? "transparent" : st === "full" ? "#DCFCE7" : st === "partial" ? "#FEF3C7" : "#FEE2E2";
@@ -653,6 +686,8 @@ function LessCard({ perms = {} }) {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [municipality, setMunicipality] = useState("");
+  const [scope, setScope] = useState("resident"); // "resident" | "all"
+  const [editId, setEditId] = useState(null); // id being edited, or null when adding
   const load = () => fetch(`${API}/api/erd/cashier/less?t=${Date.now()}`, { cache: "no-store" })
     .then(r => r.ok ? r.json() : []).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => setItems([]));
   useEffect(() => {
@@ -670,11 +705,22 @@ function LessCard({ perms = {} }) {
         setMunis([...map.values()].sort());
       }).catch(() => {});
   }, []);
+  const resetForm = () => { setName(""); setAmount(""); setMunicipality(""); setScope("resident"); setEditId(null); setShowForm(false); };
+  const startEdit = (it) => {
+    setEditId(it.id);
+    setName(it.name || "");
+    setAmount(it.amount != null ? String(it.amount) : "");
+    setMunicipality(it.municipality || "");
+    setScope(it.scope === "all" ? "all" : "resident");
+    setShowForm(true);
+  };
   const add = async () => {
     if (!name.trim()) return;
+    const url = editId ? `${API}/api/erd/cashier/less/${editId}` : `${API}/api/erd/cashier/less`;
+    const method = editId ? "PUT" : "POST";
     try {
-      const res = await fetch(`${API}/api/erd/cashier/less`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim(), amount: amount.trim(), municipality }) });
-      if (res.ok) { setName(""); setAmount(""); setMunicipality(""); setShowForm(false); load(); }
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim(), amount: String(amount).trim(), municipality, scope }) });
+      if (res.ok) { resetForm(); load(); }
     } catch {}
   };
   const remove = async (id) => {
@@ -705,9 +751,13 @@ function LessCard({ perms = {} }) {
               <option value="">Select municipality…</option>
               {munis.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
+            <select value={scope} onChange={e => setScope(e.target.value)} style={inputStyle}>
+              <option value="resident">Only students from this municipality</option>
+              <option value="all">Available to all students</option>
+            </select>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={add} style={{ flex: 1, padding: "9px", background: `linear-gradient(135deg, ${DARK_GREEN}, ${GREEN})`, color: WHITE, border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Add</button>
-              <button onClick={() => { setShowForm(false); setName(""); setAmount(""); setMunicipality(""); }} style={{ padding: "9px 16px", background: WHITE, color: GRAY, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+              <button onClick={add} style={{ flex: 1, padding: "9px", background: `linear-gradient(135deg, ${DARK_GREEN}, ${GREEN})`, color: WHITE, border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{editId ? "Save Changes" : "Add"}</button>
+              <button onClick={resetForm} style={{ padding: "9px 16px", background: WHITE, color: GRAY, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
             </div>
           </div>
         )}
@@ -720,12 +770,20 @@ function LessCard({ perms = {} }) {
                 <span style={{ fontWeight: 700, color: "#1f2937" }}>{it.name}</span>
                 {it.amount != null && it.amount !== "" ? <span style={{ marginLeft: 8, fontWeight: 700, color: DARK_GREEN }}>{peso(it.amount)}</span> : null}
                 {it.municipality ? <span style={{ marginLeft: 8, color: GRAY }}>· {it.municipality}</span> : null}
+                <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: it.scope === "all" ? "#166534" : "#B45309", background: it.scope === "all" ? "#DCFCE7" : "#FEF3C7", padding: "1px 7px", borderRadius: 20 }}>{it.scope === "all" ? "All students" : "Residents only"}</span>
               </span>
-              {canDelete && (
-              <button onClick={() => remove(it.id)} title="Delete" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer" }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-              </button>
-              )}
+              <div style={{ display: "flex", gap: 6 }}>
+                {canEdit && (
+                <button onClick={() => startEdit(it)} title="Edit" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#EFF6FF", color: "#1D4ED8", border: "1px solid #BFDBFE", borderRadius: 6, cursor: "pointer" }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                </button>
+                )}
+                {canDelete && (
+                <button onClick={() => remove(it.id)} title="Delete" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5", borderRadius: 6, cursor: "pointer" }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -820,8 +878,26 @@ export function GeneralCollection({ perms = {}, user = {} }) {
   const [lessDiscount, setLessDiscount] = useState({}); // id -> typed discount
   const [stuMuni, setStuMuni] = useState("");
   const num = (v) => parseFloat(String(v).replace(/[^0-9.]/g, "")) || 0;
-  // Less items shown = those matching the student's municipality (or all if unknown).
-  const visibleLess = lessItems.filter(l => !stuMuni || String(l.municipality || "").trim().toLowerCase() === String(stuMuni).trim().toLowerCase());
+  const _nrm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+  // Deductions already availed by this student for the SAME term (year + semester).
+  // Each Less can be availed once per semester, so hide it until a new term.
+  const availedLess = new Set();
+  rows.forEach(r => {
+    if (!form.payer_name || _nrm(r.payer_name) !== _nrm(form.payer_name)) return;
+    if (String(r.pay_year || "") !== String(form.pay_year || "") || String(r.pay_sem || "") !== String(form.pay_sem || "")) return;
+    let ls = []; try { ls = JSON.parse(r.less || "[]"); } catch { ls = []; }
+    (Array.isArray(ls) ? ls : []).forEach(x => availedLess.add(_nrm(x.name)));
+  });
+  // Less items shown =
+  //   scope "all"      → every student;
+  //   scope "resident" → only students whose municipality matches the item's;
+  //   AND not already availed for this term.
+  const visibleLess = lessItems.filter(l => {
+    const scopeOk = (l.scope === "all") ? true : (!stuMuni ? true : _nrm(l.municipality) === _nrm(stuMuni));
+    if (!scopeOk) return false;
+    if (availedLess.has(_nrm(l.name))) return false;
+    return true;
+  });
   const discountEnabled = visibleLess.some(l => lessSelected[l.id]);
   const lessBudget = visibleLess.filter(l => lessSelected[l.id]).reduce((s, l) => s + num(l.amount), 0);
   // Total discount typed across all rows — must not exceed the combined Less budget.
@@ -871,23 +947,30 @@ export function GeneralCollection({ perms = {}, user = {} }) {
     const nrm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
     const myName = nrm(form.payer_name);
     const paidByCharge = {};
+    const discByCharge = {};
     rows.forEach(r => {
       if (nrm(r.payer_name) !== myName) return;
       if (String(r.pay_year || "") !== form.pay_year || String(r.pay_sem || "") !== form.pay_sem) return;
       let its = []; try { its = JSON.parse(r.items || "[]"); } catch { its = []; }
-      its.forEach(it => { const k = nrm(it.charge || it.nature); paidByCharge[k] = (paidByCharge[k] || 0) + (parseFloat(String(it.amount).replace(/[^0-9.]/g, "")) || 0); });
+      its.forEach(it => {
+        const k = nrm(it.charge || it.nature);
+        paidByCharge[k] = (paidByCharge[k] || 0) + (parseFloat(String(it.amount).replace(/[^0-9.]/g, "")) || 0);
+        discByCharge[k] = (discByCharge[k] || 0) + (parseFloat(String(it.discount).replace(/[^0-9.]/g, "")) || 0);
+      });
     });
+    // Settled amount for a charge = amount paid + discount already applied.
+    const settledOf = (nm) => (paidByCharge[nm] || 0) + (discByCharge[nm] || 0);
     const remaining = charges.filter(c => {
       const fee = parseFloat(String(c.amount).replace(/[^0-9.]/g, "")) || 0;
-      if (fee <= 0) return true;                       // no set fee → always show
-      return (paidByCharge[nrm(c.name)] || 0) < fee;   // still has a balance
+      if (fee <= 0) return true;                    // no set fee → always show
+      return settledOf(nrm(c.name)) < fee - 0.001;  // still has a balance
     });
     // Auto-populate a row for every charge that still has a balance.
-    // The FEE column shows the REMAINING balance (full fee − already paid).
+    // The FEE column shows the REMAINING balance (full fee − paid − discount).
     const newRows = remaining.length
       ? remaining.map(c => {
           const feeNum = parseFloat(String(c.amount).replace(/[^0-9.]/g, "")) || 0;
-          const bal = feeNum - (paidByCharge[nrm(c.name)] || 0);
+          const bal = Math.max(0, feeNum - settledOf(nrm(c.name)));
           return { nature: name, nature_id: nid, charge: c.name, fee: feeNum > 0 ? bal.toFixed(2) : "", discount: "", amount: "" };
         })
       : [{ nature: name, nature_id: nid, charge: "", fee: "", discount: "", amount: "" }];
@@ -1404,6 +1487,7 @@ export function SchoolFeesPanel({ student }) {
   const [loading, setLoading] = useState(true);
   const [openKey, setOpenKey] = useState(null);
   const [collections, setCollections] = useState([]);
+  const [fees, setFees] = useState([]); // all configured charges: { name, amount, year_level, semester }
   const [officerName, setOfficerName] = useState("");
   const [sigByName, setSigByName] = useState({});
   useEffect(() => {
@@ -1416,6 +1500,15 @@ export function SchoolFeesPanel({ student }) {
       }).catch(() => {}).finally(() => setLoading(false));
     fetch(`${API}/api/erd/cashier/collections?t=${Date.now()}`, { cache: "no-store" })
       .then(r => r.ok ? r.json() : []).then(d => setCollections(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch(`${API}/api/erd/cashier/natures?t=${Date.now()}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() : []).then(async nats => {
+        const arr = Array.isArray(nats) ? nats : [];
+        const lists = await Promise.all(arr.map(n =>
+          fetch(`${API}/api/erd/cashier/natures/${n.id}/charges?t=${Date.now()}`, { cache: "no-store" })
+            .then(r => r.ok ? r.json() : []).then(d => (Array.isArray(d) ? d : []).map(c => ({ name: c.name, amount: c.amount, year_level: c.year_level, semester: c.semester }))).catch(() => [])
+        ));
+        setFees(lists.flat());
+      }).catch(() => {});
     fetch(`${API}/api/erd/users?t=${Date.now()}`, { cache: "no-store" })
       .then(r => r.ok ? r.json() : []).then(list => {
         const arr = Array.isArray(list) ? list : [];
@@ -1445,6 +1538,24 @@ export function SchoolFeesPanel({ student }) {
     return ry === termYear && rs === termSem;
   });
   const val = (y, sem) => paid[`${y}-${sem}`] || { box1: false, box2: false };
+  const money = (n) => "₱" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Remaining balance for a term = Σ over that term's fees of (fee − discount − paid), floored at 0.
+  const remainingForTerm = (y, sem) => {
+    const feesT = fees.filter(f => digit(f.year_level) === y && digit(f.semester) === sem);
+    const paidByChg = {}, discByChg = {};
+    receiptsFor(y, sem).forEach(r => {
+      let its = []; try { its = JSON.parse(r.items || "[]"); } catch { its = []; }
+      its.forEach(it => {
+        const k = norm(it.charge || it.nature); if (!k) return;
+        paidByChg[k] = (paidByChg[k] || 0) + toNum(it.amount);
+        discByChg[k] = (discByChg[k] || 0) + toNum(it.discount);
+      });
+    });
+    return feesT.reduce((s, f) => {
+      const k = norm(f.name);
+      return s + Math.max(0, toNum(f.amount) - (discByChg[k] || 0) - (paidByChg[k] || 0));
+    }, 0);
+  };
   const ordinal = (n) => ["", "1st", "2nd", "3rd", "4th"][n] || `${n}th`;
   const baseYear = parseInt(student.year_enrolled, 10) || new Date().getFullYear();
   const pill = (st) => st === "full" ? { label: "✓ Fully Paid", col: "#15803D", bg: "#DCFCE7" }
@@ -1455,7 +1566,9 @@ export function SchoolFeesPanel({ student }) {
   CASH_YEARS.forEach(yr => [1, 2].forEach(sem => { if (cellUnlocked(student, yr.y, sem)) terms.push({ y: yr.y, sem, label: yr.label }); }));
   // Only show a term card when the student actually has a cashier record for it
   // (a Form 51 receipt, or a ticked box in Payment Tracking). No record → hidden.
-  const visibleTerms = terms.filter(t => { const v = val(t.y, t.sem); return receiptsFor(t.y, t.sem).length > 0 || v.box1 || v.box2; });
+  // Show a term only if the student has an ACTUAL Form 51 receipt for it.
+  // (Stale Payment-Tracking box rows alone do NOT count as a cashier record.)
+  const visibleTerms = terms.filter(t => receiptsFor(t.y, t.sem).length > 0);
 
   return (
     <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8, fontFamily: "system-ui,-apple-system,sans-serif" }}>
@@ -1484,7 +1597,14 @@ export function SchoolFeesPanel({ student }) {
                   <div style={{ fontSize: 12, color: GRAY, marginTop: 2 }}>S.Y. {sy}–{sy + 1}</div>
                 </div>
               </div>
-              <span style={{ padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 800, color: p.col, background: p.bg, whiteSpace: "nowrap" }}>{p.label}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                {(() => { const bal = remainingForTerm(t.y, t.sem); return (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: bal > 0 ? "#B45309" : "#15803D", whiteSpace: "nowrap" }}>
+                    Balance: {money(bal)}
+                  </span>
+                ); })()}
+                <span style={{ padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 800, color: p.col, background: p.bg, whiteSpace: "nowrap" }}>{p.label}</span>
+              </div>
             </div>
             {open && (() => {
               const recs = receiptsFor(t.y, t.sem);
@@ -1552,13 +1672,27 @@ export function Assessment() {
   // with the student's payments for that term split by period.
   const rowsForTerm = (yN, sN) => {
     const feesT = fees.filter(f => digit(f.year_level) === yN && digit(f.semester) === sN);
-    const pm = new Map();
+    const pm = new Map();   // amount paid, split by period
+    const dm = new Map();   // discount applied (Less), by charge
     myReceipts.filter(r => (digit(r.pay_year) || digit(r.year_level)) === yN && (digit(r.pay_sem) || 1) === sN).forEach(r => {
       const period = ["Enrollment", "Midterm", "Finals"].includes(r.pay_period) ? r.pay_period : "Enrollment";
       let items = []; try { items = JSON.parse(r.items || "[]"); } catch { items = []; }
-      items.forEach(it => { const k = norm(it.charge || it.nature); if (!k) return; if (!pm.has(k)) pm.set(k, { Enrollment: 0, Midterm: 0, Finals: 0 }); pm.get(k)[period] += toNum(it.amount); });
+      items.forEach(it => {
+        const k = norm(it.charge || it.nature); if (!k) return;
+        if (!pm.has(k)) pm.set(k, { Enrollment: 0, Midterm: 0, Finals: 0 });
+        pm.get(k)[period] += toNum(it.amount);
+        dm.set(k, (dm.get(k) || 0) + toNum(it.discount));
+      });
     });
-    return feesT.map(f => { const p = pm.get(norm(f.name)) || { Enrollment: 0, Midterm: 0, Finals: 0 }; const total = p.Enrollment + p.Midterm + p.Finals; return { nature: f.name, amount: toNum(f.amount), Enrollment: p.Enrollment, Midterm: p.Midterm, Finals: p.Finals, total, balance: toNum(f.amount) - total }; });
+    return feesT.map(f => {
+      const key = norm(f.name);
+      const p = pm.get(key) || { Enrollment: 0, Midterm: 0, Finals: 0 };
+      const total = p.Enrollment + p.Midterm + p.Finals;   // amount actually paid
+      const discount = dm.get(key) || 0;
+      // Remaining balance = fee − discount − amount paid (never below 0).
+      const balance = Math.max(0, toNum(f.amount) - discount - total);
+      return { nature: f.name, amount: toNum(f.amount), Enrollment: p.Enrollment, Midterm: p.Midterm, Finals: p.Finals, discount, total, balance };
+    });
   };
   const peso = (n) => "₱" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   // Distinct enrolled terms (year + semester), most recent last.
@@ -1672,8 +1806,9 @@ export function Assessment() {
 }
 
 // ─── CASHIER — PAYMENT TRACKING (per-student, per year & semester) ───────────
-export function PaymentTracking({ perms = {} }) {
-  const { canInput: canEdit = true } = perms;
+export function PaymentTracking({ perms = {}, isAdmin = false }) {
+  // Boxes auto-fill from real payments; only an administrator may manually override.
+  const canEdit = !!isAdmin;
   const [students, setStudents] = useState([]);
   const [paid, setPaid] = useState({}); // { `${studentId}-${year}-${sem}`: {box1,box2} } — saved in DB
   const [collections, setCollections] = useState([]);
@@ -1727,21 +1862,22 @@ export function PaymentTracking({ perms = {} }) {
     const out = {};
     students.forEach(s => {
       const hasRecord = {}; // `${y}-${sem}` -> true if any receipt exists
-      const paidByTerm = {}; // `${y}-${sem}` -> total paid
+      const settledByTerm = {}; // `${y}-${sem}` -> total settled (amount paid + discount)
       collections.forEach(c => {
         if (!nameMatches(c.payer_name, s)) return;
         const y = digit(c.pay_year) || digit(c.year_level); const sem = digit(c.pay_sem) || 1;
         const k = `${y}-${sem}`;
         hasRecord[k] = true;
         let items = []; try { items = JSON.parse(c.items || "[]"); } catch { items = []; }
-        const sum = items.reduce((a, it) => a + toNum(it.amount), 0) || toNum(c.total);
-        paidByTerm[k] = (paidByTerm[k] || 0) + sum;
+        const paidSum = items.reduce((a, it) => a + toNum(it.amount), 0) || toNum(c.total);
+        const discSum = items.reduce((a, it) => a + toNum(it.discount), 0);
+        settledByTerm[k] = (settledByTerm[k] || 0) + paidSum + discSum;
       });
       Object.keys(hasRecord).forEach(k => {
         const [y, sem] = k.split("-");
         const total = feeTotal[k] || 0;
-        const box1 = true;                                          // has a payment record → partially paid
-        const box2 = total > 0 && paidByTerm[k] >= total - 0.001;   // fully paid, no balance
+        const box1 = true;                                              // has a payment record → partially paid
+        const box2 = total > 0 && settledByTerm[k] >= total - 0.001;    // fully paid (paid + discount ≥ fees) → no balance
         out[`${s.id}-${y}-${sem}`] = { box1, box2 };
       });
     });

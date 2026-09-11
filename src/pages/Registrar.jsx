@@ -2737,6 +2737,8 @@ export default function Registrar({ user = {} }) {
 
         // Apply filters
         const filtered = rows.filter(r => {
+          // Hide empty/orphaned records that have no name at all.
+          if (!(r.student?.last_name || "").trim() && !(r.student?.first_name || "").trim()) return false;
           const sy = `${r.year_enrolled}-${parseInt(r.year_enrolled)+1}`;
           if (enrListFilter.school_year && sy !== enrListFilter.school_year) return false;
           if (enrListFilter.sex && (r.student?.gender || "").toLowerCase() !== enrListFilter.sex.toLowerCase()) return false;
@@ -2825,6 +2827,33 @@ export default function Registrar({ user = {} }) {
               )}
 
               <span style={{ fontSize: "11px", color: GRAY, marginLeft: "auto", marginTop: "10px" }}>{filtered.length} record(s)</span>
+              {isAdmin && (
+                <button type="button" title="Delete orphaned enrollment rows and archive nameless student records"
+                  onClick={async () => {
+                    const API = import.meta.env.VITE_API_URL;
+                    try {
+                      const pv = await fetch(`${API}/api/erd/maintenance/orphans?t=${Date.now()}`, { cache: "no-store" }).then(r => r.ok ? r.json() : null);
+                      const total = pv ? (pv.namelessStudents + pv.orphanedEnrollments + pv.namelessEnrollments) : 0;
+                      if (!pv || total === 0) { showToast("No orphaned or nameless records found.", "info"); return; }
+                      showConfirm({
+                        message: `Found ${pv.namelessStudents} nameless student(s), ${pv.orphanedEnrollments} orphaned enrollment(s), and ${pv.namelessEnrollments} enrollment(s) with no name. Remove the enrollment rows and archive the nameless students? Students are archived (reversible), not permanently deleted.`,
+                        confirmLabel: "Clean up",
+                        onConfirm: async () => {
+                          try {
+                            const res = await fetch(`${API}/api/erd/maintenance/clean-orphans`, { method: "POST" });
+                            const d = await res.json();
+                            if (!res.ok) throw new Error();
+                            showToast(`Cleaned: ${(d.orphanedEnrollmentsDeleted || 0) + (d.namelessEnrollmentsDeleted || 0)} enrollment(s) removed, ${d.namelessStudentsArchived || 0} student(s) archived.`, "success");
+                            setEnrListLoaded(false);
+                          } catch { showToast("Cleanup failed. Is the backend running?", "error"); }
+                        },
+                      });
+                    } catch { showToast("Could not check for orphaned records.", "error"); }
+                  }}
+                  style={{ padding: "6px 14px", border: `1px solid ${BORDER}`, borderRadius: "6px", fontSize: "11px", fontWeight: 700, background: WHITE, color: "#B45309", cursor: "pointer", marginTop: "10px" }}>
+                  🧹 Clean records
+                </button>
+              )}
               <button type="button" onClick={() => setEnrPrintOpen(true)} disabled={filtered.length === 0}
                 style={{ padding: "6px 14px", border: "none", borderRadius: "6px", fontSize: "11px", fontWeight: 700, background: filtered.length === 0 ? "#9CA3AF" : DARK_GREEN, color: WHITE, cursor: filtered.length === 0 ? "default" : "pointer", marginTop: "10px" }}>
                 🖨 Print

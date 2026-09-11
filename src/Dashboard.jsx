@@ -1409,7 +1409,7 @@ export default function Dashboard({ user, onLogout, setIsLoading }) {
                   {activeView === "Disease Surveillance" && <LibraryPlaceholder title="Disease Surveillance" desc="Monitor disease reports." icon="🦠" />}
                   {activeView === "Dental CheckUp"       && <DentalCheckup canDelete={clinicCanDelete} />}
                   {activeView === "Cashier Overview"     && <CashierDashboard />}
-                  {activeView === "Payment Tracking"     && <PaymentTracking perms={cashierPerms} />}
+                  {activeView === "Payment Tracking"     && <PaymentTracking perms={cashierPerms} isAdmin={isAdmin} />}
                   {activeView === "Assessment"           && <Assessment />}
                   {activeView === "Cashier Dashboard"    && <GeneralCollection perms={cashierPerms} user={user} />}
                   {activeView === "Payments"             && <CollectorRecord />}

@@ -15,7 +15,7 @@ const BLUE       = "#1E88E5";
 
 const GENDERS    = ["Male", "Female"];
 const SUFFIXES   = ["", "Jr.", "Sr.", "II", "III", "IV"];
-const PAGE_SIZES = [10, 25, 50, 100];
+const PAGE_SIZES = [12, 24, 48, 96]; // multiples of the 6-column grid so rows fill evenly
 
 const EMPTY_FORM = {
   lastName: "", firstName: "", middleName: "", suffix: "",
@@ -52,7 +52,7 @@ export default function UserManagementModule() {
   const [submitting,     setSubmitting]     = useState(false);
   const [search,         setSearch]         = useState("");
   const [page,           setPage]           = useState(1);
-  const [pageSize,       setPageSize]       = useState(10);
+  const [pageSize,       setPageSize]       = useState(12);
   const [showModal,      setShowModal]      = useState(false);
   const [editingId,      setEditingId]      = useState(null);
   const [form,           setForm]           = useState(EMPTY_FORM);

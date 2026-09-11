@@ -1676,7 +1676,7 @@ app.delete("/api/erd/clinic/dental/:id", async (req, res) => {
         created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    for (const [col, def] of [["image", "LONGTEXT NULL"], ["course", "VARCHAR(150) NULL"], ["year_level", "VARCHAR(50) NULL"], ["section", "VARCHAR(100) NULL"], ["acct_left", "VARCHAR(20) NULL"], ["acct_right", "VARCHAR(20) NULL"], ["pay_year", "VARCHAR(30) NULL"], ["pay_sem", "VARCHAR(30) NULL"], ["payment_mode", "VARCHAR(30) NULL"], ["created_by", "VARCHAR(200) NULL"], ["pay_period", "VARCHAR(30) NULL"], ["less", "TEXT NULL"]]) {
+    for (const [col, def] of [["image", "LONGTEXT NULL"], ["course", "VARCHAR(150) NULL"], ["year_level", "VARCHAR(50) NULL"], ["section", "VARCHAR(100) NULL"], ["acct_left", "VARCHAR(20) NULL"], ["acct_right", "VARCHAR(20) NULL"], ["pay_year", "VARCHAR(30) NULL"], ["pay_sem", "VARCHAR(30) NULL"], ["payment_mode", "VARCHAR(30) NULL"], ["created_by", "VARCHAR(200) NULL"], ["pay_period", "VARCHAR(30) NULL"], ["less", "TEXT NULL"], ["discount_total", "VARCHAR(30) NULL"]]) {
       const [c] = await pool.query(`SHOW COLUMNS FROM erd_cashier_collection LIKE '${col}'`);
       if (!c.length) await pool.query(`ALTER TABLE erd_cashier_collection ADD COLUMN ${col} ${def}`);
     }
@@ -1698,13 +1698,13 @@ app.post("/api/erd/cashier/collections", async (req, res) => {
   try {
     const [result] = await pool.query(
       `INSERT INTO erd_cashier_collection
-        (or_number, acct_no, date_posted, or_date, collector, payer_name, address, items, total, image, course, year_level, section, acct_left, acct_right, pay_year, pay_sem, payment_mode, created_by, pay_period, less)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        (or_number, acct_no, date_posted, or_date, collector, payer_name, address, items, total, image, course, year_level, section, acct_left, acct_right, pay_year, pay_sem, payment_mode, created_by, pay_period, less, discount_total)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [b.or_number || null, b.acct_no || null, b.date_posted || null, b.or_date || null,
        b.collector || null, b.payer_name || null, b.address || null,
        typeof b.items === "string" ? b.items : JSON.stringify(b.items || []), b.total || null, b.image || null,
        b.course || null, b.year_level || null, b.section || null, b.acct_left || null, b.acct_right || null, b.pay_year || null, b.pay_sem || null, b.payment_mode || null, b.created_by || null, b.pay_period || null,
-       typeof b.less === "string" ? b.less : JSON.stringify(b.less || [])]
+       typeof b.less === "string" ? b.less : JSON.stringify(b.less || []), b.discount_total || null]
     );
     res.status(201).json({ id: result.insertId, ...b });
   } catch (err) {
@@ -1854,12 +1854,15 @@ app.delete("/api/erd/cashier/charges/:id", async (req, res) => {
       id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(200) NOT NULL,
       amount DECIMAL(12,2) NULL, municipality VARCHAR(120) NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    // scope: 'resident' = only students from this municipality; 'all' = every student.
+    const [sc] = await pool.query("SHOW COLUMNS FROM erd_cashier_less LIKE 'scope'");
+    if (!sc.length) await pool.query("ALTER TABLE erd_cashier_less ADD COLUMN scope VARCHAR(20) NOT NULL DEFAULT 'resident'");
   } catch (err) { console.error("erd_cashier_less table init error:", err); }
 })();
 
 app.get("/api/erd/cashier/less", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT id, name, amount, municipality FROM erd_cashier_less ORDER BY name ASC");
+    const [rows] = await pool.query("SELECT id, name, amount, municipality, scope FROM erd_cashier_less ORDER BY name ASC");
     res.json(rows);
   } catch (err) { console.error(err); res.status(500).json({ message: "Failed to fetch less items." }); }
 });
@@ -1868,11 +1871,25 @@ app.post("/api/erd/cashier/less", async (req, res) => {
   const b = req.body || {};
   const name = (b.name || "").trim();
   const amount = (b.amount === "" || b.amount == null) ? null : parseFloat(String(b.amount).replace(/[^0-9.]/g, "")) || null;
+  const scope = b.scope === "all" ? "all" : "resident";
   if (!name) return res.status(400).json({ message: "Name is required." });
   try {
-    const [r] = await pool.query("INSERT INTO erd_cashier_less (name, amount, municipality) VALUES (?,?,?)", [name, amount, (b.municipality || "").trim() || null]);
-    res.status(201).json({ id: r.insertId, name, amount, municipality: b.municipality || null });
+    const [r] = await pool.query("INSERT INTO erd_cashier_less (name, amount, municipality, scope) VALUES (?,?,?,?)", [name, amount, (b.municipality || "").trim() || null, scope]);
+    res.status(201).json({ id: r.insertId, name, amount, municipality: b.municipality || null, scope });
   } catch (err) { console.error(err); res.status(500).json({ message: "Failed to save less item." }); }
+});
+
+app.put("/api/erd/cashier/less/:id", async (req, res) => {
+  const b = req.body || {};
+  const name = (b.name || "").trim();
+  const amount = (b.amount === "" || b.amount == null) ? null : parseFloat(String(b.amount).replace(/[^0-9.]/g, "")) || null;
+  const scope = b.scope === "all" ? "all" : "resident";
+  if (!name) return res.status(400).json({ message: "Name is required." });
+  try {
+    await pool.query("UPDATE erd_cashier_less SET name=?, amount=?, municipality=?, scope=? WHERE id=?",
+      [name, amount, (b.municipality || "").trim() || null, scope, req.params.id]);
+    res.json({ id: Number(req.params.id), name, amount, municipality: b.municipality || null, scope });
+  } catch (err) { console.error(err); res.status(500).json({ message: "Failed to update less item." }); }
 });
 
 app.delete("/api/erd/cashier/less/:id", async (req, res) => {
@@ -3823,9 +3840,10 @@ app.post("/api/erd/enrollments", async (req, res) => {
     const [[stu]] = await pool.query("SELECT first_name, middle_name, last_name FROM erd_student WHERE id=?", [student_id]);
     const nameA = nm([stu?.first_name, stu?.middle_name, stu?.last_name].filter(Boolean).join(" "));
     const nameB = nm([stu?.last_name, stu?.first_name, stu?.middle_name].filter(Boolean).join(" "));
-    const [allCols] = await pool.query("SELECT payer_name, pay_year, year_level, pay_sem, total FROM erd_cashier_collection");
+    const [allCols] = await pool.query("SELECT payer_name, pay_year, year_level, pay_sem, total, discount_total FROM erd_cashier_collection");
     const myRecs = allCols.filter(c => { const n = nm(c.payer_name); return n && (n === nameA || n === nameB); });
-    const paidTotalForYear = (yn) => myRecs.filter(c => (digit(c.pay_year) || digit(c.year_level)) === yn).reduce((s, c) => s + (parseFloat(c.total) || 0), 0);
+    // Settled = amount paid + discount applied (a fully-discounted fee has no balance).
+    const paidTotalForYear = (yn) => myRecs.filter(c => (digit(c.pay_year) || digit(c.year_level)) === yn).reduce((s, c) => s + (parseFloat(c.total) || 0) + (parseFloat(c.discount_total) || 0), 0);
     const hasReceiptForYear = (yn) => myRecs.some(c => (digit(c.pay_year) || digit(c.year_level)) === yn);
     const [charges] = await pool.query("SELECT amount, year_level FROM erd_cashier_charge");
     const feeTotalForYear = (yn) => charges.filter(c => digit(c.year_level) === yn).reduce((s, c) => s + (parseFloat(c.amount) || 0), 0);
@@ -3934,6 +3952,66 @@ app.delete("/api/erd/enrollments/:id", async (req, res) => {
     conn.release();
   }
 });
+
+// ─── MAINTENANCE: preview & clean orphaned / nameless records ─────────────────
+// Preview counts (safe — reads only).
+app.get("/api/erd/maintenance/orphans", async (req, res) => {
+  try {
+    const [[a]] = await pool.query(
+      `SELECT COUNT(*) AS c FROM erd_student
+       WHERE COALESCE(archive,0)=0 AND TRIM(COALESCE(first_name,''))='' AND TRIM(COALESCE(last_name,''))=''`
+    );
+    const [[b]] = await pool.query(
+      `SELECT COUNT(*) AS c FROM erd_enrollment e
+       LEFT JOIN erd_student s ON s.id=e.student_id WHERE s.id IS NULL`
+    );
+    const [[c]] = await pool.query(
+      `SELECT COUNT(*) AS c FROM erd_enrollment e
+       JOIN erd_student s ON s.id=e.student_id
+       WHERE TRIM(COALESCE(s.first_name,''))='' AND TRIM(COALESCE(s.last_name,''))=''`
+    );
+    res.json({ namelessStudents: a.c, orphanedEnrollments: b.c, namelessEnrollments: c.c });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to preview orphaned records." });
+  }
+});
+
+// Clean up. Enrollments tied to nameless/missing students are deleted; the
+// nameless students themselves are ARCHIVED (reversible), not hard-deleted.
+app.post("/api/erd/maintenance/clean-orphans", async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [orphDel] = await conn.query(
+      `DELETE e FROM erd_enrollment e
+       LEFT JOIN erd_student s ON s.id=e.student_id WHERE s.id IS NULL`
+    );
+    const [nameDel] = await conn.query(
+      `DELETE e FROM erd_enrollment e
+       JOIN erd_student s ON s.id=e.student_id
+       WHERE TRIM(COALESCE(s.first_name,''))='' AND TRIM(COALESCE(s.last_name,''))=''`
+    );
+    const [arch] = await conn.query(
+      `UPDATE erd_student SET archive=1
+       WHERE COALESCE(archive,0)=0 AND TRIM(COALESCE(first_name,''))='' AND TRIM(COALESCE(last_name,''))=''`
+    );
+    await conn.commit();
+    res.json({
+      message: "Cleanup complete.",
+      orphanedEnrollmentsDeleted: orphDel.affectedRows || 0,
+      namelessEnrollmentsDeleted: nameDel.affectedRows || 0,
+      namelessStudentsArchived: arch.affectedRows || 0,
+    });
+  } catch (err) {
+    await conn.rollback();
+    console.error(err);
+    res.status(500).json({ message: "Failed to clean orphaned records." });
+  } finally {
+    conn.release();
+  }
+});
+
 // --- STARTUP DATA INTEGRITY MIGRATIONS ---
 // 1. Backfill erd_user_roles for erd_users rows with no role entry yet
 //    (accounts created before multi-role support). Without this those users
