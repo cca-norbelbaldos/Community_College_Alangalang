@@ -3837,11 +3837,22 @@ app.post("/api/erd/enrollments", async (req, res) => {
     // (erd_cashier_payment) OR from an actual Form 51 collection receipt.
     const digit = (v) => { const m = String(v || "").match(/(\d)/); return m ? +m[1] : 0; };
     const nm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+    // Token-based payer-name match — mirrors the Cashier Payment Tracking badge
+    // (src/pages/Cashier.jsx `_nameMatch`). A receipt counts when every token of the
+    // student's first and last name appears in the payer name, in any order, with or
+    // without the middle name, commas, periods or extra tokens. Exact full-string
+    // matching used to reject receipts written as "Lagarde, Ed Wesley" while the
+    // Cashier dashboard still showed them as Partially Paid.
+    const tok = (s) => String(s || "").toLowerCase().replace(/[.,]/g, " ").split(/\s+/).filter(Boolean);
     const [[stu]] = await pool.query("SELECT first_name, middle_name, last_name FROM erd_student WHERE id=?", [student_id]);
-    const nameA = nm([stu?.first_name, stu?.middle_name, stu?.last_name].filter(Boolean).join(" "));
-    const nameB = nm([stu?.last_name, stu?.first_name, stu?.middle_name].filter(Boolean).join(" "));
+    const fTok = tok(stu?.first_name), lTok = tok(stu?.last_name);
+    const nameMatch = (payer) => {
+      const pt = tok(payer);
+      if (!pt.length || (!fTok.length && !lTok.length)) return false;
+      return fTok.every(t => pt.includes(t)) && lTok.every(t => pt.includes(t));
+    };
     const [allCols] = await pool.query("SELECT payer_name, pay_year, year_level, pay_sem, total, discount_total FROM erd_cashier_collection");
-    const myRecs = allCols.filter(c => { const n = nm(c.payer_name); return n && (n === nameA || n === nameB); });
+    const myRecs = allCols.filter(c => nameMatch(c.payer_name));
     // Settled = amount paid + discount applied (a fully-discounted fee has no balance).
     const paidTotalForYear = (yn) => myRecs.filter(c => (digit(c.pay_year) || digit(c.year_level)) === yn).reduce((s, c) => s + (parseFloat(c.total) || 0) + (parseFloat(c.discount_total) || 0), 0);
     const hasReceiptForYear = (yn) => myRecs.some(c => (digit(c.pay_year) || digit(c.year_level)) === yn);
@@ -3849,9 +3860,16 @@ app.post("/api/erd/enrollments", async (req, res) => {
     const feeTotalForYear = (yn) => charges.filter(c => digit(c.year_level) === yn).reduce((s, c) => s + (parseFloat(c.amount) || 0), 0);
 
     if (ylNum === 1) {
-      // 1st year: must have an ACTUAL Form 51 receipt for year 1. Unpaid = blocked.
-      // (The Payment Tracking box table is not used here — it can be auto/stale.)
-      if (!hasReceiptForYear(1)) {
+      // 1st year: at least Partially Paid. Recognized either as an actual Form 51
+      // receipt for year 1, OR as a ticked installment box in Payment Tracking —
+      // the exact same rule the Cashier dashboard uses to render the status badge,
+      // so a student shown "Partially Paid" there is never blocked here.
+      const [yr1Boxes] = await pool.query(
+        "SELECT box1, box2 FROM erd_cashier_payment WHERE student_id = ? AND year_level = 1",
+        [student_id]
+      );
+      const trackedPaid = yr1Boxes.some(p => !!p.box1 || !!p.box2);
+      if (!hasReceiptForYear(1) && !trackedPaid) {
         return res.status(409).json({
           message: "Cannot enroll for 1st Year. This student has no payment recorded at the Cashier (must be at least Partially Paid).",
           paymentBlock: true,

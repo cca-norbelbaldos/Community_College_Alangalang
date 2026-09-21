@@ -161,11 +161,16 @@ export function CashierDashboard() {
   // if no box was ticked in Payment Tracking. Match receipts to a student by name.
   const _nrm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
   const _dig = (v) => { const m = String(v || "").match(/(\d)/); return m ? +m[1] : 0; };
+  // Token-based match, shared with the Registrar enrollment gate and the server.
+  // Splitting BOTH sides into tokens handles two-word first names ("Ed Wesley")
+  // and receipts written with commas ("Lagarde, Ed Wesley, Morada"), which the
+  // old whole-string includes() check silently missed.
+  const _tok = (s) => String(s || "").toLowerCase().replace(/[.,]/g, " ").split(/\s+/).filter(Boolean);
   const _nameMatch = (payer, s) => {
-    const pt = _nrm(payer).split(" ").filter(Boolean);
-    if (!pt.length) return false;
-    const f = _nrm(s.first_name), l = _nrm(s.last_name);
-    return (!f || pt.includes(f)) && (!l || pt.includes(l)) && (f || l);
+    const pt = _tok(payer);
+    const f = _tok(s.first_name), l = _tok(s.last_name);
+    if (!pt.length || (!f.length && !l.length)) return false;
+    return f.every(t => pt.includes(t)) && l.every(t => pt.includes(t));
   };
   const hasReceiptFor = (s, y, sem) => rows.some(r => _nameMatch(r.payer_name, s) && (_dig(r.pay_year) || _dig(r.year_level)) === y && (_dig(r.pay_sem) || 1) === sem);
   const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();

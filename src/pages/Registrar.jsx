@@ -757,7 +757,10 @@ export default function Registrar({ user = {} }) {
       const API = import.meta.env.VITE_API_URL;
       const ylNum = parseInt((String(enrollRegForm.year_level || "").match(/(\d+)/) || [])[1] || "0", 10);
       const dg = (v) => { const m = String(v || "").match(/(\d)/); return m ? +m[1] : 0; };
-      const nm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+      // Token-based payer-name match, identical to the Cashier Payment Tracking
+      // badge and the server-side gate: every token of the first and last name
+      // must appear in the payer name, in any order, commas/middle name optional.
+      const tok = (s) => String(s || "").toLowerCase().replace(/[.,]/g, " ").split(/\s+/).filter(Boolean);
       try {
         const [payR, colR] = await Promise.all([
           fetch(`${API}/api/erd/cashier/payments?t=${Date.now()}`, { cache: "no-store" }),
@@ -765,13 +768,20 @@ export default function Registrar({ user = {} }) {
         ]);
         const pays = payR.ok ? await payR.json() : [];
         const cols = colR.ok ? await colR.json() : [];
-        const nA = nm([enrollRegForm.first_name, enrollRegForm.middle_name, enrollRegForm.last_name].filter(Boolean).join(" "));
-        const nB = nm([enrollRegForm.last_name, enrollRegForm.first_name, enrollRegForm.middle_name].filter(Boolean).join(" "));
+        const fTok = tok(enrollRegForm.first_name), lTok = tok(enrollRegForm.last_name);
+        const nameMatch = (payer) => {
+          const pt = tok(payer);
+          if (!pt.length || (!fTok.length && !lTok.length)) return false;
+          return fTok.every(t => pt.includes(t)) && lTok.every(t => pt.includes(t));
+        };
         const myPays = (Array.isArray(pays) ? pays : []).filter(p => String(p.student_id) === String(selectedEnrollStudent.id));
-        const myCols = (Array.isArray(cols) ? cols : []).filter(c => { const n = nm(c.payer_name); return n && (n === nA || n === nB); });
+        const myCols = (Array.isArray(cols) ? cols : []).filter(c => nameMatch(c.payer_name));
         if (ylNum === 1) {
-          // Paid = an actual Form 51 receipt exists for this student for 1st year.
-          const paid = myCols.some(c => (dg(c.pay_year) || dg(c.year_level)) === 1);
+          // At least Partially Paid = a Form 51 receipt for 1st year OR a ticked
+          // installment box in Payment Tracking — the same rule the Cashier
+          // dashboard badge uses, so the two screens can never disagree.
+          const paid = myCols.some(c => (dg(c.pay_year) || dg(c.year_level)) === 1)
+            || myPays.some(p => dg(p.year_level) === 1 && (!!p.box1 || !!p.box2));
           if (!paid) {
             showToast("Cannot enroll for 1st Year — no payment recorded at the Cashier (must be at least Partially Paid).", "error");
             setEnrollRegSaving(false); return;
