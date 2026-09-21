@@ -661,7 +661,7 @@ body{
 .h-of{font-size:9px;font-weight:700;color:#3d6e01;letter-spacing:0.5px;text-transform:uppercase;}
 .h-nm{font-size:23px;font-weight:900;color:#3d6e01;line-height:1.05;letter-spacing:-0.5px;text-transform:uppercase;}
 .h-gl{height:2.5px;background:linear-gradient(90deg,#F4B400,#c89800);border-radius:2px;margin:5px 0 4px;}
-.h-tg{font-size:8px;font-weight:800;color:#F4B400;letter-spacing:2.5px;text-transform:uppercase;}
+.h-tg{font-size:6.5px;font-weight:800;color:#F4B400;letter-spacing:0.3px;text-transform:uppercase;white-space:nowrap;}
 
 /* ── GREEN BODY (fills everything below header) ── */
 .body{
@@ -770,7 +770,7 @@ body{
       <div class="h-of">Community College of</div>
       <div class="h-nm">Alangalang</div>
       <div class="h-gl"></div>
-      <div class="h-tg">Learn &bull; Grow &bull; Serve</div>
+      <div class="h-tg">Innovation &bull; Integrity &bull; Inclusivity &bull; Excellence</div>
     </div>
   </div>
 
