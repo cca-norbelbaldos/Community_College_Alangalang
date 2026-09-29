@@ -1357,6 +1357,25 @@ export default function AddStudents({ user = {}, viewOnly = false }) {
     } catch { showToast("Could not process image.", "error"); }
     setUploadingPhoto(false);
   };
+
+  // Pull the saved record back from the server after the Student Information
+  // Sheet is submitted. Without this the View modal keeps rendering the
+  // `viewStudent` snapshot taken when it was opened, so reopening the sheet
+  // rebuilds its form from pre-save values and every edit looks reverted.
+  const refreshViewStudent = async () => {
+    if (!viewStudent) return;
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/erd/students?t=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const list = await res.json();
+      if (!Array.isArray(list)) return;
+      setStudents(list);
+      const fresh = list.find(s => s.id === viewStudent.id);
+      if (fresh) setViewStudent(fresh);
+    } catch (err) {
+      console.error("Failed to refresh student after update:", err);
+    }
+  };
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
 
   // local fallback store for enrollment records
@@ -2048,7 +2067,7 @@ export default function AddStudents({ user = {}, viewOnly = false }) {
               {loadingEnrollments ? (
                 <div style={{ padding: "60px", textAlign: "center", color: GRAY, fontSize: "15px" }}>⏳ Loading...</div>
               ) : (
-                <StudentInfoCard student={viewStudent} enrollments={viewEnrollments} subjects={subjects} assignedSubjectIds={assignedSubjectIds} user={user} onSaved={handleGradesSaved} canManageEnrollment={canEnroll} onDeleteEnrollment={deleteEnrollment} courses={coursesList} activeSchoolYear={activeSchoolYear} />
+                <StudentInfoCard student={viewStudent} enrollments={viewEnrollments} subjects={subjects} assignedSubjectIds={assignedSubjectIds} user={user} onSaved={handleGradesSaved} canManageEnrollment={canEnroll} onDeleteEnrollment={deleteEnrollment} courses={coursesList} onUpdated={refreshViewStudent} activeSchoolYear={activeSchoolYear} />
               )}
             </div>
           </div>

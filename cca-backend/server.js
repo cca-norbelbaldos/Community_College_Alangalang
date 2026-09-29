@@ -31,6 +31,20 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 
+// MySQL DATE column -> "YYYY-MM-DD", using the value's LOCAL calendar date.
+// Do NOT use toISOString() here. mysql2 parses a DATE as local midnight
+// (new Date(y, m-1, d)), so in any timezone ahead of UTC -- Asia/Manila is
+// UTC+8 -- toISOString() rolls the clock back past midnight and returns the
+// PREVIOUS day. That made every birthdate read one day earlier than stored,
+// so correcting a birthdate forward by a day looked like the edit was ignored.
+const ymd = (v) => {
+  if (!v) return null;
+  if (typeof v === "string") return v.slice(0, 10);
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 // ─── SCHEMA NOTES ─────────────────────────────────────────────────────────
 // erd_login            (id, username, password, created_at)
 // erd_user_type        (id, user_type)            -- e.g. administrator/faculty/student/registrar
@@ -2284,7 +2298,7 @@ app.get("/api/erd/students", async (req, res) => {
       gender: r.gender || null,
       email: r.email || null,
       mobile: r.mobile || null,
-      birthdate: r.birthdate ? r.birthdate.toISOString().split("T")[0] : null,
+      birthdate: ymd(r.birthdate),
       place_of_birth: r.place_of_birth || null,
       barangay: r.barangay || null,
       municipality: r.municipality || null,
@@ -2376,7 +2390,7 @@ app.get("/api/erd/student/by-user/:usersId", async (req, res) => {
       graduation_status: r.graduation_status || null,
       email: r.email || null,
       mobile: r.mobile || null,
-      birthdate: r.birthdate ? r.birthdate.toISOString().split("T")[0] : null,
+      birthdate: ymd(r.birthdate),
       place_of_birth: r.place_of_birth || null,
       barangay: r.barangay || null,
       municipality: r.municipality || null,
@@ -2518,7 +2532,7 @@ app.get("/api/erd/student/profile/:studentId", async (req, res) => {
       year_enrolled: r.year_enrolled || null, graduation_status: r.graduation_status || null,
       status: r.status || null,
       email: r.email || null, mobile: r.mobile || null,
-      birthdate: r.birthdate ? r.birthdate.toISOString().split("T")[0] : null,
+      birthdate: ymd(r.birthdate),
       place_of_birth: r.place_of_birth || null,
       barangay: r.barangay || null, municipality: r.municipality || null,
       province: r.province || null, zip_code: r.zip_code || null,
