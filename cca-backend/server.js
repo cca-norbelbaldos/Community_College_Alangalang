@@ -1,7 +1,16 @@
-import "dotenv/config";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
 import express from "express";
 import mysql from "mysql2/promise";
 import cors from "cors";
+
+// Load THIS folder's .env, not the current working directory's. "dotenv/config"
+// resolves .env against the cwd, so `node cca-backend/server.js` from the project
+// root picked up the FRONTEND .env (which has only VITE_* vars): PORT fell back
+// to its default and the DB password to "root", and Vite's /api proxy -- which
+// targets port 3001 -- got ECONNREFUSED because the backend was on another port.
+dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), ".env") });
 
 const app = express();
 app.use(
@@ -3501,7 +3510,7 @@ app.get("/api/erd/class-schedule/by-faculty", async (req, res) => {
 });
 
 // ─── LIBRARY: removed. Tables dropped and feature paused (see drop_library.sql). ───
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 3001;   // must match the Vite proxy target in vite.config.js
 app.listen(PORT, () => console.log(`[PRODUCTION READY] Portal backend listener established on network port -> ${PORT}`));
 
 // ─── STUDENT ENROLLMENT RECORDS ──────────────────────────────────────────────
