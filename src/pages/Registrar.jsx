@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { showToast, showConfirm } from "../components/Toast";
+import BirthdatePicker from "../components/BirthdatePicker";
 import ClassSchedule from "./ClassSchedule";
 import ccaLogo        from "../assets/cca_logo.jpg";
 import alangalangLogo from "../assets/Alangalang.png";
@@ -100,9 +101,6 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
   const [form, setForm]   = useState(EMPTY_SI);
   const [saving, setSaving] = useState(false);
   const [privacyConsent, setPrivacyConsent] = useState(false); // Data Privacy Act consent
-  const [showBdCal, setShowBdCal] = useState(false);
-  const [calBdYear, setCalBdYear] = useState(new Date().getFullYear());
-  const [calBdMonth, setCalBdMonth] = useState(new Date().getMonth());
   // Configurable scholastic-requirements checklist (managed in System).
   const [reqOptions, setReqOptions] = useState([]);
   useEffect(() => {
@@ -348,65 +346,7 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
             </div>
             <div style={fc(1)}>
               <div style={bl(SI_GREEN)}>Birthdate</div>
-              <div style={{ position:"relative" }}>
-                <input
-                  style={ci({ cursor:"pointer" })}
-                  readOnly
-                  value={f("birthdate") ? new Date(f("birthdate")+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : ""}
-                  placeholder="Select birthdate..."
-                  onClick={()=>{ const d=f("birthdate")?new Date(f("birthdate")+"T00:00:00"):new Date(); setCalBdYear(d.getFullYear()); setCalBdMonth(d.getMonth()); setShowBdCal(v=>!v); }}
-                />
-                {showBdCal && (
-                  <div style={{ position:"absolute", zIndex:9999, background:"#fff", border:"1px solid #ddd", borderRadius:"10px", boxShadow:"0 6px 20px rgba(0,0,0,0.15)", padding:"14px", top:"110%", left:0, minWidth:"270px" }}>
-                    {/* Nav row */}
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"10px" }}>
-                      <button type="button" onClick={()=>{ if(calBdMonth===0){setCalBdMonth(11);setCalBdYear(y=>y-1);}else setCalBdMonth(m=>m-1); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:"18px", color:"#3d6e01", lineHeight:1 }}>‹</button>
-                      <div style={{ display:"flex", gap:"6px" }}>
-                        <select value={calBdMonth} onChange={e=>setCalBdMonth(+e.target.value)} style={{ border:"1px solid #e5e7eb", borderRadius:"6px", padding:"3px 6px", fontSize:"12px", color:"#111", cursor:"pointer" }}>
-                          {["January","February","March","April","May","June","July","August","September","October","November","December"].map((m,i)=><option key={i} value={i}>{m}</option>)}
-                        </select>
-                        <select value={calBdYear} onChange={e=>setCalBdYear(+e.target.value)} style={{ border:"1px solid #e5e7eb", borderRadius:"6px", padding:"3px 6px", fontSize:"12px", color:"#111", cursor:"pointer" }}>
-                          {Array.from({length:80},(_,i)=>new Date().getFullYear()-i).map(y=><option key={y} value={y}>{y}</option>)}
-                        </select>
-                      </div>
-                      <button type="button" onClick={()=>{ if(calBdMonth===11){setCalBdMonth(0);setCalBdYear(y=>y+1);}else setCalBdMonth(m=>m+1); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:"18px", color:"#3d6e01", lineHeight:1 }}>›</button>
-                    </div>
-                    {/* Day labels */}
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:"2px", marginBottom:"6px" }}>
-                      {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=><div key={d} style={{ textAlign:"center", fontSize:"10px", fontWeight:700, color:"#9ca3af" }}>{d}</div>)}
-                    </div>
-                    {/* Day cells */}
-                    {(()=>{
-                      const firstDay=new Date(calBdYear,calBdMonth,1).getDay();
-                      const daysInMonth=new Date(calBdYear,calBdMonth+1,0).getDate();
-                      const sel=f("birthdate");
-                      const cells=[];
-                      for(let i=0;i<firstDay;i++) cells.push(<div key={"e"+i}/>);
-                      for(let d=1;d<=daysInMonth;d++){
-                        const ds=`${calBdYear}-${String(calBdMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-                        const isSel=sel===ds;
-                        const isToday=ds===new Date().toISOString().slice(0,10);
-                        cells.push(
-                          <div key={d} onClick={()=>{ sf("birthdate",ds); setShowBdCal(false); }}
-                            style={{ textAlign:"center", fontSize:"12px", padding:"5px 2px", borderRadius:"50%", cursor:"pointer",
-                              background:isSel?"#3d6e01":isToday?"#e8f5e9":"transparent",
-                              color:isSel?"#fff":isToday?"#3d6e01":"#111",
-                              fontWeight:isSel||isToday?700:400,
-                              border:isToday&&!isSel?"1px solid #3d6e01":"1px solid transparent" }}>
-                            {d}
-                          </div>
-                        );
-                      }
-                      return <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:"2px" }}>{cells}</div>;
-                    })()}
-                    {/* Footer */}
-                    <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", paddingTop:"8px", borderTop:"1px solid #f3f4f6" }}>
-                      <button type="button" onClick={()=>{ sf("birthdate",""); setShowBdCal(false); }} style={{ fontSize:"11px", color:"#dc2626", background:"none", border:"none", cursor:"pointer", fontWeight:600 }}>✕ Clear</button>
-                      <button type="button" onClick={()=>setShowBdCal(false)} style={{ fontSize:"11px", color:"#6b7280", background:"none", border:"none", cursor:"pointer" }}>Close</button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <BirthdatePicker value={f("birthdate")} onChange={v => sf("birthdate", v)} inputStyle={{ fontFamily: TNR }} />
             </div>
             <div style={{ ...fc(1.2), borderRight: "none" }}>
               <div style={bl(SI_GREEN)}>Place of Birth</div>

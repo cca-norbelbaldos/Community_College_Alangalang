@@ -4,6 +4,7 @@ import { processProfileImage } from "../utils/image";
 import { SchoolFeesPanel } from "./Cashier";
 import QRCode from "qrcode";
 import { showToast, showConfirm } from "../components/Toast";
+import BirthdatePicker from "../components/BirthdatePicker";
 import ccaLogo        from "../assets/cca_logo.jpg";
 import ccaBg          from "../assets/cca_bg.png";
 import alangalangLogo from "../assets/Alangalang.png";
@@ -305,7 +306,9 @@ function StudentSIFormModal({ student, courses = [], onClose, onUpdated, activeS
             <div style={fc(0.7)}><div style={bl()}>Zip Code</div><input style={ci()} value={f("zip_code")} onChange={e => sf("zip_code", e.target.value)} /></div>
             <div style={fc(1.5)}><div style={bl()}>E-mail Address</div><input style={ci()} type="email" value={f("email")} onChange={e => sf("email", e.target.value)} /></div>
             <div style={fc(1)}><div style={bl()}>Mobile #</div><input style={ci()} value={f("mobile")} onChange={e => sf("mobile", e.target.value)} /></div>
-            <div style={fc(1)}><div style={bl()}>Birthdate</div><input style={ci()} type="date" value={f("birthdate")} onChange={e => sf("birthdate", e.target.value)} /></div>
+            <div style={fc(1)}><div style={bl()}>Birthdate</div>
+              <BirthdatePicker value={f("birthdate")} onChange={v => sf("birthdate", v)} inputStyle={{ fontFamily: TNR }} />
+            </div>
             <div style={{ ...fc(1.2), borderRight: "none" }}><div style={bl()}>Place of Birth</div><input style={ci()} value={f("place_of_birth")} onChange={e => sf("place_of_birth", e.target.value)} /></div>
           </div>
 
