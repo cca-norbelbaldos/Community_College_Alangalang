@@ -110,8 +110,8 @@ export default function CCALoginPortal({ onLogin }) {
         font-weight: 800;
         font-family: 'Times New Roman', Times, serif;
         font-size: 2rem !important;
-        line-height: 1.5 !important;
-        margin: 2px 0 8px !important;
+        line-height: 1.2 !important;
+        margin: 2px 0 0 !important;
         padding: 0 !important;
         position: static !important;
         transform: none !important;
@@ -139,12 +139,12 @@ export default function CCALoginPortal({ onLogin }) {
       <div className="card-light" aria-hidden="true"><div className="card-light-inner" /></div>
       <div className="cca-card" style={{
         position:"relative", zIndex:1, boxSizing:"border-box",
-        width:"100%", maxWidth:354, height: view === "choose" ? 464 : 552,
+        width:"100%", maxWidth:354, minHeight: view === "choose" ? 464 : 552,
         background: t.card,
         borderRadius:18,
         border:`1px solid ${t.border}`,
         boxShadow: dark ? "0 20px 60px rgba(0,0,0,0.5)" : "0 20px 60px rgba(17,24,39,0.10), 0 2px 8px rgba(17,24,39,0.04)",
-        padding:"20px 22px 112px",
+        padding:"20px 22px 14px",
         overflow:"hidden",
         display:"flex", flexDirection:"column",
         transition:"background 0.3s ease, border-color 0.3s ease",
@@ -158,7 +158,7 @@ export default function CCALoginPortal({ onLogin }) {
         {view === "choose" && (
           <>
             <h1 className="login-title" style={{ color:t.text }}>Account Login</h1>
-            <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"-10px 0 -4px" }}>Login to manage your CCA-PORTAL Account</p>
+            <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"4px 0 -4px", lineHeight:1.4, display:"block" }}>Login to manage your CCA-PORTAL Account</p>
 
             <button className="role-btn" onClick={()=>pick("Student")} style={{ ...roleBtnStyle, marginTop:25, background:t.card, border:`1.5px solid ${t.border}`, color:t.text }}>
               <GradCapIcon />
@@ -176,7 +176,7 @@ export default function CCALoginPortal({ onLogin }) {
         {view === "login" && (
           <>
             <h1 className="login-title" style={{ color:t.text }}>Account Login</h1>
-            <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"-10px 0 10px" }}>Login to manage your CCA-PORTAL Account</p>
+            <p style={{ textAlign:"center", fontSize:12, color:t.muted, margin:"4px 0 10px", lineHeight:1.4, display:"block" }}>Login to manage your CCA-PORTAL Account</p>
 
             <form onSubmit={handleSubmit} style={{ display:"flex", flexDirection:"column", marginTop:-5 }}>
               {error && (
@@ -236,7 +236,7 @@ export default function CCALoginPortal({ onLogin }) {
               </p>
             </form>
 
-            <div style={{ textAlign:"center", marginTop:16, paddingTop:2 }}>
+            <div style={{ textAlign:"center", marginTop:16, paddingTop:2, marginBottom:16 }}>
               <button className="link-btn" onClick={back} style={{ ...linkStyle, color:GRAY, display:"inline-block", padding:"4px 10px" }}>← Back</button>
             </div>
           </>
@@ -256,7 +256,7 @@ export default function CCALoginPortal({ onLogin }) {
         )}
 
         {/* Footer — Developed by (fixed to card bottom) */}
-        <div style={{ position:"absolute", left:22, right:22, bottom:14, paddingTop:12, borderTop:`1px solid ${t.border}`, display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+        <div style={{ marginTop:"auto", paddingTop:12, borderTop:`1px solid ${t.border}`, display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
           <img src={alangSeal} alt="Seal of the Municipality of Alangalang, Leyte" style={{ width:52, height:52, objectFit:"contain" }} />
           <span style={{ fontSize:10, color:t.muted }}>Developed by IT Support Office</span>
           <div style={{ display:"flex", gap:8, alignItems:"center", fontSize:9.5 }}>
