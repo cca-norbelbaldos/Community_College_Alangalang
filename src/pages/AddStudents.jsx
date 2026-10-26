@@ -93,20 +93,20 @@ function StudentSIFormModal({ student, courses = [], onClose, onUpdated, activeS
   };
 
   const [form, setForm] = useState({
-    school_year:    deriveSY(student.student_number),
+    school_year:    student.school_year || deriveSY(student.student_number),
     student_number: student.student_number || "",
     classification: student.classification || "",
     last_name:      student.last_name  || "",
     first_name:     student.first_name || "",
     middle_name:    student.middle_name || "",
     religion:       student.religion || "",
-    gender:         student.gender || "Male",
+    gender:         student.gender || "",
     status:         student.status || "",
-    citizenship:    student.citizenship || "Filipino",
+    citizenship:    student.citizenship || "",
     acr_no:         student.acr_no || "",
     barangay:       student.barangay || "",
-    municipality:   student.municipality || "ALANGALANG",
-    province:       student.province || "LEYTE",
+    municipality:   student.municipality || "",
+    province:       student.province || "",
     zip_code:       student.zip_code || "",
     email:          student.email || "",
     mobile:         student.mobile || "",
@@ -160,7 +160,8 @@ function StudentSIFormModal({ student, courses = [], onClose, onUpdated, activeS
 
   // When activeSchoolYear arrives async, push it into the form
   useEffect(() => {
-    if (activeSchoolYear) {
+    // Never replace a school year already saved on the student record.
+    if (activeSchoolYear && !student.school_year) {
       setForm(prev => ({ ...prev, school_year: activeSchoolYear }));
     }
   }, [activeSchoolYear]);
@@ -227,6 +228,7 @@ function StudentSIFormModal({ student, courses = [], onClose, onUpdated, activeS
           col_school: form.col_school, col_address: form.col_address,
           col_year: form.col_year, col_honors: form.col_honors,
           scholastic_notes: form.scholastic_notes,
+          school_year: form.school_year,
         }),
       });
       if (res.ok) {
@@ -286,7 +288,7 @@ function StudentSIFormModal({ student, courses = [], onClose, onUpdated, activeS
             <div style={fc(1)}><div style={bl()}>Religion</div><input style={ci()} value={f("religion")} onChange={e => sf("religion", e.target.value)} /></div>
             <div style={fc(0.8)}><div style={bl()}>Gender</div>
               <select style={ci({ cursor: "pointer" })} value={f("gender")} onChange={e => sf("gender", e.target.value)}>
-                <option>Male</option><option>Female</option><option>LGBTQIA+</option>
+                <option value="">—</option><option>Male</option><option>Female</option><option>LGBTQIA+</option>
               </select>
             </div>
             <div style={fc(0.9)}><div style={bl()}>Status</div>
@@ -2070,7 +2072,7 @@ export default function AddStudents({ user = {}, viewOnly = false }) {
               {loadingEnrollments ? (
                 <div style={{ padding: "60px", textAlign: "center", color: GRAY, fontSize: "15px" }}>⏳ Loading...</div>
               ) : (
-                <StudentInfoCard student={viewStudent} enrollments={viewEnrollments} subjects={subjects} assignedSubjectIds={assignedSubjectIds} user={user} onSaved={handleGradesSaved} canManageEnrollment={canEnroll} onDeleteEnrollment={deleteEnrollment} courses={coursesList} onUpdated={refreshViewStudent} activeSchoolYear={activeSchoolYear} />
+                <StudentInfoCard key={viewStudent.id} student={viewStudent} enrollments={viewEnrollments} subjects={subjects} assignedSubjectIds={assignedSubjectIds} user={user} onSaved={handleGradesSaved} canManageEnrollment={canEnroll} onDeleteEnrollment={deleteEnrollment} courses={coursesList} onUpdated={refreshViewStudent} activeSchoolYear={activeSchoolYear} />
               )}
             </div>
           </div>

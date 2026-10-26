@@ -2156,16 +2156,10 @@ app.delete("/api/erd/school-years/:id", async (req, res) => {
   } catch (err) { res.status(500).json({ message: "Failed to delete school year." }); }
 });
 
-// ─── ADDRESS BACKFILL ────────────────────────────────────────────────────────
-(async () => {
-  try {
-    await pool.query(`UPDATE erd_student SET municipality = 'ALANGALANG' WHERE municipality IS NULL OR municipality = ''`);
-    await pool.query(`UPDATE erd_student SET province = 'LEYTE' WHERE province IS NULL OR province = ''`);
-    console.log("erd_student address defaults backfilled OK");
-  } catch (err) {
-    console.error("Address backfill failed:", err.message);
-  }
-})();
+// ─── ADDRESS BACKFILL (disabled) ─────────────────────────────────────────────
+// This used to run on EVERY server start and overwrite any blank municipality/
+// province with ALANGALANG / LEYTE, which made student addresses change by
+// themselves. Defaults now belong in the enrollment form, not in a startup job.
 
 // ─── CAMPUS BULLETIN BOARD ANNOUNCEMENTS ─────────────────────────────────────
 app.get("/api/erd/announcements", async (req, res) => {
@@ -2276,7 +2270,7 @@ app.get("/api/erd/students", async (req, res) => {
               s.elem_school, s.elem_address, s.elem_year, s.elem_honors,
               s.hs_school, s.hs_address, s.hs_year, s.hs_honors,
               s.col_school, s.col_address, s.col_year, s.col_honors,
-              s.scholastic_notes
+              s.scholastic_notes, s.school_year
        FROM erd_student s
        LEFT JOIN erd_users u ON s.users_id = u.id
        LEFT JOIN erd_course c ON s.course_id = c.id
@@ -2349,6 +2343,7 @@ app.get("/api/erd/students", async (req, res) => {
       col_year: r.col_year || null,
       col_honors: r.col_honors || null,
       scholastic_notes: r.scholastic_notes || null,
+      school_year: r.school_year || null,
       birthday: null, age: null, sex: r.gender || null, address: null, adviser: null
     })));
   } catch (err) {
@@ -2524,7 +2519,8 @@ app.get("/api/erd/student/profile/:studentId", async (req, res) => {
               s.spouse_name, s.spouse_occupation, s.spouse_address, s.spouse_mobile,
               s.elem_school, s.elem_address, s.elem_year, s.elem_honors,
               s.hs_school, s.hs_address, s.hs_year, s.hs_honors,
-              s.col_school, s.col_address, s.col_year, s.col_honors
+              s.col_school, s.col_address, s.col_year, s.col_honors,
+              s.scholastic_notes, s.school_year
        FROM erd_student s
        LEFT JOIN erd_users u ON s.users_id = u.id
        LEFT JOIN erd_course c ON s.course_id = c.id
@@ -2562,6 +2558,7 @@ app.get("/api/erd/student/profile/:studentId", async (req, res) => {
       hs_year: r.hs_year || null, hs_honors: r.hs_honors || null,
       col_school: r.col_school || null, col_address: r.col_address || null,
       col_year: r.col_year || null, col_honors: r.col_honors || null,
+      scholastic_notes: r.scholastic_notes || null, school_year: r.school_year || null,
     });
   } catch (err) {
     console.error(err);
@@ -2625,7 +2622,7 @@ app.post("/api/erd/students", async (req, res) => {
     elem_school, elem_address, elem_year, elem_honors,
     hs_school, hs_address, hs_year, hs_honors,
     col_school, col_address, col_year, col_honors,
-    scholastic_notes,
+    scholastic_notes, school_year,
   } = req.body;
 
   if (!first_name || !last_name || !student_number) {
@@ -2647,7 +2644,10 @@ app.post("/api/erd/students", async (req, res) => {
     let studentResult = null;
     let assignedNumber = null;
     for (let attempt = 0; attempt < 25 && !studentResult; attempt++) {
-      const candidate = await computeNextStudentNumber(yearPrefix);
+      // First try the ID the registrar actually entered; only fall back to the
+      // next free number if that one is already taken.
+      const typed = String(student_number || "").trim();
+      const candidate = (attempt === 0 && typed) ? typed : await computeNextStudentNumber(yearPrefix);
       try {
         [studentResult] = await pool.query(
           `INSERT INTO erd_student
@@ -2663,8 +2663,8 @@ app.post("/api/erd/students", async (req, res) => {
               elem_school, elem_address, elem_year, elem_honors,
               hs_school, hs_address, hs_year, hs_honors,
               col_school, col_address, col_year, col_honors,
-              scholastic_notes)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+              scholastic_notes, school_year)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           [
             first_name, middle_name||null, last_name, gender||null, profile_picture||null,
             candidate, courseId, year_level||null, section||null,
@@ -2680,7 +2680,7 @@ app.post("/api/erd/students", async (req, res) => {
             elem_school||null, elem_address||null, elem_year||null, elem_honors||null,
             hs_school||null, hs_address||null, hs_year||null, hs_honors||null,
             col_school||null, col_address||null, col_year||null, col_honors||null,
-            scholastic_notes||null,
+            scholastic_notes||null, school_year||null,
           ]
         );
         assignedNumber = candidate;
@@ -2724,82 +2724,74 @@ app.put("/api/erd/student/:id/photo", async (req, res) => {
 });
 
 app.put("/api/erd/students/:id", async (req, res) => {
+  // PARTIAL update: only the columns present in the request body are written.
+  // Previously every column was overwritten, so any screen that sent only some
+  // fields (or an old copy of the student) silently erased/reverted the rest.
   const { id } = req.params;
-  const {
-    first_name, middle_name, last_name, course, student_number, profile_picture,
-    year_level, section, year_enrolled, gender,
-    email, mobile, birthdate, place_of_birth, barangay, municipality, province, zip_code,
-    religion, citizenship, status, acr_no, classification,
-    father_last, father_first, father_middle, father_occupation,
-    mother_last, mother_first, mother_middle, mother_occupation,
-    parents_address, parents_mobile,
-    guardian_name, guardian_relationship, guardian_address, guardian_mobile,
-    spouse_name, spouse_occupation, spouse_address, spouse_mobile,
-    elem_school, elem_address, elem_year, elem_honors,
-    hs_school, hs_address, hs_year, hs_honors,
-    col_school, col_address, col_year, col_honors,
-    scholastic_notes,
-  } = req.body;
+  const body = req.body || {};
+  const TEXT_COLS = [
+    "first_name","middle_name","last_name","gender","student_number","year_level","section",
+    "email","mobile","birthdate","place_of_birth","barangay","municipality","province","zip_code",
+    "religion","citizenship","status","acr_no","classification",
+    "father_last","father_first","father_middle","father_occupation",
+    "mother_last","mother_first","mother_middle","mother_occupation",
+    "parents_address","parents_mobile",
+    "guardian_name","guardian_relationship","guardian_address","guardian_mobile",
+    "spouse_name","spouse_occupation","spouse_address","spouse_mobile",
+    "elem_school","elem_address","elem_year","elem_honors",
+    "hs_school","hs_address","hs_year","hs_honors",
+    "col_school","col_address","col_year","col_honors",
+    "scholastic_notes", "school_year",
+  ];
+  const has = (k) => Object.prototype.hasOwnProperty.call(body, k) && body[k] !== undefined;
 
-  if (!first_name || !last_name || !student_number) {
-    return res.status(400).json({ message: "first_name, last_name, and student_number are required." });
+  if ((has("first_name") && !String(body.first_name).trim()) || (has("last_name") && !String(body.last_name).trim())) {
+    return res.status(400).json({ message: "First name and last name cannot be blank." });
+  }
+  if (has("student_number") && !String(body.student_number || "").trim()) {
+    return res.status(400).json({ message: "ID number cannot be blank." });
   }
 
   try {
     const [[studentRow]] = await pool.query("SELECT id, users_id FROM erd_student WHERE id = ?", [id]);
     if (!studentRow) return res.status(404).json({ message: "Student not found." });
 
-    let courseId = null;
-    if (course) {
-      const [[courseRow]] = await pool.query("SELECT id FROM erd_course WHERE course = ?", [course]);
-      courseId = courseRow ? courseRow.id : null;
+    const sets = [], vals = [];
+    for (const k of TEXT_COLS) {
+      if (!has(k)) continue;
+      let v = body[k];
+      if (typeof v === "string") v = v.trim();
+      if (k === "birthdate") v = v ? String(v).slice(0, 10) : null;
+      sets.push(`${k}=?`); vals.push(v === "" ? null : v);
+    }
+    if (has("year_enrolled")) { sets.push("year_enrolled=?"); vals.push(body.year_enrolled ? parseInt(body.year_enrolled, 10) : null); }
+    if (has("course")) {
+      let courseId = null;
+      if (body.course) {
+        const [[courseRow]] = await pool.query("SELECT id FROM erd_course WHERE course = ?", [body.course]);
+        courseId = courseRow ? courseRow.id : null;
+      }
+      sets.push("course_id=?"); vals.push(courseId);
+    }
+    if (has("profile_picture") && body.profile_picture !== null) {
+      sets.push("profile_picture=?"); vals.push(body.profile_picture || null);
     }
 
-    await pool.query(
-      `UPDATE erd_student
-       SET first_name=?, middle_name=?, last_name=?, gender=?,
-           profile_picture=COALESCE(?, profile_picture), student_number=?, course_id=?,
-           year_level=?, section=?, year_enrolled=?,
-           email=?, mobile=?, birthdate=?, place_of_birth=?,
-           barangay=?, municipality=?, province=?, zip_code=?,
-           religion=?, citizenship=?, status=?, acr_no=?, classification=?,
-           father_last=?, father_first=?, father_middle=?, father_occupation=?,
-           mother_last=?, mother_first=?, mother_middle=?, mother_occupation=?,
-           parents_address=?, parents_mobile=?,
-           guardian_name=?, guardian_relationship=?, guardian_address=?, guardian_mobile=?,
-           spouse_name=?, spouse_occupation=?, spouse_address=?, spouse_mobile=?,
-           elem_school=?, elem_address=?, elem_year=?, elem_honors=?,
-           hs_school=?, hs_address=?, hs_year=?, hs_honors=?,
-           col_school=?, col_address=?, col_year=?, col_honors=?,
-           scholastic_notes=?
-       WHERE id=?`,
-      [
-        first_name, middle_name||null, last_name, gender||null,
-        // undefined (field not sent) → keep existing photo; "" → clear; base64 → set.
-        (profile_picture === undefined ? null : profile_picture), student_number, courseId,
-        year_level||null, section||null, year_enrolled ? parseInt(year_enrolled,10) : null,
-        email||null, mobile||null, birthdate||null, place_of_birth||null,
-        barangay||null, municipality||null, province||null, zip_code||null,
-        religion||null, citizenship||null, status||null, acr_no||null, classification||null,
-        father_last||null, father_first||null, father_middle||null, father_occupation||null,
-        mother_last||null, mother_first||null, mother_middle||null, mother_occupation||null,
-        parents_address||null, parents_mobile||null,
-        guardian_name||null, guardian_relationship||null, guardian_address||null, guardian_mobile||null,
-        spouse_name||null, spouse_occupation||null, spouse_address||null, spouse_mobile||null,
-        elem_school||null, elem_address||null, elem_year||null, elem_honors||null,
-        hs_school||null, hs_address||null, hs_year||null, hs_honors||null,
-        col_school||null, col_address||null, col_year||null, col_honors||null,
-        scholastic_notes||null,
-        id
-      ]
-    );
+    if (sets.length) {
+      try {
+        await pool.query(`UPDATE erd_student SET ${sets.join(", ")} WHERE id=?`, [...vals, id]);
+      } catch (e) {
+        if (e.code === "ER_DUP_ENTRY") return res.status(409).json({ message: "That ID number is already used by another student." });
+        throw e;
+      }
+    }
 
-    // Also sync basic fields to linked erd_users row if one exists (backward compat)
+    // Keep the linked erd_users row's basic fields in sync (only what was sent).
     if (studentRow.users_id) {
-      await pool.query(
-        "UPDATE erd_users SET first_name=?, middle_name=?, last_name=?, gender=?, profile_picture=COALESCE(?, profile_picture) WHERE id=?",
-        [first_name, middle_name||null, last_name, gender||null, (profile_picture === undefined ? null : profile_picture), studentRow.users_id]
-      );
+      const uSets = [], uVals = [];
+      for (const k of ["first_name","middle_name","last_name","gender"]) if (has(k)) { uSets.push(`${k}=?`); uVals.push(body[k] || null); }
+      if (has("profile_picture") && body.profile_picture) { uSets.push("profile_picture=?"); uVals.push(body.profile_picture); }
+      if (uSets.length) await pool.query(`UPDATE erd_users SET ${uSets.join(", ")} WHERE id=?`, [...uVals, studentRow.users_id]);
     }
 
     res.json({ message: "Student updated." });
@@ -3672,6 +3664,7 @@ app.listen(PORT, () => console.log(`[PRODUCTION READY] Portal backend listener e
     "col_year VARCHAR(10) NULL",
     "col_honors VARCHAR(255) NULL",
     "scholastic_notes TEXT NULL",
+    "school_year VARCHAR(20) NULL",
   ];
   for (const colDef of siCols) {
     const colName = colDef.split(" ")[0];

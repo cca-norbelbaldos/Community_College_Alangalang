@@ -179,6 +179,7 @@ function StudentInfoPanel({ courses, API, onRefresh, activeSchoolYear }) {
         hs_school:   form.hs_school,   hs_address:   form.hs_address,   hs_year:   form.hs_year,   hs_honors:   form.hs_honors,
         col_school:  form.col_school,  col_address:  form.col_address,  col_year:  form.col_year,  col_honors:  form.col_honors,
         scholastic_notes: form.scholastic_notes,
+        school_year: form.school_year,
       };
       const res = await fetch(`${API}/api/erd/students`, {
         method: "POST",
@@ -742,8 +743,9 @@ export default function Registrar({ user = {} }) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // Preserve ALL existing student fields — only override what the form changed
-          ...selectedEnrollStudent,
+          // Send ONLY the fields this form edits. Spreading the whole (possibly
+          // stale) student object here used to overwrite newer edits made in the
+          // Student Information Sheet, so saved details appeared to revert.
           first_name: enrollRegForm.first_name,
           middle_name: enrollRegForm.middle_name,
           last_name: enrollRegForm.last_name,
