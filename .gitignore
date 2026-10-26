@@ -29,3 +29,6 @@ cca-backend/.env.*
 *.njsproj
 *.sln
 *.sw?
+
+# Local backup copies
+*.bak*
